@@ -3,6 +3,7 @@
 FastAPI stock-risk dashboard for Taiwan and US stocks.
 
 Users can enter symbols such as `2330`, `2330.TW`, `6488.TWO`, `AAPL`, `NVDA`, and `TSLA`. The app fetches price data, calculates technical indicators, reads RSS finance news, and returns a dashboard with candlesticks, support/resistance, risk score, news sentiment, and intraday/short-term/long-term suitability.
+https://stock-risk-radar.onrender.com/#
 
 ## Features
 
