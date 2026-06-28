@@ -92,6 +92,32 @@ def market_context() -> dict[str, Any]:
     }
 
 
+@app.get("/api/quote")
+def quote(symbol: str = Query(..., min_length=1, max_length=32)) -> dict[str, Any]:
+    raw_symbol = symbol.strip().upper()
+    normalized, market = normalize_symbol(raw_symbol)
+    candidates = candidate_symbols(normalized, raw_symbol)
+    for candidate in candidates:
+        intraday = fetch_price_history(candidate, "1d", "5m")
+        if intraday.empty:
+            intraday = fetch_price_history(candidate, "5d", "1d")
+        if not intraday.empty and len(intraday) >= 2:
+            data = normalize_columns(intraday)
+            latest = data.iloc[-1]
+            previous = data.iloc[-2]
+            return {
+                "ok": True,
+                "symbol": candidate,
+                "market": market,
+                "date": data.index[-1].strftime("%Y-%m-%d %H:%M"),
+                "price": number(latest["Close"]),
+                "change": number(latest["Close"] - previous["Close"]),
+                "change_pct": number((latest["Close"] / previous["Close"] - 1) * 100) if previous["Close"] else 0,
+                "source": "1d/5m" if len(intraday) > 10 else "5d/1d",
+            }
+    raise HTTPException(status_code=404, detail="No quote data found.")
+
+
 @app.get("/api/analyze")
 def analyze(
     symbol: str = Query(..., min_length=1, max_length=32),

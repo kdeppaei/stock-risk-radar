@@ -39,6 +39,8 @@
     .card, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
     .card { padding: 14px; min-height: 86px; }
     .card strong { font-size: 22px; white-space: nowrap; }
+    .card.flash-up, .status.flash-up { border-color: var(--green); box-shadow: 0 0 0 2px rgba(34,197,94,.22); animation: blinkUp 1s ease-in-out 2; }
+    .card.flash-down, .status.flash-down { border-color: var(--red); box-shadow: 0 0 0 2px rgba(239,68,68,.22); animation: blinkDown 1s ease-in-out 2; }
     .main { grid-template-columns: minmax(0, 1fr) 390px; }
     .panel { padding: 16px; min-width: 0; }
     .chart-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 12px; }
@@ -128,8 +130,8 @@
 
     <section class="cards">
       <article class="card"><span data-i18n="symbol">股票代號</span><strong id="ticker">-</strong></article>
-      <article class="card"><span data-i18n="close">收盤/最新</span><strong id="price">-</strong></article>
-      <article class="card"><span data-i18n="change">漲跌</span><strong id="change">-</strong></article>
+      <article class="card" id="priceCard"><span data-i18n="close">收盤/最新</span><strong id="price">-</strong></article>
+      <article class="card" id="changeCard"><span data-i18n="change">漲跌</span><strong id="change">-</strong></article>
       <article class="card"><span data-i18n="risk">風險</span><strong id="risk">-</strong></article>
       <article class="card"><span data-i18n="trend">趨勢</span><strong id="trend">-</strong></article>
     </section>
@@ -206,6 +208,7 @@
     let watch = JSON.parse(localStorage.getItem("srr.watch") || "[]");
     let watchState = JSON.parse(localStorage.getItem("srr.watchState") || "{}");
     let autoRefresh = true;
+    let lastQuotePrice = null;
 
     const dict = {
       "zh-tw": {
@@ -218,7 +221,7 @@
         twTime: "台灣時間", usTime: "美東時間", fx: "USD/TWD", macroMood: "總經氣氛",
         periodHelpTitle: "Today / Day / Week 是什麼", refreshHelpTitle: "動態追蹤",
         periodHelp: "Today=當日 5 分鐘線，適合看盤中變化；Day=每日 K 線，適合看波段；Week=每週 K 線，適合看長線大方向。",
-        refreshHelp: "頁面開著時會每 60 秒重抓目前股票與關注清單；Today 模式會把新 5 分鐘線接到圖上。",
+        refreshHelp: "頁面開著時時間每秒跳動，股價每 10 秒輪詢；Today 模式每 30 秒補新的 5 分鐘線。",
         chartHint: "點擊 K 線圖可開啟 Google Finance；BUY 是條件式參考訊號。",
         scoreHelp: "括弧內數字是 0-100 分適合度：70 以上較適合，50-69 觀察，低於 50 先避開。",
         marketTW: "台股：漲紅跌綠", marketUS: "美股：漲綠跌紅", noWatch: "尚未加入關注股票",
@@ -238,7 +241,7 @@
         twTime: "台湾时间", usTime: "美东时间", fx: "USD/TWD", macroMood: "总经气氛",
         periodHelpTitle: "Today / Day / Week 是什么", refreshHelpTitle: "动态追踪",
         periodHelp: "Today=当日5分钟线，适合看盘中变化；Day=每日K线，适合看波段；Week=每周K线，适合看长线方向。",
-        refreshHelp: "页面开着时会每60秒重抓目前股票与关注清单；Today模式会把新的5分钟线接到图上。",
+        refreshHelp: "页面开着时时间每秒跳动，股价每10秒轮询；Today模式每30秒补新的5分钟线。",
         chartHint: "点击K线图可开启 Google Finance；BUY 是条件式参考信号。",
         scoreHelp: "括号内数字是0-100分适合度：70以上较适合，50-69观察，低于50先避开。",
         marketTW: "台股：涨红跌绿", marketUS: "美股：涨绿跌红", noWatch: "尚未加入关注股票",
@@ -258,7 +261,7 @@
         twTime: "Taiwan Time", usTime: "US Eastern", fx: "USD/TWD", macroMood: "Macro Mood",
         periodHelpTitle: "What Today / Day / Week Mean", refreshHelpTitle: "Live Tracking",
         periodHelp: "Today uses 5-minute candles for intraday tracking. Day uses daily candles for swing analysis. Week uses weekly candles for long-term direction.",
-        refreshHelp: "While the page is open, the app refreshes the current symbol and watchlist every 60 seconds. Today mode appends fresh 5-minute action.",
+        refreshHelp: "While the page is open, clocks tick every second, quotes poll every 10 seconds, and Today mode refreshes 5-minute candles every 30 seconds.",
         chartHint: "Click the candle chart to open Google Finance. BUY markers are conditional reference signals.",
         scoreHelp: "Numbers in brackets are 0-100 suitability scores: 70+ suitable, 50-69 watch, below 50 avoid.",
         marketTW: "Taiwan: up red / down green", marketUS: "US: up green / down red", noWatch: "No watched symbols yet",
@@ -308,10 +311,8 @@
       try {
         const res = await fetch("/api/market-context");
         const data = await res.json();
-        $("twTime").textContent = data.taipei_time;
-        $("usTime").textContent = data.new_york_time;
-        $("fxRate").textContent = data.usd_twd.price ? `${fmt(data.usd_twd.price)} (${signed(data.usd_twd.change_pct, "%")})` : "-";
-        $("macroMood").textContent = t(data.macro.label);
+      $("fxRate").textContent = data.usd_twd.price ? `${fmt(data.usd_twd.price)} (${signed(data.usd_twd.change_pct, "%")})` : "-";
+      $("macroMood").textContent = t(data.macro.label);
       } catch {}
     }
 
@@ -351,6 +352,45 @@
       renderChart(data);
       $("refreshMeta").textContent = `${t("updated")} ${new Date().toLocaleTimeString()}`;
       if (!watch.includes(data.symbol)) renderWatchlist();
+    }
+
+    async function refreshQuote() {
+      if (!autoRefresh || !lastData) return;
+      try {
+        const res = await fetch(`/api/quote?symbol=${encodeURIComponent(lastData.symbol)}`);
+        const quote = await res.json();
+        if (!res.ok || !quote.ok) return;
+        const previous = lastQuotePrice;
+        lastQuotePrice = quote.price;
+        $("price").textContent = fmt(quote.price);
+        $("change").textContent = `${arrow(quote.change_pct)} ${signed(quote.change_pct, "%")}`;
+        $("change").className = quote.change_pct >= 0 ? (quote.market === "TW" ? "tw-up" : "up") : (quote.market === "TW" ? "tw-down" : "down");
+        $("liveMeta").textContent = `${quote.symbol} · ${quote.date} · ${fmt(quote.price)} · ${signed(quote.change_pct, "%")} · ${quote.source}`;
+        $("refreshMeta").textContent = `${t("updated")} ${new Date().toLocaleTimeString()}`;
+        if (previous !== null && Math.abs(previous - quote.price) > 0.0001) flashQuote(quote.price >= previous ? "up" : "down");
+      } catch {}
+    }
+
+    function flashQuote(direction) {
+      for (const id of ["priceCard", "changeCard"]) {
+        const el = $(id);
+        el.classList.remove("flash-up", "flash-down");
+        void el.offsetWidth;
+        el.classList.add(direction === "up" ? "flash-up" : "flash-down");
+      }
+    }
+
+    function tickClocks() {
+      const now = new Date();
+      $("twTime").textContent = formatZone(now, "Asia/Taipei");
+      $("usTime").textContent = formatZone(now, "America/New_York");
+    }
+
+    function formatZone(date, timeZone) {
+      return new Intl.DateTimeFormat(lang === "en" ? "en-US" : "zh-TW", {
+        timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+      }).format(date).replace(/\//g, "-");
     }
 
     function plainSummary(data) {
@@ -464,8 +504,12 @@
     function arrow(n) { return Number(n || 0) >= 0 ? "▲" : "▼"; }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
 
-    applyLang(); renderWatchlist(); loadContext(); analyze($("symbol").value); refreshWatchlist();
-    setInterval(() => { loadContext(); if (autoRefresh && lastData) analyze(lastData.symbol, true); if (autoRefresh) refreshWatchlist(); }, 60000);
+    applyLang(); renderWatchlist(); tickClocks(); loadContext(); analyze($("symbol").value); refreshWatchlist();
+    setInterval(tickClocks, 1000);
+    setInterval(loadContext, 60000);
+    setInterval(refreshQuote, 10000);
+    setInterval(() => { if (autoRefresh && lastData && ($("period").value === "1d" || $("interval").value === "5m")) analyze(lastData.symbol, true); }, 30000);
+    setInterval(() => { if (autoRefresh) refreshWatchlist(); }, 60000);
   </script>
 </body>
 </html>
