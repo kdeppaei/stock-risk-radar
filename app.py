@@ -23,7 +23,7 @@ from fastapi.templating import Jinja2Templates
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "stock_risk_log.sqlite3"
 
-app = FastAPI(title="Stock Risk Radar", version="4.1.0")
+app = FastAPI(title="Stock Risk Radar", version="4.2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -60,6 +60,8 @@ POSITIVE_WORDS = [
     "創高",
     "接單",
     "營收",
+    "法說",
+    "目標價上調",
 ]
 NEGATIVE_WORDS = [
     "miss",
@@ -85,6 +87,8 @@ NEGATIVE_WORDS = [
     "賣壓",
     "庫存",
     "調查",
+    "限制",
+    "目標價下調",
 ]
 
 
@@ -152,8 +156,9 @@ def analyze(
     previous = data.iloc[-2]
     levels = support_resistance(data)
     news = fetch_news(resolved, market)
-    risk = build_risk(latest, previous, levels, news)
+    risk = build_risk(latest, levels, news)
     suitability = build_suitability(latest, risk, news)
+    prediction = build_prediction(data, latest, risk, news)
     chart = build_chart_rows(data.tail(180), market)
 
     response = {
@@ -190,6 +195,7 @@ def analyze(
         "levels": levels,
         "risk": risk,
         "suitability": suitability,
+        "prediction": prediction,
         "news": news,
         "chart": chart,
     }
@@ -216,14 +222,7 @@ def candidate_symbols(normalized: str, raw: str) -> list[str]:
 
 def fetch_price_history(symbol: str, period: str, interval: str) -> pd.DataFrame:
     try:
-        df = yf.download(
-            symbol,
-            period=period,
-            interval=interval,
-            progress=False,
-            auto_adjust=False,
-            threads=False,
-        )
+        df = yf.download(symbol, period=period, interval=interval, progress=False, auto_adjust=False, threads=False)
         if not df.empty:
             return df
     except Exception:
@@ -237,7 +236,7 @@ def fetch_yahoo_chart(symbol: str, period: str, interval: str) -> pd.DataFrame:
         resp = requests.get(
             url,
             params={"range": period, "interval": interval},
-            headers={"User-Agent": "Mozilla/5.0 StockRiskRadar/4.1"},
+            headers={"User-Agent": "Mozilla/5.0 StockRiskRadar/4.2"},
             timeout=20,
         )
         resp.raise_for_status()
@@ -298,11 +297,7 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     prev_close = data["Close"].shift(1)
     tr = pd.concat(
-        [
-            data["High"] - data["Low"],
-            (data["High"] - prev_close).abs(),
-            (data["Low"] - prev_close).abs(),
-        ],
+        [data["High"] - data["Low"], (data["High"] - prev_close).abs(), (data["Low"] - prev_close).abs()],
         axis=1,
     ).max(axis=1)
     data["ATR14"] = tr.rolling(14).mean()
@@ -338,23 +333,12 @@ def fetch_news(symbol: str, market: str) -> dict[str, Any]:
     positive = sum(1 for item in items if int(item["sentiment"]) > 0)
     negative = sum(1 for item in items if int(item["sentiment"]) < 0)
     label = "positive" if total_score >= 2 else "negative" if total_score <= -2 else "neutral"
-    return {
-        "query": query,
-        "label": label,
-        "score": total_score,
-        "positive": positive,
-        "negative": negative,
-        "items": items[:10],
-    }
+    return {"query": query, "label": label, "score": total_score, "positive": positive, "negative": negative, "items": items[:10]}
 
 
 def fetch_feed(url: str, source: str) -> list[dict[str, Any]]:
     try:
-        resp = requests.get(
-            url,
-            headers={"User-Agent": "Mozilla/5.0 StockRiskRadar/4.1"},
-            timeout=10,
-        )
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0 StockRiskRadar/4.2"}, timeout=10)
         resp.raise_for_status()
         feed = feedparser.parse(resp.content)
         rows = []
@@ -399,7 +383,7 @@ def support_resistance(data: pd.DataFrame) -> dict[str, float]:
     }
 
 
-def build_risk(latest: pd.Series, previous: pd.Series, levels: dict[str, float], news: dict[str, Any]) -> dict[str, Any]:
+def build_risk(latest: pd.Series, levels: dict[str, float], news: dict[str, Any]) -> dict[str, Any]:
     close = float(latest["Close"])
     ma20 = float(latest["MA20"])
     ma60 = float(latest["MA60"])
@@ -483,6 +467,60 @@ def build_suitability(latest: pd.Series, risk: dict[str, Any], news: dict[str, A
 def suitability_label(score: float, reason: str) -> dict[str, Any]:
     label = "suitable" if score >= 70 else "watch" if score >= 50 else "avoid"
     return {"score": number(score), "label": label, "reason": reason}
+
+
+def build_prediction(data: pd.DataFrame, latest: pd.Series, risk: dict[str, Any], news: dict[str, Any]) -> dict[str, Any]:
+    recent = data.dropna(subset=["Close"]).tail(60)
+    closes = recent["Close"].astype(float).to_numpy()
+    if len(closes) < 20:
+        return {
+            "model": "OLS linear trend + momentum",
+            "bias": "neutral",
+            "confidence": 0,
+            "forecast_5d_pct": 0,
+            "forecast_20d_pct": 0,
+            "advice": "Not enough data for a useful forecast.",
+            "drivers": [],
+        }
+
+    x = np.arange(len(closes), dtype=float)
+    slope, intercept = np.polyfit(x, closes, 1)
+    fitted = slope * x + intercept
+    residual = closes - fitted
+    r2_den = float(np.sum((closes - closes.mean()) ** 2))
+    r2 = 0 if r2_den == 0 else 1 - float(np.sum(residual**2)) / r2_den
+    last_close = float(closes[-1])
+    forecast_5 = float((slope * (len(closes) + 4) + intercept) / last_close - 1) * 100
+    forecast_20 = float((slope * (len(closes) + 19) + intercept) / last_close - 1) * 100
+
+    momentum_5 = float(latest["RET5"] or 0) * 100
+    momentum_20 = float(latest["RET20"] or 0) * 100
+    macd_edge = float(latest["MACD"] or 0) - float(latest["MACD_SIGNAL"] or 0)
+    news_edge = 1 if news["label"] == "positive" else -1 if news["label"] == "negative" else 0
+    composite = forecast_20 * 0.45 + momentum_20 * 0.25 + momentum_5 * 0.15 + (5 if macd_edge > 0 else -5) * 0.1 + news_edge * 4
+
+    bias = "bullish" if composite >= 4 else "bearish" if composite <= -4 else "neutral"
+    confidence = int(max(5, min(92, abs(composite) * 8 + max(0, r2) * 35 - int(risk["score"]) * 0.15)))
+    drivers = [
+        f"60-day OLS slope implies {number(forecast_20)}% over 20 sessions.",
+        f"5-day momentum is {number(momentum_5)}%; 20-day momentum is {number(momentum_20)}%.",
+        "MACD is above signal." if macd_edge > 0 else "MACD is below signal.",
+        f"News sentiment is {news['label']}.",
+    ]
+    advice = {
+        "bullish": "Short-term entries are better after pullbacks; long-term view is constructive if price holds MA20/MA60.",
+        "bearish": "Avoid chasing. Favor risk control, wait for price to reclaim MA20 or for selling pressure to fade.",
+        "neutral": "Range-bound setup. Use support/resistance levels rather than directional conviction.",
+    }[bias]
+    return {
+        "model": "OLS linear trend + momentum",
+        "bias": bias,
+        "confidence": confidence,
+        "forecast_5d_pct": number(forecast_5),
+        "forecast_20d_pct": number(forecast_20),
+        "advice": advice,
+        "drivers": drivers,
+    }
 
 
 def build_chart_rows(data: pd.DataFrame, market: str) -> list[dict[str, Any]]:

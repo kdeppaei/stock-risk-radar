@@ -20,33 +20,52 @@
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); }
-    .wrap { width: min(1280px, calc(100% - 28px)); margin: 0 auto; padding: 22px 0; }
-    header { display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 16px; }
+    .wrap { width: min(1440px, calc(100% - 28px)); margin: 0 auto; padding: 22px 0; }
+    header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: end; margin-bottom: 16px; }
     h1, h2, h3, p { margin: 0; letter-spacing: 0; }
     h1 { font-size: 30px; }
+    h2 { font-size: 17px; }
     .sub { margin-top: 6px; color: var(--muted); line-height: 1.5; }
-    .search { display: flex; gap: 8px; align-items: center; }
-    input, select, button { height: 42px; border-radius: 7px; border: 1px solid var(--line); font: inherit; }
+    .controls { display: grid; gap: 8px; justify-items: end; }
+    .search, .langbar, .quickbar, .chart-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    input, select, button, a.button {
+      height: 42px;
+      border-radius: 7px;
+      border: 1px solid var(--line);
+      font: inherit;
+    }
     input, select { background: #0f172f; color: var(--text); padding: 0 12px; }
     input { width: 190px; }
-    button { background: #3b82f6; color: white; border-color: #3b82f6; padding: 0 16px; cursor: pointer; }
+    button, a.button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #3b82f6;
+      color: white;
+      border-color: #3b82f6;
+      padding: 0 14px;
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    button.secondary, a.secondary { background: var(--card); border-color: var(--line); color: var(--text); }
     button:disabled { opacity: .6; cursor: wait; }
     .cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
     .card, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
     .card { padding: 14px; min-height: 86px; }
     .card span { display: block; color: var(--muted); font-size: 12px; }
     .card strong { display: block; margin-top: 7px; font-size: 22px; white-space: nowrap; }
-    .main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; }
+    .main { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 16px; }
     .panel { padding: 16px; min-width: 0; }
     .chart-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 12px; }
     canvas { display: block; width: 100%; height: 540px; background: #0f172f; border: 1px solid var(--line); border-radius: 6px; }
     .side { display: grid; gap: 14px; align-content: start; }
     .summary { margin-top: 10px; line-height: 1.65; color: #d7e3ff; }
     .riskbar { height: 10px; background: #0f172f; border-radius: 999px; overflow: hidden; margin-top: 12px; }
-    .riskbar div { height: 100%; width: 0; background: var(--green); }
+    .riskbar div { height: 100%; width: 0; background: var(--green); transition: width .3s ease; }
     .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
     .kvgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 12px; }
-    .kv, .news { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
+    .kv, .news, .watch-item, .quote-row { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
     .kv span { display: block; color: var(--muted); font-size: 12px; }
     .kv strong { display: block; margin-top: 4px; font-size: 15px; }
     .tag { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 9px; border-radius: 999px; background: var(--card); color: var(--muted); font-size: 12px; }
@@ -56,8 +75,34 @@
     .news a:hover { color: var(--blue); }
     .muted { color: var(--muted); font-size: 12px; }
     .up { color: var(--green); } .down { color: var(--red); } .tw-up { color: var(--red); } .tw-down { color: var(--green); }
-    @media (max-width: 1060px) { header, .main, .grid { grid-template-columns: 1fr; display: grid; } .cards { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 620px) { .wrap { width: min(100% - 18px, 1280px); } .search { flex-direction: column; align-items: stretch; } input, select, button { width: 100%; } .cards, .kvgrid { grid-template-columns: 1fr; } canvas { height: 430px; } }
+    .quote-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; margin-top: 12px; }
+    .watchlist { display: grid; gap: 8px; margin-top: 12px; }
+    .watch-item {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+      cursor: pointer;
+      transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+    }
+    .watch-item strong { display: block; }
+    .watch-item small { color: var(--muted); }
+    .watch-item.flash-up { border-color: var(--green); box-shadow: 0 0 0 2px rgba(34,197,94,.22); animation: blinkUp 1s ease-in-out 3; }
+    .watch-item.flash-down { border-color: var(--red); box-shadow: 0 0 0 2px rgba(239,68,68,.22); animation: blinkDown 1s ease-in-out 3; }
+    .arrow { font-size: 20px; font-weight: 800; }
+    .remove { width: 32px; height: 32px; padding: 0; background: transparent; border-color: var(--line); color: var(--muted); }
+    @keyframes blinkUp { 50% { background: rgba(34,197,94,.18); } }
+    @keyframes blinkDown { 50% { background: rgba(239,68,68,.18); } }
+    @media (max-width: 1120px) { header, .main, .grid { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 640px) {
+      .wrap { width: min(100% - 18px, 1440px); }
+      .search, .langbar, .quickbar, .chart-actions { display: grid; grid-template-columns: 1fr 1fr; }
+      input, select, button, a.button { width: 100%; }
+      .cards, .kvgrid { grid-template-columns: 1fr; }
+      canvas { height: 430px; }
+      .watch-item { grid-template-columns: 1fr auto; }
+      .remove { grid-column: 2; }
+    }
   </style>
 </head>
 <body>
@@ -65,58 +110,88 @@
     <header>
       <div>
         <h1>Stock Risk Radar</h1>
-        <p class="sub">輸入美股或台股代號，快速整理股價、K 線、新聞情緒、風險、壓力支撐與交易週期適合度。</p>
+        <p class="sub" data-i18n="subtitle">輸入美股或台股代號，快速整理股價、K 線、新聞情緒、風險、壓力支撐與交易週期適合度。</p>
       </div>
-      <form id="form" class="search">
-        <input id="symbol" value="2330" autocomplete="off" />
-        <select id="period">
-          <option value="6mo">6M</option>
-          <option value="1y" selected>1Y</option>
-          <option value="2y">2Y</option>
-          <option value="5y">5Y</option>
-        </select>
-        <select id="interval">
-          <option value="1d" selected>Day</option>
-          <option value="1wk">Week</option>
-        </select>
-        <button id="runBtn" type="submit">Analyze</button>
-      </form>
+      <div class="controls">
+        <div class="langbar">
+          <button class="secondary" type="button" data-lang="zh-tw">繁體</button>
+          <button class="secondary" type="button" data-lang="zh-cn">简体</button>
+          <button class="secondary" type="button" data-lang="en">English</button>
+        </div>
+        <form id="form" class="search">
+          <input id="symbol" value="2330" autocomplete="off" />
+          <select id="period">
+            <option value="6mo">6M</option>
+            <option value="1y" selected>1Y</option>
+            <option value="2y">2Y</option>
+            <option value="5y">5Y</option>
+          </select>
+          <select id="interval">
+            <option value="1d">Day</option>
+            <option value="1wk">Week</option>
+          </select>
+          <button id="runBtn" type="submit" data-i18n="analyze">分析</button>
+          <button id="addWatchBtn" type="button" class="secondary" data-i18n="addWatch">加入關注</button>
+        </form>
+      </div>
     </header>
 
     <section class="cards">
-      <article class="card"><span>Symbol</span><strong id="ticker">-</strong></article>
-      <article class="card"><span>Close</span><strong id="price">-</strong></article>
-      <article class="card"><span>Change</span><strong id="change">-</strong></article>
-      <article class="card"><span>Risk</span><strong id="risk">-</strong></article>
-      <article class="card"><span>Trend</span><strong id="trend">-</strong></article>
+      <article class="card"><span data-i18n="symbol">股票代號</span><strong id="ticker">-</strong></article>
+      <article class="card"><span data-i18n="close">收盤價</span><strong id="price">-</strong></article>
+      <article class="card"><span data-i18n="change">漲跌</span><strong id="change">-</strong></article>
+      <article class="card"><span data-i18n="risk">風險</span><strong id="risk">-</strong></article>
+      <article class="card"><span data-i18n="trend">趨勢</span><strong id="trend">-</strong></article>
     </section>
 
     <section class="main">
       <article class="panel">
         <div class="chart-head">
-          <h2>K 線 / MA5 / MA20 / MA60 / Volume</h2>
+          <h2 data-i18n="chartTitle">K 線 / MA5 / MA20 / MA60 / Volume</h2>
           <span class="tag" id="market">-</span>
+        </div>
+        <div class="chart-actions">
+          <a id="googleLink" class="button secondary" href="#" target="_blank" rel="noreferrer">Google Finance</a>
+          <a id="yahooLink" class="button secondary" href="#" target="_blank" rel="noreferrer">Yahoo</a>
+          <a id="tradingViewLink" class="button secondary" href="#" target="_blank" rel="noreferrer">TradingView</a>
+        </div>
+        <div class="quote-row">
+          <div>
+            <strong id="liveTitle" data-i18n="liveSnapshot">站內即時摘要</strong>
+            <div class="muted" id="liveMeta">-</div>
+          </div>
+          <span class="tag" id="predictionBadge">-</span>
         </div>
         <canvas id="chart"></canvas>
       </article>
+
       <aside class="side">
         <article class="panel">
-          <h2>Summary</h2>
-          <p class="summary" id="summary">Loading...</p>
+          <h2 data-i18n="summary">總結</h2>
+          <p class="summary" id="summaryText">Loading...</p>
           <div class="riskbar"><div id="riskFill"></div></div>
         </article>
         <article class="panel">
-          <h2>Playbook</h2>
+          <h2 data-i18n="watchlist">關注清單</h2>
+          <div class="quickbar">
+            <button class="secondary" type="button" onclick="quick('2330')">2330</button>
+            <button class="secondary" type="button" onclick="quick('NVDA')">NVDA</button>
+            <button class="secondary" type="button" onclick="quick('TSLA')">TSLA</button>
+          </div>
+          <div id="watchlist" class="watchlist"></div>
+        </article>
+        <article class="panel">
+          <h2 data-i18n="playbook">交易劇本</h2>
           <div class="kvgrid" id="playbook"></div>
         </article>
       </aside>
     </section>
 
     <section class="grid">
-      <article class="panel"><h2>Technical</h2><div class="kvgrid" id="technical"></div></article>
-      <article class="panel"><h2>Levels</h2><div class="kvgrid" id="levels"></div></article>
-      <article class="panel"><h2>Suitability</h2><div class="kvgrid" id="suitability"></div></article>
-      <article class="panel"><h2>News</h2><div id="news"></div></article>
+      <article class="panel"><h2 data-i18n="technical">技術指標</h2><div class="kvgrid" id="technical"></div></article>
+      <article class="panel"><h2 data-i18n="levels">壓力支撐</h2><div class="kvgrid" id="levels"></div></article>
+      <article class="panel"><h2 data-i18n="suitability">短中長建議</h2><div class="kvgrid" id="suitability"></div></article>
+      <article class="panel"><h2 data-i18n="news">利多 / 利空</h2><div id="newsBox"></div></article>
     </section>
   </main>
 
@@ -125,75 +200,211 @@
     const canvas = $("chart");
     const ctx = canvas.getContext("2d");
     let lastData = null;
+    let lang = localStorage.getItem("srr.lang") || "zh-tw";
+    let watch = JSON.parse(localStorage.getItem("srr.watch") || "[]");
+    let watchState = JSON.parse(localStorage.getItem("srr.watchState") || "{}");
 
+    const dict = {
+      "zh-tw": {
+        subtitle: "輸入美股或台股代號，快速整理股價、K 線、新聞情緒、風險、壓力支撐與交易週期適合度。",
+        analyze: "分析", addWatch: "加入關注", symbol: "股票代號", close: "收盤價", change: "漲跌",
+        risk: "風險", trend: "趨勢", chartTitle: "K 線 / MA5 / MA20 / MA60 / Volume",
+        liveSnapshot: "站內即時摘要", summary: "總結", watchlist: "關注清單", playbook: "交易劇本",
+        technical: "技術指標", levels: "壓力支撐", suitability: "短中長建議", news: "利多 / 利空",
+        marketTW: "台股：漲紅跌綠", marketUS: "美股：漲綠跌紅", noWatch: "尚未加入關注股票",
+        bullish: "偏多", bearish: "偏空", neutral: "中性", sideways: "盤整",
+        suitable: "適合", watch: "觀察", avoid: "避開", positive: "利多", negative: "利空", neutralNews: "中性",
+        trigger: "突破觀察", pressure: "壓力區", backtest: "回測區", stop: "停損參考",
+        intraday: "當沖", short: "短期", long: "長期", forecast5: "5 日預測", forecast20: "20 日預測",
+        confidence: "信心", model: "模型", advice: "建議"
+      },
+      "zh-cn": {
+        subtitle: "输入美股或台股代码，快速整理股价、K线、新闻情绪、风险、压力支撑与交易周期适合度。",
+        analyze: "分析", addWatch: "加入关注", symbol: "股票代码", close: "收盘价", change: "涨跌",
+        risk: "风险", trend: "趋势", chartTitle: "K线 / MA5 / MA20 / MA60 / Volume",
+        liveSnapshot: "站内即时摘要", summary: "总结", watchlist: "关注清单", playbook: "交易剧本",
+        technical: "技术指标", levels: "压力支撑", suitability: "短中长建议", news: "利多 / 利空",
+        marketTW: "台股：涨红跌绿", marketUS: "美股：涨绿跌红", noWatch: "尚未加入关注股票",
+        bullish: "偏多", bearish: "偏空", neutral: "中性", sideways: "盘整",
+        suitable: "适合", watch: "观察", avoid: "避开", positive: "利多", negative: "利空", neutralNews: "中性",
+        trigger: "突破观察", pressure: "压力区", backtest: "回测区", stop: "止损参考",
+        intraday: "当冲", short: "短期", long: "长期", forecast5: "5日预测", forecast20: "20日预测",
+        confidence: "信心", model: "模型", advice: "建议"
+      },
+      en: {
+        subtitle: "Enter a US or Taiwan ticker to review price action, candles, news sentiment, risk, support/resistance and trading suitability.",
+        analyze: "Analyze", addWatch: "Watch", symbol: "Symbol", close: "Close", change: "Change",
+        risk: "Risk", trend: "Trend", chartTitle: "Candles / MA5 / MA20 / MA60 / Volume",
+        liveSnapshot: "Live Snapshot", summary: "Summary", watchlist: "Watchlist", playbook: "Playbook",
+        technical: "Technical", levels: "Levels", suitability: "Suitability", news: "Bullish / Bearish",
+        marketTW: "Taiwan: up red / down green", marketUS: "US: up green / down red", noWatch: "No watched symbols yet",
+        bullish: "Bullish", bearish: "Bearish", neutral: "Neutral", sideways: "Sideways",
+        suitable: "Suitable", watch: "Watch", avoid: "Avoid", positive: "Bullish", negative: "Bearish", neutralNews: "Neutral",
+        trigger: "Breakout", pressure: "Pressure", backtest: "Backtest", stop: "Stop ref",
+        intraday: "Intraday", short: "Short", long: "Long", forecast5: "5D forecast", forecast20: "20D forecast",
+        confidence: "Confidence", model: "Model", advice: "Advice"
+      }
+    };
+    const t = (key) => (dict[lang] && dict[lang][key]) || dict.en[key] || key;
+
+    document.querySelectorAll("[data-lang]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        lang = btn.dataset.lang;
+        localStorage.setItem("srr.lang", lang);
+        applyLang();
+        if (lastData) render(lastData);
+        renderWatchlist();
+      });
+    });
     $("form").addEventListener("submit", (event) => {
       event.preventDefault();
-      analyze();
+      analyze($("symbol").value.trim() || "2330");
     });
+    $("addWatchBtn").addEventListener("click", () => addWatch(lastData?.symbol || $("symbol").value.trim()));
     window.addEventListener("resize", () => renderChart(lastData));
 
-    async function analyze() {
+    function applyLang() {
+      document.documentElement.lang = lang === "en" ? "en" : lang === "zh-cn" ? "zh-Hans" : "zh-Hant";
+      document.querySelectorAll("[data-i18n]").forEach((el) => el.textContent = t(el.dataset.i18n));
+    }
+
+    async function analyze(symbol) {
       const button = $("runBtn");
       button.disabled = true;
       button.textContent = "Loading";
+      $("symbol").value = symbol;
       try {
-        const qs = new URLSearchParams({
-          symbol: $("symbol").value.trim() || "2330",
-          period: $("period").value,
-          interval: $("interval").value
-        });
+        const qs = new URLSearchParams({ symbol, period: $("period").value, interval: $("interval").value });
         const res = await fetch(`/api/analyze?${qs}`);
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.detail || "Analyze failed");
         render(data);
       } catch (error) {
-        $("summary").textContent = error.message;
+        $("summaryText").textContent = error.message;
       } finally {
         button.disabled = false;
-        button.textContent = "Analyze";
+        button.textContent = t("analyze");
       }
     }
+
+    function quick(symbol) { analyze(symbol); }
 
     function render(data) {
       lastData = data;
       const isTW = data.market === "TW";
       $("ticker").textContent = data.symbol;
       $("price").textContent = fmt(data.latest.close);
-      $("change").textContent = signed(data.change.pct, "%");
+      $("change").textContent = `${arrow(data.change.pct)} ${signed(data.change.pct, "%")}`;
       $("change").className = data.change.pct >= 0 ? (isTW ? "tw-up" : "up") : (isTW ? "tw-down" : "down");
       $("risk").textContent = `${data.risk.score}/100`;
-      $("trend").textContent = data.risk.trend;
-      $("market").textContent = isTW ? "Taiwan: up red / down green" : "US: up green / down red";
-      $("summary").textContent = data.risk.summary;
+      $("trend").textContent = label(data.risk.trend);
+      $("market").textContent = isTW ? t("marketTW") : t("marketUS");
+      $("summaryText").textContent = data.risk.summary;
       $("riskFill").style.width = `${data.risk.score}%`;
       $("riskFill").style.background = data.risk.score >= 70 ? "var(--red)" : data.risk.score >= 40 ? "var(--amber)" : "var(--green)";
+      $("liveMeta").textContent = `${data.symbol} · ${data.latest.date} · ${fmt(data.latest.close)} · ${signed(data.change.pct, "%")}`;
+      $("predictionBadge").textContent = `${label(data.prediction.bias)} · ${t("confidence")} ${data.prediction.confidence}%`;
+      updateLinks(data);
+
       kv("technical", {
         MA5: data.technical.ma5, MA20: data.technical.ma20, MA60: data.technical.ma60,
         RSI: data.technical.rsi14, MACD: data.technical.macd, "MACD Signal": data.technical.macd_signal,
         "ATR %": `${fmt(data.technical.atr_pct)}%`, "Volume Ratio": data.technical.volume_ratio
       });
       kv("levels", {
-        "60D Support": data.levels.support_60d, "60D Resistance": data.levels.resistance_60d,
-        "Breakout Call": data.levels.breakout_call, "Backtest Zone": data.levels.backtest_zone,
-        "Stop Loss Ref": data.levels.stop_loss_reference
+        [t("trigger")]: data.levels.breakout_call,
+        [t("pressure")]: data.levels.resistance_60d,
+        [t("backtest")]: data.levels.backtest_zone,
+        [t("stop")]: data.levels.stop_loss_reference
       });
       kv("suitability", {
-        Intraday: `${data.suitability.intraday.label} (${fmt(data.suitability.intraday.score)})`,
-        Short: `${data.suitability.short_term.label} (${fmt(data.suitability.short_term.score)})`,
-        Long: `${data.suitability.long_term.label} (${fmt(data.suitability.long_term.score)})`,
-        "1D Return": signed(data.technical.ret1_pct, "%"),
-        "5D Return": signed(data.technical.ret5_pct, "%"),
-        "20D Return": signed(data.technical.ret20_pct, "%")
+        [t("intraday")]: `${label(data.suitability.intraday.label)} (${fmt(data.suitability.intraday.score)})`,
+        [t("short")]: `${label(data.suitability.short_term.label)} (${fmt(data.suitability.short_term.score)})`,
+        [t("long")]: `${label(data.suitability.long_term.label)} (${fmt(data.suitability.long_term.score)})`,
+        [t("forecast5")]: signed(data.prediction.forecast_5d_pct, "%"),
+        [t("forecast20")]: signed(data.prediction.forecast_20d_pct, "%"),
+        [t("advice")]: data.prediction.advice
       });
       kv("playbook", {
-        "Bullish trigger": `Above ${fmt(data.levels.breakout_call)}`,
-        "Pressure area": fmt(data.levels.resistance_60d),
-        "Backtest area": fmt(data.levels.backtest_zone),
-        "Risk control": fmt(data.levels.stop_loss_reference)
+        [t("trigger")]: `> ${fmt(data.levels.breakout_call)}`,
+        [t("pressure")]: fmt(data.levels.resistance_60d),
+        [t("backtest")]: fmt(data.levels.backtest_zone),
+        [t("model")]: data.prediction.model
       });
-      $("news").innerHTML = `<span class="tag ${data.news.label === "positive" ? "good" : data.news.label === "negative" ? "bad" : "warn"}">${data.news.label} · +${data.news.positive} / -${data.news.negative}</span>` +
+      $("newsBox").innerHTML = `<span class="tag ${data.news.label === "positive" ? "good" : data.news.label === "negative" ? "bad" : "warn"}">${label(data.news.label)} · +${data.news.positive} / -${data.news.negative}</span>` +
         data.news.items.map((n) => `<div class="news"><a href="${n.link}" target="_blank" rel="noreferrer">${escapeHtml(n.title)}</a><div class="muted">${n.source} · ${n.published || ""} · score ${n.sentiment}</div></div>`).join("");
       renderChart(data);
+      if (!watch.includes(data.symbol)) renderWatchlist();
+    }
+
+    function updateLinks(data) {
+      const plain = data.symbol.replace(".TW", "").replace(".TWO", "");
+      const googleSuffix = data.symbol.endsWith(".TW") ? `${plain}:TPE` : data.symbol.endsWith(".TWO") ? `${plain}:TWO` : `${plain}:NASDAQ`;
+      $("googleLink").href = `https://www.google.com/finance/quote/${encodeURIComponent(googleSuffix)}`;
+      $("yahooLink").href = `https://finance.yahoo.com/quote/${encodeURIComponent(data.symbol)}`;
+      $("tradingViewLink").href = `https://www.tradingview.com/search/?query=${encodeURIComponent(data.symbol)}`;
+    }
+
+    function addWatch(symbol) {
+      const clean = (symbol || "").trim().toUpperCase();
+      if (!clean) return;
+      if (!watch.includes(clean)) watch.push(clean);
+      localStorage.setItem("srr.watch", JSON.stringify(watch));
+      renderWatchlist();
+      refreshWatchlist();
+    }
+
+    function removeWatch(symbol, event) {
+      event.stopPropagation();
+      watch = watch.filter((item) => item !== symbol);
+      delete watchState[symbol];
+      localStorage.setItem("srr.watch", JSON.stringify(watch));
+      localStorage.setItem("srr.watchState", JSON.stringify(watchState));
+      renderWatchlist();
+    }
+
+    function renderWatchlist(rows = null) {
+      const box = $("watchlist");
+      const list = rows || watch.map((symbol) => ({ symbol, state: watchState[symbol] || null }));
+      if (!list.length) {
+        box.innerHTML = `<div class="muted">${t("noWatch")}</div>`;
+        return;
+      }
+      box.innerHTML = list.map(({ symbol, state }) => {
+        const pct = state?.pct ?? 0;
+        const direction = pct >= 0 ? "up" : "down";
+        const cls = state?.flash ? `flash-${direction}` : "";
+        return `<div class="watch-item ${cls}" onclick="quick('${symbol}')">
+          <div><strong>${symbol}</strong><small>${state ? `${fmt(state.price)} · ${signed(pct, "%")}` : "..."}</small></div>
+          <span class="arrow ${direction === "up" ? "up" : "down"}">${arrow(pct)}</span>
+          <button class="remove" type="button" onclick="removeWatch('${symbol}', event)">×</button>
+        </div>`;
+      }).join("");
+    }
+
+    async function refreshWatchlist() {
+      if (!watch.length) return renderWatchlist();
+      const rows = [];
+      for (const symbol of watch) {
+        try {
+          const qs = new URLSearchParams({ symbol, period: "6mo", interval: "1d" });
+          const res = await fetch(`/api/analyze?${qs}`);
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error("fetch failed");
+          const previous = watchState[data.symbol]?.price;
+          const state = {
+            price: data.latest.close,
+            pct: data.change.pct,
+            flash: previous !== undefined && Math.abs(data.latest.close - previous) > 0.0001
+          };
+          watchState[data.symbol] = state;
+          rows.push({ symbol: data.symbol, state });
+        } catch {
+          rows.push({ symbol, state: watchState[symbol] || null });
+        }
+      }
+      localStorage.setItem("srr.watchState", JSON.stringify(watchState));
+      renderWatchlist(rows);
     }
 
     function renderChart(data) {
@@ -247,13 +458,23 @@
       });
       ctx.stroke();
     }
+
     function kv(id, obj) {
       $(id).innerHTML = Object.entries(obj).map(([k, v]) => `<div class="kv"><span>${k}</span><strong>${typeof v === "number" ? fmt(v) : v}</strong></div>`).join("");
     }
-    function fmt(n) { return Number(n || 0).toLocaleString("zh-TW", { maximumFractionDigits: 2 }); }
+    function label(value) {
+      return t(value) || value;
+    }
+    function fmt(n) { return Number(n || 0).toLocaleString(lang === "en" ? "en-US" : "zh-TW", { maximumFractionDigits: 2 }); }
     function signed(n, suffix = "") { return `${Number(n || 0) >= 0 ? "+" : ""}${fmt(n)}${suffix}`; }
+    function arrow(n) { return Number(n || 0) >= 0 ? "▲" : "▼"; }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
-    analyze();
+
+    applyLang();
+    renderWatchlist();
+    analyze($("symbol").value);
+    refreshWatchlist();
+    setInterval(refreshWatchlist, 60000);
   </script>
 </body>
 </html>

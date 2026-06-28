@@ -8,6 +8,7 @@ venv/
 # Local database/logs
 *.sqlite3
 *.db
+local-server-*.log
 
 # OS/editor
 .DS_Store
