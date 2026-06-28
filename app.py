@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean
@@ -35,6 +36,67 @@ NEGATIVE_WORDS = [
     "miss", "downgrade", "loss", "drop", "plunge", "bearish", "weak demand", "sell rating",
     "target cut", "underperform", "lawsuit", "probe", "restriction", "利空", "衰退", "虧損", "下修",
     "賣出", "跌破", "賣壓", "庫存", "調查", "限制", "目標價下調",
+]
+
+STOCK_UNIVERSE = [
+    {"symbol": "NVDA", "name": "NVIDIA", "market": "US", "industry": "Semiconductors", "market_cap_usd": 3800000000000},
+    {"symbol": "AAPL", "name": "Apple", "market": "US", "industry": "Technology", "market_cap_usd": 3200000000000},
+    {"symbol": "MSFT", "name": "Microsoft", "market": "US", "industry": "Technology", "market_cap_usd": 3100000000000},
+    {"symbol": "GOOGL", "name": "Alphabet", "market": "US", "industry": "Communication", "market_cap_usd": 2300000000000},
+    {"symbol": "AMZN", "name": "Amazon", "market": "US", "industry": "Consumer", "market_cap_usd": 2200000000000},
+    {"symbol": "META", "name": "Meta Platforms", "market": "US", "industry": "Communication", "market_cap_usd": 1700000000000},
+    {"symbol": "AVGO", "name": "Broadcom", "market": "US", "industry": "Semiconductors", "market_cap_usd": 1500000000000},
+    {"symbol": "TSLA", "name": "Tesla", "market": "US", "industry": "Automotive", "market_cap_usd": 1100000000000},
+    {"symbol": "BRK-B", "name": "Berkshire Hathaway", "market": "US", "industry": "Financials", "market_cap_usd": 1000000000000},
+    {"symbol": "JPM", "name": "JPMorgan Chase", "market": "US", "industry": "Financials", "market_cap_usd": 750000000000},
+    {"symbol": "LLY", "name": "Eli Lilly", "market": "US", "industry": "Healthcare", "market_cap_usd": 720000000000},
+    {"symbol": "V", "name": "Visa", "market": "US", "industry": "Financials", "market_cap_usd": 650000000000},
+    {"symbol": "MA", "name": "Mastercard", "market": "US", "industry": "Financials", "market_cap_usd": 510000000000},
+    {"symbol": "WMT", "name": "Walmart", "market": "US", "industry": "Retail", "market_cap_usd": 800000000000},
+    {"symbol": "ORCL", "name": "Oracle", "market": "US", "industry": "Technology", "market_cap_usd": 500000000000},
+    {"symbol": "NFLX", "name": "Netflix", "market": "US", "industry": "Communication", "market_cap_usd": 450000000000},
+    {"symbol": "AMD", "name": "Advanced Micro Devices", "market": "US", "industry": "Semiconductors", "market_cap_usd": 330000000000},
+    {"symbol": "MU", "name": "Micron Technology", "market": "US", "industry": "Semiconductors", "market_cap_usd": 170000000000},
+    {"symbol": "QCOM", "name": "Qualcomm", "market": "US", "industry": "Semiconductors", "market_cap_usd": 180000000000},
+    {"symbol": "INTC", "name": "Intel", "market": "US", "industry": "Semiconductors", "market_cap_usd": 130000000000},
+    {"symbol": "SMCI", "name": "Super Micro Computer", "market": "US", "industry": "Technology", "market_cap_usd": 60000000000},
+    {"symbol": "PLTR", "name": "Palantir", "market": "US", "industry": "Technology", "market_cap_usd": 250000000000},
+    {"symbol": "COIN", "name": "Coinbase", "market": "US", "industry": "Financials", "market_cap_usd": 80000000000},
+    {"symbol": "MSTR", "name": "MicroStrategy", "market": "US", "industry": "Technology", "market_cap_usd": 90000000000},
+    {"symbol": "UNH", "name": "UnitedHealth", "market": "US", "industry": "Healthcare", "market_cap_usd": 450000000000},
+    {"symbol": "JNJ", "name": "Johnson & Johnson", "market": "US", "industry": "Healthcare", "market_cap_usd": 390000000000},
+    {"symbol": "XOM", "name": "Exxon Mobil", "market": "US", "industry": "Energy", "market_cap_usd": 500000000000},
+    {"symbol": "CVX", "name": "Chevron", "market": "US", "industry": "Energy", "market_cap_usd": 280000000000},
+    {"symbol": "CAT", "name": "Caterpillar", "market": "US", "industry": "Industrials", "market_cap_usd": 180000000000},
+    {"symbol": "GE", "name": "GE Aerospace", "market": "US", "industry": "Industrials", "market_cap_usd": 270000000000},
+    {"symbol": "2330.TW", "name": "TSMC", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 950000000000},
+    {"symbol": "2317.TW", "name": "Hon Hai", "market": "TW", "industry": "Technology", "market_cap_usd": 95000000000},
+    {"symbol": "2454.TW", "name": "MediaTek", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 75000000000},
+    {"symbol": "2308.TW", "name": "Delta Electronics", "market": "TW", "industry": "Technology", "market_cap_usd": 45000000000},
+    {"symbol": "2382.TW", "name": "Quanta Computer", "market": "TW", "industry": "Technology", "market_cap_usd": 35000000000},
+    {"symbol": "2412.TW", "name": "Chunghwa Telecom", "market": "TW", "industry": "Communication", "market_cap_usd": 30000000000},
+    {"symbol": "2881.TW", "name": "Fubon Financial", "market": "TW", "industry": "Financials", "market_cap_usd": 30000000000},
+    {"symbol": "2882.TW", "name": "Cathay Financial", "market": "TW", "industry": "Financials", "market_cap_usd": 28000000000},
+    {"symbol": "2303.TW", "name": "UMC", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 18000000000},
+    {"symbol": "3711.TW", "name": "ASE Technology", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 22000000000},
+    {"symbol": "2886.TW", "name": "Mega Financial", "market": "TW", "industry": "Financials", "market_cap_usd": 19000000000},
+    {"symbol": "2891.TW", "name": "CTBC Financial", "market": "TW", "industry": "Financials", "market_cap_usd": 22000000000},
+    {"symbol": "1303.TW", "name": "Nan Ya Plastics", "market": "TW", "industry": "Materials", "market_cap_usd": 12000000000},
+    {"symbol": "1301.TW", "name": "Formosa Plastics", "market": "TW", "industry": "Materials", "market_cap_usd": 13000000000},
+    {"symbol": "2002.TW", "name": "China Steel", "market": "TW", "industry": "Materials", "market_cap_usd": 11000000000},
+    {"symbol": "1216.TW", "name": "Uni-President", "market": "TW", "industry": "Consumer", "market_cap_usd": 14000000000},
+    {"symbol": "2207.TW", "name": "Hotai Motor", "market": "TW", "industry": "Automotive", "market_cap_usd": 11000000000},
+    {"symbol": "2603.TW", "name": "Evergreen Marine", "market": "TW", "industry": "Shipping", "market_cap_usd": 15000000000},
+    {"symbol": "2615.TW", "name": "Wan Hai Lines", "market": "TW", "industry": "Shipping", "market_cap_usd": 7000000000},
+    {"symbol": "2609.TW", "name": "Yang Ming Marine", "market": "TW", "industry": "Shipping", "market_cap_usd": 8000000000},
+    {"symbol": "5871.TW", "name": "Chailease", "market": "TW", "industry": "Financials", "market_cap_usd": 8000000000},
+    {"symbol": "6488.TWO", "name": "GlobalWafers", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 7000000000},
+    {"symbol": "3034.TW", "name": "Novatek", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 9000000000},
+    {"symbol": "2379.TW", "name": "Realtek", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 9000000000},
+    {"symbol": "6669.TW", "name": "Wiwynn", "market": "TW", "industry": "Technology", "market_cap_usd": 14000000000},
+    {"symbol": "3231.TW", "name": "Wistron", "market": "TW", "industry": "Technology", "market_cap_usd": 11000000000},
+    {"symbol": "2356.TW", "name": "Inventec", "market": "TW", "industry": "Technology", "market_cap_usd": 6500000000},
+    {"symbol": "2357.TW", "name": "Asustek", "market": "TW", "industry": "Technology", "market_cap_usd": 12000000000},
 ]
 
 
@@ -103,6 +165,60 @@ def quote(symbol: str = Query(..., min_length=1, max_length=32)) -> dict[str, An
                 "source": "1d/5m" if len(rows) > 10 else "5d/1d",
             }
     raise HTTPException(status_code=404, detail="No quote data found.")
+
+
+@app.get("/api/screener/options")
+def screener_options() -> dict[str, Any]:
+    industries = sorted({item["industry"] for item in STOCK_UNIVERSE})
+    return {"markets": ["US", "TW"], "industries": industries, "count": len(STOCK_UNIVERSE)}
+
+
+@app.get("/api/screener")
+def screener(
+    markets: str = Query("US,TW", max_length=16),
+    industries: str = Query("all", max_length=240),
+    min_price: float | None = Query(None, ge=0),
+    max_price: float | None = Query(None, ge=0),
+    sort_by: str = Query("quality", pattern="^(quality|market_cap|volume|change)$"),
+    limit: int = Query(30, ge=1, le=50),
+) -> dict[str, Any]:
+    selected_markets = {part.strip().upper() for part in markets.split(",") if part.strip()}
+    selected_industries = {part.strip() for part in industries.split(",") if part.strip() and part.strip().lower() != "all"}
+    pool = [
+        item for item in STOCK_UNIVERSE
+        if item["market"] in selected_markets and (not selected_industries or item["industry"] in selected_industries)
+    ]
+    pool = sorted(pool, key=lambda item: item["market_cap_usd"], reverse=True)[:80]
+
+    rows: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        future_map = {executor.submit(screen_one_stock, item): item for item in pool}
+        for future in as_completed(future_map):
+            result = future.result()
+            if not result:
+                continue
+            price = result["price"]
+            if min_price is not None and price < min_price:
+                continue
+            if max_price is not None and price > max_price:
+                continue
+            rows.append(result)
+
+    sort_key = {
+        "quality": lambda item: item["quality_score"],
+        "market_cap": lambda item: item["market_cap_usd"],
+        "volume": lambda item: item["volume"],
+        "change": lambda item: item["change_pct"],
+    }[sort_by]
+    rows.sort(key=sort_key, reverse=True)
+    return {
+        "ok": True,
+        "count": len(rows),
+        "scanned": len(pool),
+        "sort_by": sort_by,
+        "rows": rows[:limit],
+        "note": "Market cap is an approximate built-in ranking value; price and volume come from Yahoo chart data.",
+    }
 
 
 @app.get("/api/analyze")
@@ -237,6 +353,82 @@ def quote_last(symbol: str) -> dict[str, Any]:
         return {"symbol": symbol, "price": None, "change_pct": None}
     last, prev = rows[-1]["close"], rows[-2]["close"]
     return {"symbol": symbol, "price": number(last, 4), "change_pct": number((last / prev - 1) * 100) if prev else None}
+
+
+def screen_one_stock(item: dict[str, Any]) -> dict[str, Any] | None:
+    rows = fetch_price_history(item["symbol"], "1y", "1d")
+    if len(rows) < 60:
+        return None
+    rows = calculate_indicators(rows)
+    latest, previous = rows[-1], rows[-2]
+    levels = support_resistance(rows)
+    neutral_news = {"label": "neutral", "positive": 0, "negative": 0, "score": 0, "items": []}
+    risk = build_risk(latest, levels, neutral_news)
+    suitability = build_suitability(latest, risk, neutral_news)
+    prediction = build_prediction(rows, latest, risk, neutral_news)
+    quality = screener_quality_score(latest, risk, suitability, prediction, item)
+    return {
+        "symbol": item["symbol"],
+        "name": item["name"],
+        "market": item["market"],
+        "industry": item["industry"],
+        "price": number(latest["close"]),
+        "change_pct": number((latest["close"] / previous["close"] - 1) * 100) if previous["close"] else 0,
+        "volume": int(latest["volume"] or 0),
+        "market_cap_usd": int(item["market_cap_usd"]),
+        "quality_score": quality["score"],
+        "risk_score": risk["score"],
+        "trend": risk["trend"],
+        "bias": prediction["bias"],
+        "intraday_score": suitability["intraday"]["score"],
+        "short_score": suitability["short_term"]["score"],
+        "long_score": suitability["long_term"]["score"],
+        "ret20_pct": number(latest["RET20"] * 100),
+        "rsi14": number(latest["RSI14"]),
+        "volume_ratio": number(latest["VOLUME_RATIO"]),
+        "reasons": quality["reasons"],
+    }
+
+
+def screener_quality_score(
+    latest: dict[str, Any],
+    risk: dict[str, Any],
+    suitability: dict[str, Any],
+    prediction: dict[str, Any],
+    item: dict[str, Any],
+) -> dict[str, Any]:
+    suitability_avg = (
+        suitability["intraday"]["score"] + suitability["short_term"]["score"] + suitability["long_term"]["score"]
+    ) / 3
+    score = 50
+    score += (100 - int(risk["score"])) * 0.25
+    score += suitability_avg * 0.25
+    score += 8 if risk["trend"] == "bullish" else -8 if risk["trend"] == "bearish" else 0
+    score += 7 if prediction["bias"] == "bullish" else -7 if prediction["bias"] == "bearish" else 0
+    score += min(8, math.log10(max(10, latest["volume"])) - 4)
+    score += min(7, math.log10(max(1000000000, int(item["market_cap_usd"]))) - 9)
+    if latest["RSI14"] >= 78:
+        score -= 8
+    elif 45 <= latest["RSI14"] <= 68:
+        score += 4
+    if latest["close"] > latest["MA20"] > latest["MA60"]:
+        score += 7
+    elif latest["close"] < latest["MA20"] < latest["MA60"]:
+        score -= 9
+    score = int(max(0, min(100, round(score))))
+
+    reasons = []
+    if risk["trend"] == "bullish":
+        reasons.append("trend above key averages")
+    if prediction["bias"] == "bullish":
+        reasons.append("model bias bullish")
+    if int(risk["score"]) < 45:
+        reasons.append("risk score controlled")
+    if latest["VOLUME_RATIO"] >= 1.2:
+        reasons.append("volume above average")
+    if not reasons:
+        reasons.append("balanced but not high-conviction")
+    return {"score": score, "reasons": reasons[:3]}
 
 
 def fetch_macro_snapshot() -> dict[str, Any]:

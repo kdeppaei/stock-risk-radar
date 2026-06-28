@@ -41,6 +41,20 @@
     .card strong { font-size: 22px; white-space: nowrap; }
     .card.flash-up, .status.flash-up { border-color: var(--green); box-shadow: 0 0 0 2px rgba(34,197,94,.22); animation: blinkUp 1s ease-in-out 2; }
     .card.flash-down, .status.flash-down { border-color: var(--red); box-shadow: 0 0 0 2px rgba(239,68,68,.22); animation: blinkDown 1s ease-in-out 2; }
+    .screener-panel { margin-bottom: 16px; }
+    .screener-controls { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 10px; align-items: end; margin-top: 12px; }
+    .screener-controls input { width: 100%; }
+    .check, .industry-check { display: inline-flex; align-items: center; gap: 7px; color: var(--text); font-size: 14px; }
+    .check input, .industry-check input { width: auto; height: auto; accent-color: #3b82f6; }
+    .industry-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .industry-check { min-height: 34px; padding: 6px 9px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; }
+    .screener-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .screener-row { display: grid; grid-template-columns: minmax(160px, 1fr) repeat(4, minmax(82px, auto)) auto; gap: 10px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; cursor: pointer; }
+    .screener-row:hover { border-color: var(--blue); }
+    .screener-row strong, .screener-row small { display: block; }
+    .screener-row small, .metric span { color: var(--muted); }
+    .metric { text-align: right; font-size: 13px; }
+    .metric b { display: block; margin-top: 2px; font-size: 15px; }
     .main { grid-template-columns: minmax(0, 1fr) 390px; }
     .panel { padding: 16px; min-width: 0; }
     .chart-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 12px; }
@@ -72,12 +86,12 @@
     .explain { margin-top: 10px; font-size: 13px; }
     @keyframes blinkUp { 50% { background: rgba(34,197,94,.18); } }
     @keyframes blinkDown { 50% { background: rgba(239,68,68,.18); } }
-    @media (max-width: 1120px) { header, .main, .grid, .statusbar { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 1120px) { header, .main, .grid, .statusbar { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards, .screener-results { grid-template-columns: repeat(2, 1fr); } .screener-controls { grid-template-columns: repeat(3, 1fr); } .screener-row { grid-template-columns: 1fr 1fr; } .metric { text-align: left; } }
     @media (max-width: 640px) {
       .wrap { width: min(100% - 18px, 1440px); }
       .search, .langbar, .quickbar, .chart-actions, .refreshbar { display: grid; grid-template-columns: 1fr 1fr; }
       input, select, button, a.button { width: 100%; }
-      .cards, .kvgrid { grid-template-columns: 1fr; }
+      .cards, .kvgrid, .screener-controls, .screener-results { grid-template-columns: 1fr; }
       canvas { height: 430px; }
       .watch-item { grid-template-columns: 1fr auto; }
       .remove { grid-column: 2; }
@@ -134,6 +148,35 @@
       <article class="card" id="changeCard"><span data-i18n="change">漲跌</span><strong id="change">-</strong></article>
       <article class="card"><span data-i18n="risk">風險</span><strong id="risk">-</strong></article>
       <article class="card"><span data-i18n="trend">趨勢</span><strong id="trend">-</strong></article>
+    </section>
+
+    <section class="panel screener-panel">
+      <div class="chart-head">
+        <div>
+          <h2 data-screen-i18n="title">股票篩選器</h2>
+          <p class="explain" data-screen-i18n="hint">選市場、產業與股價範圍，系統會依品質分數、市值或成交量列出候選股。</p>
+        </div>
+        <span class="tag" id="screenerCount">-</span>
+      </div>
+      <div class="screener-controls">
+        <label class="check"><input type="checkbox" id="scMarketUS" checked /> <span data-screen-i18n="us">美股</span></label>
+        <label class="check"><input type="checkbox" id="scMarketTW" checked /> <span data-screen-i18n="tw">台股</span></label>
+        <label><span class="muted" data-screen-i18n="minPrice">最低股價</span><input id="scMinPrice" type="number" min="0" step="0.01" placeholder="0" /></label>
+        <label><span class="muted" data-screen-i18n="maxPrice">最高股價</span><input id="scMaxPrice" type="number" min="0" step="0.01" placeholder="9999" /></label>
+        <label>
+          <span class="muted" data-screen-i18n="sort">排序</span>
+          <select id="scSort">
+            <option value="quality" data-screen-i18n="sortQuality">品質分數</option>
+            <option value="market_cap" data-screen-i18n="sortCap">市值</option>
+            <option value="volume" data-screen-i18n="sortVolume">成交量</option>
+            <option value="change" data-screen-i18n="sortChange">漲跌幅</option>
+          </select>
+        </label>
+        <button id="scRunBtn" type="button" data-screen-i18n="run">篩選股票</button>
+      </div>
+      <div id="scIndustries" class="industry-grid"></div>
+      <p class="explain" id="scMeta">-</p>
+      <div id="scResults" class="screener-results"></div>
     </section>
 
     <section class="main">
@@ -210,6 +253,34 @@
     let autoRefresh = true;
     let lastQuotePrice = null;
 
+    const screenerCopy = {
+      "zh-tw": {
+        title: "股票篩選器", hint: "選市場、產業與股價範圍，系統會依品質分數、市值或成交量列出候選股。",
+        us: "美股", tw: "台股", minPrice: "最低股價", maxPrice: "最高股價", sort: "排序",
+        sortQuality: "品質分數", sortCap: "市值", sortVolume: "成交量", sortChange: "漲跌幅",
+        run: "篩選股票", loading: "篩選中", ready: "已載入候選池", empty: "沒有符合條件的股票，請放寬價格或產業。",
+        scanned: "已掃描", matched: "符合", quality: "品質", price: "股價", risk: "風險", volume: "成交量",
+        cap: "市值", add: "關注", reasons: "依據", note: "市值為內建近似排序值；股價與成交量取自 Yahoo chart。"
+      },
+      "zh-cn": {
+        title: "股票筛选器", hint: "选市场、行业与股价范围，系统会按质量分数、市值或成交量列出候选股。",
+        us: "美股", tw: "台股", minPrice: "最低股价", maxPrice: "最高股价", sort: "排序",
+        sortQuality: "质量分数", sortCap: "市值", sortVolume: "成交量", sortChange: "涨跌幅",
+        run: "筛选股票", loading: "筛选中", ready: "已载入候选池", empty: "没有符合条件的股票，请放宽价格或行业。",
+        scanned: "已扫描", matched: "符合", quality: "质量", price: "股价", risk: "风险", volume: "成交量",
+        cap: "市值", add: "关注", reasons: "依据", note: "市值为内置近似排序值；股价与成交量取自 Yahoo chart。"
+      },
+      en: {
+        title: "Stock Screener", hint: "Choose market, industry and price range. The system ranks candidates by quality, market cap or volume.",
+        us: "US", tw: "Taiwan", minPrice: "Min price", maxPrice: "Max price", sort: "Sort",
+        sortQuality: "Quality score", sortCap: "Market cap", sortVolume: "Volume", sortChange: "Change %",
+        run: "Screen stocks", loading: "Screening", ready: "Universe loaded", empty: "No stocks matched. Try a wider price or industry filter.",
+        scanned: "Scanned", matched: "Matched", quality: "Quality", price: "Price", risk: "Risk", volume: "Volume",
+        cap: "Mkt cap", add: "Watch", reasons: "Why", note: "Market cap is an approximate built-in ranking value; price and volume come from Yahoo chart."
+      }
+    };
+    const st = (key) => (screenerCopy[lang] && screenerCopy[lang][key]) || screenerCopy.en[key] || key;
+
     const dict = {
       "zh-tw": {
         subtitle: "輸入美股或台股代號，快速整理股價、K 線、新聞、風險、總經與短長期建議。",
@@ -280,14 +351,85 @@
     $("form").addEventListener("submit", (event) => { event.preventDefault(); analyze($("symbol").value.trim() || "2330"); });
     $("addWatchBtn").addEventListener("click", () => addWatch(lastData?.symbol || $("symbol").value.trim()));
     $("autoBtn").addEventListener("click", () => { autoRefresh = !autoRefresh; $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff"); });
+    $("scRunBtn").addEventListener("click", () => runScreener());
     window.addEventListener("resize", () => renderChart(lastData));
     canvas.addEventListener("click", () => { const href = $("googleLink").href; if (href && href !== "#") window.open(href, "_blank", "noopener,noreferrer") || (window.location.href = href); });
 
     function applyLang() {
       document.documentElement.lang = lang === "en" ? "en" : lang === "zh-cn" ? "zh-Hans" : "zh-Hant";
       document.querySelectorAll("[data-i18n]").forEach((el) => el.textContent = t(el.dataset.i18n));
+      document.querySelectorAll("[data-screen-i18n]").forEach((el) => el.textContent = st(el.dataset.screenI18n));
       $("scoreHelp").textContent = t("scoreHelp");
       $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff");
+    }
+
+    async function loadScreenerOptions() {
+      try {
+        const res = await fetch("/api/screener/options");
+        const data = await res.json();
+        const selected = new Set(["Semiconductors", "Technology", "Financials"]);
+        $("scIndustries").innerHTML = data.industries.map((industry) => {
+          const checked = selected.has(industry) ? "checked" : "";
+          return `<label class="industry-check"><input type="checkbox" value="${escapeHtml(industry)}" ${checked} /> ${escapeHtml(industry)}</label>`;
+        }).join("");
+        $("screenerCount").textContent = `${data.count} ${st("ready")}`;
+        runScreener();
+      } catch (error) {
+        $("scMeta").textContent = error.message;
+      }
+    }
+
+    async function runScreener() {
+      const button = $("scRunBtn");
+      button.disabled = true;
+      button.textContent = st("loading");
+      $("scMeta").textContent = st("loading") + "...";
+      try {
+        const markets = [];
+        if ($("scMarketUS").checked) markets.push("US");
+        if ($("scMarketTW").checked) markets.push("TW");
+        const industries = [...document.querySelectorAll("#scIndustries input:checked")].map((input) => input.value);
+        const qs = new URLSearchParams({
+          markets: markets.join(",") || "US,TW",
+          industries: industries.length ? industries.join(",") : "all",
+          sort_by: $("scSort").value,
+          limit: "30"
+        });
+        if ($("scMinPrice").value) qs.set("min_price", $("scMinPrice").value);
+        if ($("scMaxPrice").value) qs.set("max_price", $("scMaxPrice").value);
+        const res = await fetch(`/api/screener?${qs}`);
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "Screener failed");
+        renderScreener(data);
+      } catch (error) {
+        $("scMeta").textContent = error.message;
+        $("scResults").innerHTML = "";
+      } finally {
+        button.disabled = false;
+        button.textContent = st("run");
+      }
+    }
+
+    function renderScreener(data) {
+      $("screenerCount").textContent = `${data.count} ${st("matched")}`;
+      $("scMeta").textContent = `${st("scanned")} ${data.scanned} / ${st("matched")} ${data.count}. ${st("note")}`;
+      if (!data.rows.length) {
+        $("scResults").innerHTML = `<div class="plainbox muted">${st("empty")}</div>`;
+        return;
+      }
+      $("scResults").innerHTML = data.rows.map((row) => {
+        const direction = row.change_pct >= 0 ? "up" : "down";
+        const reasons = (row.reasons || []).map((item) => escapeHtml(item)).join(", ");
+        return `<div class="screener-row" onclick="analyze('${row.symbol}')">
+          <div><strong>${escapeHtml(row.symbol)}</strong><small>${escapeHtml(row.name)} · ${row.market} · ${escapeHtml(row.industry)}</small><small>${st("reasons")}: ${reasons}</small></div>
+          <div class="metric"><span>${st("quality")}</span><b>${row.quality_score}/100</b></div>
+          <div class="metric"><span>${st("price")}</span><b>${fmt(row.price)}</b></div>
+          <div class="metric"><span>${st("risk")}</span><b>${row.risk_score}/100</b></div>
+          <div class="metric"><span>${st("volume")}</span><b>${compact(row.volume)}</b><small class="${direction}">${arrow(row.change_pct)} ${signed(row.change_pct, "%")}</small></div>
+          <div class="metric"><span>${st("cap")}</span><b>${compactCap(row.market_cap_usd)}</b></div>
+          <button class="secondary" type="button" onclick="event.stopPropagation(); addWatch('${row.symbol}')">${st("add")}</button>
+        </div>`;
+      }).join("");
     }
 
     async function analyze(symbol, silent = false) {
@@ -502,9 +644,11 @@
     function fmt(n) { return Number(n || 0).toLocaleString(lang === "en" ? "en-US" : "zh-TW", { maximumFractionDigits: 2 }); }
     function signed(n, suffix = "") { return `${Number(n || 0) >= 0 ? "+" : ""}${fmt(n)}${suffix}`; }
     function arrow(n) { return Number(n || 0) >= 0 ? "▲" : "▼"; }
+    function compact(n) { return Number(n || 0).toLocaleString(lang === "en" ? "en-US" : "zh-TW", { notation: "compact", maximumFractionDigits: 1 }); }
+    function compactCap(n) { return "$" + compact(n); }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
 
-    applyLang(); renderWatchlist(); tickClocks(); loadContext(); analyze($("symbol").value); refreshWatchlist();
+    applyLang(); renderWatchlist(); tickClocks(); loadContext(); loadScreenerOptions(); analyze($("symbol").value); refreshWatchlist();
     setInterval(tickClocks, 1000);
     setInterval(loadContext, 60000);
     setInterval(refreshQuote, 10000);

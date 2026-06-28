@@ -17,6 +17,7 @@ https://stock-risk-radar.onrender.com/#
 - 1-day, 5-day, and 20-day returns
 - 60-day support/resistance, breakout call point, backtest zone, stop-loss reference
 - Live quote refresh, watchlist alerts, and market context
+- Stock screener for US/Taiwan markets with price range, industry filters, and quality/market-cap/volume sorting
 
 ## Local Run
 
@@ -79,6 +80,7 @@ GitHub Pages is for static HTML/CSS/JavaScript. This project needs a Python serv
 
 ```text
 GET /api/analyze?symbol=AAPL&period=1y&interval=1d
+GET /api/screener?markets=US,TW&industries=Semiconductors,Technology&min_price=10&max_price=1000&sort_by=quality
 ```
 
 Supported `period`: `1d`, `5d`, `1mo`, `6mo`, `1y`, `2y`, `5y`
