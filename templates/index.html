@@ -58,7 +58,7 @@
     .main { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 16px; }
     .panel { padding: 16px; min-width: 0; }
     .chart-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 12px; }
-    canvas { display: block; width: 100%; height: 540px; background: #0f172f; border: 1px solid var(--line); border-radius: 6px; }
+    canvas { display: block; width: 100%; height: 540px; background: #0f172f; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
     .side { display: grid; gap: 14px; align-content: start; }
     .summary { margin-top: 10px; line-height: 1.65; color: #d7e3ff; }
     .riskbar { height: 10px; background: #0f172f; border-radius: 999px; overflow: hidden; margin-top: 12px; }
@@ -76,6 +76,7 @@
     .muted { color: var(--muted); font-size: 12px; }
     .up { color: var(--green); } .down { color: var(--red); } .tw-up { color: var(--red); } .tw-down { color: var(--green); }
     .quote-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; margin-top: 12px; }
+    .chart-hint { margin: 8px 0 10px; color: var(--muted); font-size: 12px; }
     .watchlist { display: grid; gap: 8px; margin-top: 12px; }
     .watch-item {
       display: grid;
@@ -162,6 +163,7 @@
           </div>
           <span class="tag" id="predictionBadge">-</span>
         </div>
+        <div class="chart-hint" id="chartHint">點擊 K 線圖可開啟 Google Finance 即時看盤；圖上的 BUY 為條件式訊號參考。</div>
         <canvas id="chart"></canvas>
       </article>
 
@@ -216,7 +218,9 @@
         suitable: "適合", watch: "觀察", avoid: "避開", positive: "利多", negative: "利空", neutralNews: "中性",
         trigger: "突破觀察", pressure: "壓力區", backtest: "回測區", stop: "停損參考",
         intraday: "當沖", short: "短期", long: "長期", forecast5: "5 日預測", forecast20: "20 日預測",
-        confidence: "信心", model: "模型", advice: "建議"
+        confidence: "信心", model: "模型", advice: "建議",
+        chartHint: "點擊 K 線圖可開啟 Google Finance 即時看盤；圖上的 BUY 為條件式訊號參考。",
+        openGoogle: "已開啟 Google Finance 即時看盤"
       },
       "zh-cn": {
         subtitle: "输入美股或台股代码，快速整理股价、K线、新闻情绪、风险、压力支撑与交易周期适合度。",
@@ -229,7 +233,9 @@
         suitable: "适合", watch: "观察", avoid: "避开", positive: "利多", negative: "利空", neutralNews: "中性",
         trigger: "突破观察", pressure: "压力区", backtest: "回测区", stop: "止损参考",
         intraday: "当冲", short: "短期", long: "长期", forecast5: "5日预测", forecast20: "20日预测",
-        confidence: "信心", model: "模型", advice: "建议"
+        confidence: "信心", model: "模型", advice: "建议",
+        chartHint: "点击K线图可开启 Google Finance 即时看盘；图上的 BUY 为条件式信号参考。",
+        openGoogle: "已开启 Google Finance 即时看盘"
       },
       en: {
         subtitle: "Enter a US or Taiwan ticker to review price action, candles, news sentiment, risk, support/resistance and trading suitability.",
@@ -242,7 +248,9 @@
         suitable: "Suitable", watch: "Watch", avoid: "Avoid", positive: "Bullish", negative: "Bearish", neutralNews: "Neutral",
         trigger: "Breakout", pressure: "Pressure", backtest: "Backtest", stop: "Stop ref",
         intraday: "Intraday", short: "Short", long: "Long", forecast5: "5D forecast", forecast20: "20D forecast",
-        confidence: "Confidence", model: "Model", advice: "Advice"
+        confidence: "Confidence", model: "Model", advice: "Advice",
+        chartHint: "Click the candle chart to open Google Finance live quote. BUY markers are conditional reference signals.",
+        openGoogle: "Opened Google Finance live quote"
       }
     };
     const t = (key) => (dict[lang] && dict[lang][key]) || dict.en[key] || key;
@@ -262,6 +270,14 @@
     });
     $("addWatchBtn").addEventListener("click", () => addWatch(lastData?.symbol || $("symbol").value.trim()));
     window.addEventListener("resize", () => renderChart(lastData));
+    canvas.addEventListener("click", () => {
+      const href = $("googleLink").href;
+      if (href && href !== "#") {
+        $("chartHint").textContent = t("openGoogle");
+        const opened = window.open(href, "_blank", "noopener,noreferrer");
+        if (!opened) window.location.href = href;
+      }
+    });
 
     function applyLang() {
       document.documentElement.lang = lang === "en" ? "en" : lang === "zh-cn" ? "zh-Hans" : "zh-Hant";
@@ -304,6 +320,7 @@
       $("riskFill").style.background = data.risk.score >= 70 ? "var(--red)" : data.risk.score >= 40 ? "var(--amber)" : "var(--green)";
       $("liveMeta").textContent = `${data.symbol} · ${data.latest.date} · ${fmt(data.latest.close)} · ${signed(data.change.pct, "%")}`;
       $("predictionBadge").textContent = `${label(data.prediction.bias)} · ${t("confidence")} ${data.prediction.confidence}%`;
+      $("chartHint").textContent = t("chartHint");
       updateLinks(data);
 
       kv("technical", {
@@ -444,9 +461,61 @@
       drawLine(rows, "ma5", "#76a9ff", x, y);
       drawLine(rows, "ma20", "#fbbf24", x, y);
       drawLine(rows, "ma60", "#c084fc", x, y);
+      drawBuySignals(data, rows, x, y, min, max);
       ctx.fillStyle = "#97a4c2";
       ctx.fillText(rows[0].date, pad.l, h - 8);
       ctx.fillText(rows.at(-1).date, Math.max(pad.l, w - 92), h - 8);
+    }
+
+    function drawBuySignals(data, rows, x, y, min, max) {
+      const signals = findBuySignals(data, rows).slice(-5);
+      signals.forEach((signal) => {
+        const row = rows[signal.index];
+        const xx = x(signal.index);
+        const yy = Math.max(28, y(row.low) - 18);
+        ctx.save();
+        ctx.fillStyle = "rgba(34,197,94,.16)";
+        ctx.strokeStyle = "#22c55e";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(xx, yy + 4, 13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "#86efac";
+        ctx.font = "700 11px Segoe UI";
+        ctx.textAlign = "center";
+        ctx.fillText("BUY", xx, yy + 8);
+        ctx.fillStyle = "#22c55e";
+        ctx.beginPath();
+        ctx.moveTo(xx, yy + 19);
+        ctx.lineTo(xx - 5, yy + 29);
+        ctx.lineTo(xx + 5, yy + 29);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+
+    function findBuySignals(data, rows) {
+      const signals = [];
+      for (let i = 2; i < rows.length; i++) {
+        const prev = rows[i - 1];
+        const row = rows[i];
+        const crossMa20 = row.close > row.ma20 && prev.close <= prev.ma20;
+        const reclaimMa5 = row.close > row.ma5 && prev.close < prev.ma5 && row.close > row.open;
+        const nearBacktest = row.low <= data.levels.backtest_zone * 1.012 && row.close > row.open;
+        const trendOk = data.prediction.bias !== "bearish" || data.risk.score < 45;
+        const notOverheated = data.technical.rsi14 < 78;
+        if ((crossMa20 || reclaimMa5 || nearBacktest) && trendOk && notOverheated) {
+          signals.push({ index: i });
+          i += 5;
+        }
+      }
+      if (!signals.length && data.prediction.bias === "bullish") {
+        const idx = Math.max(2, rows.length - 8);
+        signals.push({ index: idx });
+      }
+      return signals;
     }
 
     function drawLine(rows, key, color, x, y) {
