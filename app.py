@@ -13,7 +13,6 @@ import feedparser
 import numpy as np
 import pandas as pd
 import requests
-import yfinance as yf
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -209,12 +208,8 @@ def candidate_symbols(normalized: str, raw: str) -> list[str]:
 
 
 def fetch_price_history(symbol: str, period: str, interval: str) -> pd.DataFrame:
-    try:
-        df = yf.download(symbol, period=period, interval=interval, progress=False, auto_adjust=False, threads=False)
-        if not df.empty:
-            return df
-    except Exception:
-        pass
+    # Render Free is much more stable when we avoid importing/running yfinance.
+    # Yahoo chart API returns the OHLCV data this app needs with less memory pressure.
     return fetch_yahoo_chart(symbol, period, interval)
 
 
