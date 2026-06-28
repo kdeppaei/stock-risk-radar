@@ -7,7 +7,7 @@ Users can enter symbols such as `2330`, `2330.TW`, `6488.TWO`, `AAPL`, `NVDA`, a
 ## Features
 
 - FastAPI backend
-- yfinance price fetch with Yahoo chart API fallback
+- Yahoo chart API price fetch
 - Google News RSS / Yahoo Finance RSS
 - Candlestick chart rendered in browser canvas
 - Taiwan market colors: up red, down green
@@ -15,7 +15,7 @@ Users can enter symbols such as `2330`, `2330.TW`, `6488.TWO`, `AAPL`, `NVDA`, a
 - MA5, MA20, MA60, RSI, MACD, ATR, volume ratio
 - 1-day, 5-day, and 20-day returns
 - 60-day support/resistance, breakout call point, backtest zone, stop-loss reference
-- SQLite analysis log
+- Live quote refresh, watchlist alerts, and market context
 
 ## Local Run
 
@@ -32,10 +32,16 @@ pip install -r requirements.txt
 uvicorn app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Open:
+Open locally:
 
 ```text
 http://127.0.0.1:8000
+```
+
+Public website:
+
+```text
+https://stock-risk-radar.onrender.com
 ```
 
 ## Deploy To Render
@@ -58,9 +64,15 @@ uvicorn app:app --host 0.0.0.0 --port $PORT
 
 The included `render.yaml` can also be used as a Render Blueprint.
 
+After deployment, open:
+
+```text
+https://stock-risk-radar.onrender.com
+```
+
 ## Why Not GitHub Pages Only?
 
-GitHub Pages is for static HTML/CSS/JavaScript. This project needs a Python server to run yfinance, fetch RSS news, calculate indicators, and write SQLite logs. Use Render, Railway, Fly.io, or another Python hosting platform for the FastAPI backend.
+GitHub Pages is for static HTML/CSS/JavaScript. This project needs a Python server to fetch market data, read RSS news, calculate indicators, and serve API responses. Use Render, Railway, Fly.io, or another Python hosting platform for the FastAPI backend.
 
 ## API
 
@@ -68,9 +80,9 @@ GitHub Pages is for static HTML/CSS/JavaScript. This project needs a Python serv
 GET /api/analyze?symbol=AAPL&period=1y&interval=1d
 ```
 
-Supported `period`: `6mo`, `1y`, `2y`, `5y`
+Supported `period`: `1d`, `5d`, `1mo`, `6mo`, `1y`, `2y`, `5y`
 
-Supported `interval`: `1d`, `1wk`
+Supported `interval`: `5m`, `15m`, `1h`, `1d`, `1wk`
 
 ## Disclaimer
 
