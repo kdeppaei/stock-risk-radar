@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stock Risk Radar</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #111936;
+      --card: #151f42;
+      --text: #ecf2ff;
+      --muted: #97a4c2;
+      --line: #26345f;
+      --blue: #76a9ff;
+      --green: #22c55e;
+      --red: #ef4444;
+      --amber: #fbbf24;
+      font-family: "Segoe UI", "Noto Sans TC", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    .wrap { width: min(1280px, calc(100% - 28px)); margin: 0 auto; padding: 22px 0; }
+    header { display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 16px; }
+    h1, h2, h3, p { margin: 0; letter-spacing: 0; }
+    h1 { font-size: 30px; }
+    .sub { margin-top: 6px; color: var(--muted); line-height: 1.5; }
+    .search { display: flex; gap: 8px; align-items: center; }
+    input, select, button { height: 42px; border-radius: 7px; border: 1px solid var(--line); font: inherit; }
+    input, select { background: #0f172f; color: var(--text); padding: 0 12px; }
+    input { width: 190px; }
+    button { background: #3b82f6; color: white; border-color: #3b82f6; padding: 0 16px; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .card, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+    .card { padding: 14px; min-height: 86px; }
+    .card span { display: block; color: var(--muted); font-size: 12px; }
+    .card strong { display: block; margin-top: 7px; font-size: 22px; white-space: nowrap; }
+    .main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; }
+    .panel { padding: 16px; min-width: 0; }
+    .chart-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 12px; }
+    canvas { display: block; width: 100%; height: 540px; background: #0f172f; border: 1px solid var(--line); border-radius: 6px; }
+    .side { display: grid; gap: 14px; align-content: start; }
+    .summary { margin-top: 10px; line-height: 1.65; color: #d7e3ff; }
+    .riskbar { height: 10px; background: #0f172f; border-radius: 999px; overflow: hidden; margin-top: 12px; }
+    .riskbar div { height: 100%; width: 0; background: var(--green); }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+    .kvgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 12px; }
+    .kv, .news { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
+    .kv span { display: block; color: var(--muted); font-size: 12px; }
+    .kv strong { display: block; margin-top: 4px; font-size: 15px; }
+    .tag { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 9px; border-radius: 999px; background: var(--card); color: var(--muted); font-size: 12px; }
+    .tag.good { color: #86efac; } .tag.bad { color: #fda4af; } .tag.warn { color: #fde68a; }
+    .news { margin-top: 10px; line-height: 1.45; }
+    .news a { color: #dbeafe; text-decoration: none; }
+    .news a:hover { color: var(--blue); }
+    .muted { color: var(--muted); font-size: 12px; }
+    .up { color: var(--green); } .down { color: var(--red); } .tw-up { color: var(--red); } .tw-down { color: var(--green); }
+    @media (max-width: 1060px) { header, .main, .grid { grid-template-columns: 1fr; display: grid; } .cards { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 620px) { .wrap { width: min(100% - 18px, 1280px); } .search { flex-direction: column; align-items: stretch; } input, select, button { width: 100%; } .cards, .kvgrid { grid-template-columns: 1fr; } canvas { height: 430px; } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div>
+        <h1>Stock Risk Radar</h1>
+        <p class="sub">輸入美股或台股代號，快速整理股價、K 線、新聞情緒、風險、壓力支撐與交易週期適合度。</p>
+      </div>
+      <form id="form" class="search">
+        <input id="symbol" value="2330" autocomplete="off" />
+        <select id="period">
+          <option value="6mo">6M</option>
+          <option value="1y" selected>1Y</option>
+          <option value="2y">2Y</option>
+          <option value="5y">5Y</option>
+        </select>
+        <select id="interval">
+          <option value="1d" selected>Day</option>
+          <option value="1wk">Week</option>
+        </select>
+        <button id="runBtn" type="submit">Analyze</button>
+      </form>
+    </header>
+
+    <section class="cards">
+      <article class="card"><span>Symbol</span><strong id="ticker">-</strong></article>
+      <article class="card"><span>Close</span><strong id="price">-</strong></article>
+      <article class="card"><span>Change</span><strong id="change">-</strong></article>
+      <article class="card"><span>Risk</span><strong id="risk">-</strong></article>
+      <article class="card"><span>Trend</span><strong id="trend">-</strong></article>
+    </section>
+
+    <section class="main">
+      <article class="panel">
+        <div class="chart-head">
+          <h2>K 線 / MA5 / MA20 / MA60 / Volume</h2>
+          <span class="tag" id="market">-</span>
+        </div>
+        <canvas id="chart"></canvas>
+      </article>
+      <aside class="side">
+        <article class="panel">
+          <h2>Summary</h2>
+          <p class="summary" id="summary">Loading...</p>
+          <div class="riskbar"><div id="riskFill"></div></div>
+        </article>
+        <article class="panel">
+          <h2>Playbook</h2>
+          <div class="kvgrid" id="playbook"></div>
+        </article>
+      </aside>
+    </section>
+
+    <section class="grid">
+      <article class="panel"><h2>Technical</h2><div class="kvgrid" id="technical"></div></article>
+      <article class="panel"><h2>Levels</h2><div class="kvgrid" id="levels"></div></article>
+      <article class="panel"><h2>Suitability</h2><div class="kvgrid" id="suitability"></div></article>
+      <article class="panel"><h2>News</h2><div id="news"></div></article>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const canvas = $("chart");
+    const ctx = canvas.getContext("2d");
+    let lastData = null;
+
+    $("form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      analyze();
+    });
+    window.addEventListener("resize", () => renderChart(lastData));
+
+    async function analyze() {
+      const button = $("runBtn");
+      button.disabled = true;
+      button.textContent = "Loading";
+      try {
+        const qs = new URLSearchParams({
+          symbol: $("symbol").value.trim() || "2330",
+          period: $("period").value,
+          interval: $("interval").value
+        });
+        const res = await fetch(`/api/analyze?${qs}`);
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "Analyze failed");
+        render(data);
+      } catch (error) {
+        $("summary").textContent = error.message;
+      } finally {
+        button.disabled = false;
+        button.textContent = "Analyze";
+      }
+    }
+
+    function render(data) {
+      lastData = data;
+      const isTW = data.market === "TW";
+      $("ticker").textContent = data.symbol;
+      $("price").textContent = fmt(data.latest.close);
+      $("change").textContent = signed(data.change.pct, "%");
+      $("change").className = data.change.pct >= 0 ? (isTW ? "tw-up" : "up") : (isTW ? "tw-down" : "down");
+      $("risk").textContent = `${data.risk.score}/100`;
+      $("trend").textContent = data.risk.trend;
+      $("market").textContent = isTW ? "Taiwan: up red / down green" : "US: up green / down red";
+      $("summary").textContent = data.risk.summary;
+      $("riskFill").style.width = `${data.risk.score}%`;
+      $("riskFill").style.background = data.risk.score >= 70 ? "var(--red)" : data.risk.score >= 40 ? "var(--amber)" : "var(--green)";
+      kv("technical", {
+        MA5: data.technical.ma5, MA20: data.technical.ma20, MA60: data.technical.ma60,
+        RSI: data.technical.rsi14, MACD: data.technical.macd, "MACD Signal": data.technical.macd_signal,
+        "ATR %": `${fmt(data.technical.atr_pct)}%`, "Volume Ratio": data.technical.volume_ratio
+      });
+      kv("levels", {
+        "60D Support": data.levels.support_60d, "60D Resistance": data.levels.resistance_60d,
+        "Breakout Call": data.levels.breakout_call, "Backtest Zone": data.levels.backtest_zone,
+        "Stop Loss Ref": data.levels.stop_loss_reference
+      });
+      kv("suitability", {
+        Intraday: `${data.suitability.intraday.label} (${fmt(data.suitability.intraday.score)})`,
+        Short: `${data.suitability.short_term.label} (${fmt(data.suitability.short_term.score)})`,
+        Long: `${data.suitability.long_term.label} (${fmt(data.suitability.long_term.score)})`,
+        "1D Return": signed(data.technical.ret1_pct, "%"),
+        "5D Return": signed(data.technical.ret5_pct, "%"),
+        "20D Return": signed(data.technical.ret20_pct, "%")
+      });
+      kv("playbook", {
+        "Bullish trigger": `Above ${fmt(data.levels.breakout_call)}`,
+        "Pressure area": fmt(data.levels.resistance_60d),
+        "Backtest area": fmt(data.levels.backtest_zone),
+        "Risk control": fmt(data.levels.stop_loss_reference)
+      });
+      $("news").innerHTML = `<span class="tag ${data.news.label === "positive" ? "good" : data.news.label === "negative" ? "bad" : "warn"}">${data.news.label} · +${data.news.positive} / -${data.news.negative}</span>` +
+        data.news.items.map((n) => `<div class="news"><a href="${n.link}" target="_blank" rel="noreferrer">${escapeHtml(n.title)}</a><div class="muted">${n.source} · ${n.published || ""} · score ${n.sentiment}</div></div>`).join("");
+      renderChart(data);
+    }
+
+    function renderChart(data) {
+      if (!data) return;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(320, Math.round(rect.width * dpr));
+      canvas.height = Math.max(360, Math.round(rect.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const w = rect.width, h = rect.height;
+      ctx.clearRect(0, 0, w, h);
+      const rows = data.chart;
+      const pad = { l: 52, r: 16, t: 18, b: 94 };
+      const chartH = h - pad.t - pad.b;
+      const min = Math.min(...rows.map((r) => r.low)) * 0.985;
+      const max = Math.max(...rows.map((r) => r.high)) * 1.015;
+      const volMax = Math.max(...rows.map((r) => r.volume));
+      const x = (i) => pad.l + i * ((w - pad.l - pad.r) / Math.max(1, rows.length - 1));
+      const y = (p) => pad.t + (max - p) / (max - min) * chartH;
+      const vy = (v) => h - 28 - (v / volMax) * 56;
+      ctx.strokeStyle = "#26345f";
+      for (let i = 0; i < 5; i++) {
+        const yy = pad.t + i * chartH / 4;
+        ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(w - pad.r, yy); ctx.stroke();
+        ctx.fillStyle = "#97a4c2"; ctx.font = "12px Segoe UI"; ctx.fillText(fmt(max - i * (max - min) / 4), 5, yy + 4);
+      }
+      const barW = Math.max(3, (w - pad.l - pad.r) / rows.length * .62);
+      rows.forEach((r, i) => {
+        const xx = x(i);
+        ctx.strokeStyle = r.color; ctx.fillStyle = r.color;
+        ctx.beginPath(); ctx.moveTo(xx, y(r.high)); ctx.lineTo(xx, y(r.low)); ctx.stroke();
+        const top = y(Math.max(r.open, r.close));
+        const bottom = y(Math.min(r.open, r.close));
+        ctx.fillRect(xx - barW / 2, top, barW, Math.max(1, bottom - top));
+        ctx.globalAlpha = .35; ctx.fillRect(xx - barW / 2, vy(r.volume), barW, h - 28 - vy(r.volume)); ctx.globalAlpha = 1;
+      });
+      drawLine(rows, "ma5", "#76a9ff", x, y);
+      drawLine(rows, "ma20", "#fbbf24", x, y);
+      drawLine(rows, "ma60", "#c084fc", x, y);
+      ctx.fillStyle = "#97a4c2";
+      ctx.fillText(rows[0].date, pad.l, h - 8);
+      ctx.fillText(rows.at(-1).date, Math.max(pad.l, w - 92), h - 8);
+    }
+
+    function drawLine(rows, key, color, x, y) {
+      ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath();
+      let started = false;
+      rows.forEach((r, i) => {
+        if (!r[key]) return;
+        if (!started) { ctx.moveTo(x(i), y(r[key])); started = true; } else ctx.lineTo(x(i), y(r[key]));
+      });
+      ctx.stroke();
+    }
+    function kv(id, obj) {
+      $(id).innerHTML = Object.entries(obj).map(([k, v]) => `<div class="kv"><span>${k}</span><strong>${typeof v === "number" ? fmt(v) : v}</strong></div>`).join("");
+    }
+    function fmt(n) { return Number(n || 0).toLocaleString("zh-TW", { maximumFractionDigits: 2 }); }
+    function signed(n, suffix = "") { return `${Number(n || 0) >= 0 ? "+" : ""}${fmt(n)}${suffix}`; }
+    function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
+    analyze();
+  </script>
+</body>
+</html>

@@ -1,0 +1,544 @@
+from __future__ import annotations
+
+import json
+import math
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+from urllib.parse import quote_plus
+
+import feedparser
+import numpy as np
+import pandas as pd
+import requests
+import yfinance as yf
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+
+BASE_DIR = Path(__file__).resolve().parent
+DB_PATH = BASE_DIR / "stock_risk_log.sqlite3"
+
+app = FastAPI(title="Stock Risk Radar", version="4.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+POSITIVE_WORDS = [
+    "beat",
+    "beats",
+    "upgrade",
+    "upgraded",
+    "growth",
+    "profit",
+    "record",
+    "surge",
+    "rally",
+    "bullish",
+    "strong demand",
+    "buy rating",
+    "target raised",
+    "outperform",
+    "ai",
+    "利多",
+    "成長",
+    "獲利",
+    "上修",
+    "看好",
+    "買進",
+    "突破",
+    "創高",
+    "接單",
+    "營收",
+]
+NEGATIVE_WORDS = [
+    "miss",
+    "downgrade",
+    "downgraded",
+    "loss",
+    "drop",
+    "plunge",
+    "bearish",
+    "weak demand",
+    "sell rating",
+    "target cut",
+    "underperform",
+    "lawsuit",
+    "probe",
+    "restriction",
+    "利空",
+    "衰退",
+    "虧損",
+    "下修",
+    "賣出",
+    "跌破",
+    "賣壓",
+    "庫存",
+    "調查",
+]
+
+
+def init_db() -> None:
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS analysis_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                input_symbol TEXT NOT NULL,
+                normalized_symbol TEXT NOT NULL,
+                market TEXT NOT NULL,
+                close_price REAL,
+                risk_score INTEGER,
+                trend_label TEXT,
+                raw_json TEXT
+            )
+            """
+        )
+
+
+@app.on_event("startup")
+def startup() -> None:
+    init_db()
+
+
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.get("/api/analyze")
+def analyze(
+    symbol: str = Query(..., min_length=1, max_length=32),
+    period: str = Query("1y", pattern="^(6mo|1y|2y|5y)$"),
+    interval: str = Query("1d", pattern="^(1d|1wk)$"),
+) -> dict[str, Any]:
+    raw_symbol = symbol.strip().upper()
+    normalized, market = normalize_symbol(raw_symbol)
+    candidates = candidate_symbols(normalized, raw_symbol)
+
+    hist = pd.DataFrame()
+    resolved = normalized
+    for candidate in candidates:
+        hist = fetch_price_history(candidate, period, interval)
+        if not hist.empty:
+            resolved = candidate
+            break
+
+    if hist.empty:
+        raise HTTPException(status_code=404, detail="No price data found. Please check the ticker symbol.")
+
+    hist = normalize_columns(hist)
+    data = calculate_indicators(hist)
+    if len(data) < 65:
+        raise HTTPException(status_code=422, detail="Not enough historical data to calculate indicators.")
+
+    latest = data.iloc[-1]
+    previous = data.iloc[-2]
+    levels = support_resistance(data)
+    news = fetch_news(resolved, market)
+    risk = build_risk(latest, previous, levels, news)
+    suitability = build_suitability(latest, risk, news)
+    chart = build_chart_rows(data.tail(180), market)
+
+    response = {
+        "ok": True,
+        "symbol": resolved,
+        "input_symbol": raw_symbol,
+        "market": market,
+        "latest": {
+            "date": data.index[-1].strftime("%Y-%m-%d"),
+            "open": number(latest["Open"]),
+            "high": number(latest["High"]),
+            "low": number(latest["Low"]),
+            "close": number(latest["Close"]),
+            "volume": int(latest["Volume"]) if not pd.isna(latest["Volume"]) else 0,
+        },
+        "change": {
+            "amount": number(latest["Close"] - previous["Close"]),
+            "pct": number((latest["Close"] / previous["Close"] - 1) * 100) if previous["Close"] else 0,
+        },
+        "technical": {
+            "ma5": number(latest["MA5"]),
+            "ma20": number(latest["MA20"]),
+            "ma60": number(latest["MA60"]),
+            "rsi14": number(latest["RSI14"]),
+            "macd": number(latest["MACD"]),
+            "macd_signal": number(latest["MACD_SIGNAL"]),
+            "atr14": number(latest["ATR14"]),
+            "atr_pct": number(latest["ATR14"] / latest["Close"] * 100) if latest["Close"] else 0,
+            "volume_ratio": number(latest["VOLUME_RATIO"]),
+            "ret1_pct": number(latest["RET1"] * 100),
+            "ret5_pct": number(latest["RET5"] * 100),
+            "ret20_pct": number(latest["RET20"] * 100),
+        },
+        "levels": levels,
+        "risk": risk,
+        "suitability": suitability,
+        "news": news,
+        "chart": chart,
+    }
+    save_log(raw_symbol, resolved, market, response)
+    return response
+
+
+def normalize_symbol(text: str) -> tuple[str, str]:
+    raw = text.strip().upper().replace(" ", "")
+    if not raw:
+        raise HTTPException(status_code=400, detail="Ticker symbol is required.")
+    if raw.endswith((".TW", ".TWO")):
+        return raw, "TW"
+    if raw.isdigit():
+        return f"{raw}.TW", "TW"
+    return raw, "US"
+
+
+def candidate_symbols(normalized: str, raw: str) -> list[str]:
+    if raw.isdigit() and len(raw) == 4:
+        return [f"{raw}.TW", f"{raw}.TWO"]
+    return [normalized]
+
+
+def fetch_price_history(symbol: str, period: str, interval: str) -> pd.DataFrame:
+    try:
+        df = yf.download(
+            symbol,
+            period=period,
+            interval=interval,
+            progress=False,
+            auto_adjust=False,
+            threads=False,
+        )
+        if not df.empty:
+            return df
+    except Exception:
+        pass
+    return fetch_yahoo_chart(symbol, period, interval)
+
+
+def fetch_yahoo_chart(symbol: str, period: str, interval: str) -> pd.DataFrame:
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+    try:
+        resp = requests.get(
+            url,
+            params={"range": period, "interval": interval},
+            headers={"User-Agent": "Mozilla/5.0 StockRiskRadar/4.1"},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        result = (resp.json().get("chart", {}).get("result") or [None])[0]
+        if not result:
+            return pd.DataFrame()
+        timestamps = result.get("timestamp") or []
+        quote = (result.get("indicators", {}).get("quote") or [{}])[0]
+        if not timestamps or not quote:
+            return pd.DataFrame()
+        return pd.DataFrame(
+            {
+                "Open": quote.get("open"),
+                "High": quote.get("high"),
+                "Low": quote.get("low"),
+                "Close": quote.get("close"),
+                "Volume": quote.get("volume"),
+            },
+            index=pd.to_datetime(timestamps, unit="s").tz_localize("UTC").tz_convert(None).normalize(),
+        ).dropna(subset=["Close"])
+    except Exception:
+        return pd.DataFrame()
+
+
+def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    if isinstance(out.columns, pd.MultiIndex):
+        out.columns = [col[0] for col in out.columns]
+    out = out.rename(columns=str.title)
+    required = ["Open", "High", "Low", "Close", "Volume"]
+    missing = [col for col in required if col not in out.columns]
+    if missing:
+        raise HTTPException(status_code=502, detail=f"Price data missing columns: {', '.join(missing)}")
+    return out[required].dropna(subset=["Open", "High", "Low", "Close"])
+
+
+def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    data = df.copy()
+    for col in ["Open", "High", "Low", "Close", "Volume"]:
+        data[col] = pd.to_numeric(data[col], errors="coerce")
+    data = data.dropna(subset=["Open", "High", "Low", "Close"])
+    data["MA5"] = data["Close"].rolling(5).mean()
+    data["MA20"] = data["Close"].rolling(20).mean()
+    data["MA60"] = data["Close"].rolling(60).mean()
+
+    ema12 = data["Close"].ewm(span=12, adjust=False).mean()
+    ema26 = data["Close"].ewm(span=26, adjust=False).mean()
+    data["MACD"] = ema12 - ema26
+    data["MACD_SIGNAL"] = data["MACD"].ewm(span=9, adjust=False).mean()
+
+    delta = data["Close"].diff()
+    gain = delta.clip(lower=0).rolling(14).mean()
+    loss = (-delta.clip(upper=0)).rolling(14).mean()
+    rs = gain / loss.replace(0, np.nan)
+    data["RSI14"] = 100 - 100 / (1 + rs)
+    data.loc[(loss == 0) & (gain > 0), "RSI14"] = 100
+    data.loc[(gain == 0) & (loss > 0), "RSI14"] = 0
+
+    prev_close = data["Close"].shift(1)
+    tr = pd.concat(
+        [
+            data["High"] - data["Low"],
+            (data["High"] - prev_close).abs(),
+            (data["Low"] - prev_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+    data["ATR14"] = tr.rolling(14).mean()
+    data["VOLUME_RATIO"] = data["Volume"] / data["Volume"].rolling(20).mean()
+    data["RET1"] = data["Close"].pct_change(1)
+    data["RET5"] = data["Close"].pct_change(5)
+    data["RET20"] = data["Close"].pct_change(20)
+    return data
+
+
+def fetch_news(symbol: str, market: str) -> dict[str, Any]:
+    plain = symbol.replace(".TW", "").replace(".TWO", "")
+    if market == "TW":
+        query = f"{plain} 股票 營收 法說 股價"
+        urls = [(f"https://news.google.com/rss/search?q={quote_plus(query)}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant", "Google News")]
+    else:
+        query = f"{symbol} stock earnings analyst rating"
+        urls = [
+            (f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={quote_plus(symbol)}&region=US&lang=en-US", "Yahoo Finance"),
+            (f"https://news.google.com/rss/search?q={quote_plus(query)}&hl=en-US&gl=US&ceid=US:en", "Google News"),
+        ]
+
+    items: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for url, source in urls:
+        for item in fetch_feed(url, source):
+            key = item["title"].strip().lower()
+            if key and key not in seen:
+                seen.add(key)
+                items.append(item)
+
+    total_score = sum(int(item["sentiment"]) for item in items)
+    positive = sum(1 for item in items if int(item["sentiment"]) > 0)
+    negative = sum(1 for item in items if int(item["sentiment"]) < 0)
+    label = "positive" if total_score >= 2 else "negative" if total_score <= -2 else "neutral"
+    return {
+        "query": query,
+        "label": label,
+        "score": total_score,
+        "positive": positive,
+        "negative": negative,
+        "items": items[:10],
+    }
+
+
+def fetch_feed(url: str, source: str) -> list[dict[str, Any]]:
+    try:
+        resp = requests.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 StockRiskRadar/4.1"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        feed = feedparser.parse(resp.content)
+        rows = []
+        for entry in feed.entries[:10]:
+            title = getattr(entry, "title", "") or ""
+            summary = getattr(entry, "summary", "") or ""
+            if not title:
+                continue
+            rows.append(
+                {
+                    "source": source,
+                    "title": title,
+                    "link": getattr(entry, "link", "") or "",
+                    "published": getattr(entry, "published", "") or getattr(entry, "updated", "") or "",
+                    "sentiment": score_sentiment(f"{title} {summary}"),
+                }
+            )
+        return rows
+    except Exception as exc:
+        return [{"source": source, "title": f"News fetch failed: {exc}", "link": "", "published": "", "sentiment": 0}]
+
+
+def score_sentiment(text: str) -> int:
+    lower = text.lower()
+    score = sum(1 for word in POSITIVE_WORDS if word.lower() in lower)
+    score -= sum(1 for word in NEGATIVE_WORDS if word.lower() in lower)
+    return max(-3, min(3, score))
+
+
+def support_resistance(data: pd.DataFrame) -> dict[str, float]:
+    recent = data.tail(60)
+    latest = data.iloc[-1]
+    support = float(recent["Low"].min())
+    resistance = float(recent["High"].max())
+    atr = float(latest["ATR14"] or 0)
+    return {
+        "support_60d": number(support),
+        "resistance_60d": number(resistance),
+        "breakout_call": number(resistance * 1.01),
+        "backtest_zone": number(max(support, latest["Close"] - atr)),
+        "stop_loss_reference": number(max(0, support - atr * 0.5)),
+    }
+
+
+def build_risk(latest: pd.Series, previous: pd.Series, levels: dict[str, float], news: dict[str, Any]) -> dict[str, Any]:
+    close = float(latest["Close"])
+    ma20 = float(latest["MA20"])
+    ma60 = float(latest["MA60"])
+    rsi = float(latest["RSI14"] or 50)
+    macd = float(latest["MACD"] or 0)
+    macd_signal = float(latest["MACD_SIGNAL"] or 0)
+    volume_ratio = float(latest["VOLUME_RATIO"] or 1)
+    ret20 = float(latest["RET20"] or 0) * 100
+
+    score = 45
+    reasons = []
+    if close > ma20 > ma60:
+        score -= 10
+        reasons.append("Price is above MA20 and MA60.")
+    elif close < ma20 < ma60:
+        score += 15
+        reasons.append("Price is below MA20 and MA60.")
+    if rsi >= 75:
+        score += 12
+        reasons.append("RSI is overheated.")
+    elif rsi <= 30:
+        score += 8
+        reasons.append("RSI is weak or oversold.")
+    elif 45 <= rsi <= 65:
+        score -= 5
+        reasons.append("RSI is in a balanced zone.")
+    if macd > macd_signal:
+        score -= 5
+        reasons.append("MACD is bullish.")
+    else:
+        score += 5
+        reasons.append("MACD is weak.")
+    if volume_ratio >= 1.8:
+        score += 8
+        reasons.append("Volume is unusually high.")
+    if ret20 > 10:
+        score += 6
+        reasons.append("20-day return is extended.")
+    elif ret20 < -10:
+        score += 10
+        reasons.append("20-day return is deeply negative.")
+    if news["label"] == "positive":
+        score -= 5
+        reasons.append("News keywords lean positive.")
+    elif news["label"] == "negative":
+        score += 8
+        reasons.append("News keywords lean negative.")
+
+    score = int(max(0, min(100, score)))
+    trend = "bullish" if close > ma20 and macd > macd_signal else "bearish" if close < ma20 else "sideways"
+    level = "low" if score < 40 else "medium" if score < 70 else "high"
+    summary = (
+        f"{trend.title()} bias with risk {score}/100. "
+        f"Support: {levels['support_60d']}, resistance: {levels['resistance_60d']}, "
+        f"breakout call point: {levels['breakout_call']}."
+    )
+    return {"score": score, "level": level, "trend": trend, "summary": summary, "reasons": reasons}
+
+
+def build_suitability(latest: pd.Series, risk: dict[str, Any], news: dict[str, Any]) -> dict[str, Any]:
+    close = float(latest["Close"])
+    atr_pct = float(latest["ATR14"] / close * 100) if close else 0
+    volume_ratio = float(latest["VOLUME_RATIO"] or 1)
+    ret5 = float(latest["RET5"] or 0) * 100
+    ret20 = float(latest["RET20"] or 0) * 100
+    risk_score = int(risk["score"])
+
+    intraday_score = 55 + min(18, volume_ratio * 8) + min(10, atr_pct) - risk_score / 4
+    short_score = 58 + ret5 * 0.8 - risk_score / 5
+    long_score = 64 + ret20 * 0.45 - risk_score / 4 - atr_pct
+    if news["label"] == "negative":
+        short_score -= 8
+        long_score -= 8
+    return {
+        "intraday": suitability_label(intraday_score, "Volume and intraday volatility are the main drivers."),
+        "short_term": suitability_label(short_score, "5-day momentum, MACD and news risk are weighted."),
+        "long_term": suitability_label(long_score, "20-day trend, MA60 and volatility are weighted."),
+    }
+
+
+def suitability_label(score: float, reason: str) -> dict[str, Any]:
+    label = "suitable" if score >= 70 else "watch" if score >= 50 else "avoid"
+    return {"score": number(score), "label": label, "reason": reason}
+
+
+def build_chart_rows(data: pd.DataFrame, market: str) -> list[dict[str, Any]]:
+    rows = []
+    for idx, row in data.iterrows():
+        up = float(row["Close"]) >= float(row["Open"])
+        rows.append(
+            {
+                "date": idx.strftime("%Y-%m-%d"),
+                "open": number(row["Open"]),
+                "high": number(row["High"]),
+                "low": number(row["Low"]),
+                "close": number(row["Close"]),
+                "volume": int(row["Volume"]) if not pd.isna(row["Volume"]) else 0,
+                "ma5": number(row["MA5"]),
+                "ma20": number(row["MA20"]),
+                "ma60": number(row["MA60"]),
+                "color": candle_color(up, market),
+            }
+        )
+    return rows
+
+
+def candle_color(up: bool, market: str) -> str:
+    if market == "TW":
+        return "#ef4444" if up else "#22c55e"
+    return "#22c55e" if up else "#ef4444"
+
+
+def save_log(input_symbol: str, symbol: str, market: str, response: dict[str, Any]) -> None:
+    init_db()
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT INTO analysis_log
+            (created_at, input_symbol, normalized_symbol, market, close_price, risk_score, trend_label, raw_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                input_symbol,
+                symbol,
+                market,
+                response["latest"]["close"],
+                response["risk"]["score"],
+                response["risk"]["trend"],
+                json.dumps(response, ensure_ascii=False),
+            ),
+        )
+
+
+def number(value: Any, digits: int = 2) -> float:
+    try:
+        value = float(value)
+        if math.isnan(value) or math.isinf(value):
+            return 0
+        return round(value, digits)
+    except Exception:
+        return 0

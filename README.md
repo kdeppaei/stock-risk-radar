@@ -1,0 +1,77 @@
+# Stock Risk Radar
+
+FastAPI stock-risk dashboard for Taiwan and US stocks.
+
+Users can enter symbols such as `2330`, `2330.TW`, `6488.TWO`, `AAPL`, `NVDA`, and `TSLA`. The app fetches price data, calculates technical indicators, reads RSS finance news, and returns a dashboard with candlesticks, support/resistance, risk score, news sentiment, and intraday/short-term/long-term suitability.
+
+## Features
+
+- FastAPI backend
+- yfinance price fetch with Yahoo chart API fallback
+- Google News RSS / Yahoo Finance RSS
+- Candlestick chart rendered in browser canvas
+- Taiwan market colors: up red, down green
+- US market colors: up green, down red
+- MA5, MA20, MA60, RSI, MACD, ATR, volume ratio
+- 1-day, 5-day, and 20-day returns
+- 60-day support/resistance, breakout call point, backtest zone, stop-loss reference
+- SQLite analysis log
+
+## Local Run
+
+```bash
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+
+# macOS / Linux
+source .venv/bin/activate
+
+pip install -r requirements.txt
+uvicorn app:app --reload --host 127.0.0.1 --port 8000
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000
+```
+
+## Deploy To Render
+
+Create a GitHub repository and push this folder.
+
+On Render, create a Web Service from the GitHub repository.
+
+Build Command:
+
+```text
+pip install -r requirements.txt
+```
+
+Start Command:
+
+```text
+uvicorn app:app --host 0.0.0.0 --port $PORT
+```
+
+The included `render.yaml` can also be used as a Render Blueprint.
+
+## Why Not GitHub Pages Only?
+
+GitHub Pages is for static HTML/CSS/JavaScript. This project needs a Python server to run yfinance, fetch RSS news, calculate indicators, and write SQLite logs. Use Render, Railway, Fly.io, or another Python hosting platform for the FastAPI backend.
+
+## API
+
+```text
+GET /api/analyze?symbol=AAPL&period=1y&interval=1d
+```
+
+Supported `period`: `6mo`, `1y`, `2y`, `5y`
+
+Supported `interval`: `1d`, `1wk`
+
+## Disclaimer
+
+This tool is for research and education only. It is not investment advice.
