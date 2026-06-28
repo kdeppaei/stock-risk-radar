@@ -6,56 +6,40 @@
   <title>Stock Risk Radar</title>
   <style>
     :root {
-      --bg: #0b1020;
-      --panel: #111936;
-      --card: #151f42;
-      --text: #ecf2ff;
-      --muted: #97a4c2;
-      --line: #26345f;
-      --blue: #76a9ff;
-      --green: #22c55e;
-      --red: #ef4444;
-      --amber: #fbbf24;
+      --bg: #0b1020; --panel: #111936; --card: #151f42; --text: #ecf2ff; --muted: #97a4c2;
+      --line: #26345f; --blue: #76a9ff; --green: #22c55e; --red: #ef4444; --amber: #fbbf24;
       font-family: "Segoe UI", "Noto Sans TC", Arial, sans-serif;
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); }
-    .wrap { width: min(1440px, calc(100% - 28px)); margin: 0 auto; padding: 22px 0; }
-    header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: end; margin-bottom: 16px; }
+    .wrap { width: min(1440px, calc(100% - 28px)); margin: 0 auto; padding: 18px 0 28px; }
+    .statusbar, header, .cards, .main, .grid { display: grid; gap: 12px; }
+    .statusbar { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 14px; }
+    .status { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+    .status span, .card span, .kv span { display: block; color: var(--muted); font-size: 12px; }
+    .status strong, .card strong, .kv strong { display: block; margin-top: 4px; }
+    header { grid-template-columns: minmax(0, 1fr) auto; align-items: end; margin-bottom: 14px; }
     h1, h2, h3, p { margin: 0; letter-spacing: 0; }
     h1 { font-size: 30px; }
     h2 { font-size: 17px; }
-    .sub { margin-top: 6px; color: var(--muted); line-height: 1.5; }
+    .sub, .muted, .explain { color: var(--muted); line-height: 1.5; }
+    .sub { margin-top: 6px; }
     .controls { display: grid; gap: 8px; justify-items: end; }
-    .search, .langbar, .quickbar, .chart-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    input, select, button, a.button {
-      height: 42px;
-      border-radius: 7px;
-      border: 1px solid var(--line);
-      font: inherit;
-    }
+    .search, .langbar, .quickbar, .chart-actions, .refreshbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    input, select, button, a.button { height: 42px; border-radius: 7px; border: 1px solid var(--line); font: inherit; }
     input, select { background: #0f172f; color: var(--text); padding: 0 12px; }
     input { width: 190px; }
     button, a.button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      background: #3b82f6;
-      color: white;
-      border-color: #3b82f6;
-      padding: 0 14px;
-      cursor: pointer;
-      text-decoration: none;
-      white-space: nowrap;
+      display: inline-flex; align-items: center; justify-content: center; background: #3b82f6; color: white;
+      border-color: #3b82f6; padding: 0 14px; cursor: pointer; text-decoration: none; white-space: nowrap;
     }
     button.secondary, a.secondary { background: var(--card); border-color: var(--line); color: var(--text); }
     button:disabled { opacity: .6; cursor: wait; }
-    .cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .cards { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 16px; }
     .card, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
     .card { padding: 14px; min-height: 86px; }
-    .card span { display: block; color: var(--muted); font-size: 12px; }
-    .card strong { display: block; margin-top: 7px; font-size: 22px; white-space: nowrap; }
-    .main { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 16px; }
+    .card strong { font-size: 22px; white-space: nowrap; }
+    .main { grid-template-columns: minmax(0, 1fr) 390px; }
     .panel { padding: 16px; min-width: 0; }
     .chart-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 12px; }
     canvas { display: block; width: 100%; height: 540px; background: #0f172f; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
@@ -63,41 +47,33 @@
     .summary { margin-top: 10px; line-height: 1.65; color: #d7e3ff; }
     .riskbar { height: 10px; background: #0f172f; border-radius: 999px; overflow: hidden; margin-top: 12px; }
     .riskbar div { height: 100%; width: 0; background: var(--green); transition: width .3s ease; }
-    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+    .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 16px; }
     .kvgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 12px; }
-    .kv, .news, .watch-item, .quote-row { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
-    .kv span { display: block; color: var(--muted); font-size: 12px; }
-    .kv strong { display: block; margin-top: 4px; font-size: 15px; }
+    .kv, .news, .watch-item, .quote-row, .plainbox { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
+    .kv strong { font-size: 15px; }
     .tag { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 9px; border-radius: 999px; background: var(--card); color: var(--muted); font-size: 12px; }
     .tag.good { color: #86efac; } .tag.bad { color: #fda4af; } .tag.warn { color: #fde68a; }
     .news { margin-top: 10px; line-height: 1.45; }
     .news a { color: #dbeafe; text-decoration: none; }
     .news a:hover { color: var(--blue); }
-    .muted { color: var(--muted); font-size: 12px; }
     .up { color: var(--green); } .down { color: var(--red); } .tw-up { color: var(--red); } .tw-down { color: var(--green); }
     .quote-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; margin-top: 12px; }
     .chart-hint { margin: 8px 0 10px; color: var(--muted); font-size: 12px; }
     .watchlist { display: grid; gap: 8px; margin-top: 12px; }
-    .watch-item {
-      display: grid;
-      grid-template-columns: 1fr auto auto;
-      gap: 8px;
-      align-items: center;
-      cursor: pointer;
-      transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
-    }
+    .watch-item { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; cursor: pointer; transition: .2s ease; }
     .watch-item strong { display: block; }
     .watch-item small { color: var(--muted); }
     .watch-item.flash-up { border-color: var(--green); box-shadow: 0 0 0 2px rgba(34,197,94,.22); animation: blinkUp 1s ease-in-out 3; }
     .watch-item.flash-down { border-color: var(--red); box-shadow: 0 0 0 2px rgba(239,68,68,.22); animation: blinkDown 1s ease-in-out 3; }
     .arrow { font-size: 20px; font-weight: 800; }
     .remove { width: 32px; height: 32px; padding: 0; background: transparent; border-color: var(--line); color: var(--muted); }
+    .explain { margin-top: 10px; font-size: 13px; }
     @keyframes blinkUp { 50% { background: rgba(34,197,94,.18); } }
     @keyframes blinkDown { 50% { background: rgba(239,68,68,.18); } }
-    @media (max-width: 1120px) { header, .main, .grid { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 1120px) { header, .main, .grid, .statusbar { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 640px) {
       .wrap { width: min(100% - 18px, 1440px); }
-      .search, .langbar, .quickbar, .chart-actions { display: grid; grid-template-columns: 1fr 1fr; }
+      .search, .langbar, .quickbar, .chart-actions, .refreshbar { display: grid; grid-template-columns: 1fr 1fr; }
       input, select, button, a.button { width: 100%; }
       .cards, .kvgrid { grid-template-columns: 1fr; }
       canvas { height: 430px; }
@@ -108,10 +84,17 @@
 </head>
 <body>
   <main class="wrap">
+    <section class="statusbar">
+      <div class="status"><span data-i18n="twTime">台灣時間</span><strong id="twTime">-</strong></div>
+      <div class="status"><span data-i18n="usTime">美東時間</span><strong id="usTime">-</strong></div>
+      <div class="status"><span data-i18n="fx">USD/TWD</span><strong id="fxRate">-</strong></div>
+      <div class="status"><span data-i18n="macroMood">總經氣氛</span><strong id="macroMood">-</strong></div>
+    </section>
+
     <header>
       <div>
         <h1>Stock Risk Radar</h1>
-        <p class="sub" data-i18n="subtitle">輸入美股或台股代號，快速整理股價、K 線、新聞情緒、風險、壓力支撐與交易週期適合度。</p>
+        <p class="sub" data-i18n="subtitle">輸入美股或台股代號，快速整理股價、K 線、新聞、風險、總經與短長期建議。</p>
       </div>
       <div class="controls">
         <div class="langbar">
@@ -122,24 +105,30 @@
         <form id="form" class="search">
           <input id="symbol" value="2330" autocomplete="off" />
           <select id="period">
+            <option value="1d">Today</option>
             <option value="6mo">6M</option>
             <option value="1y" selected>1Y</option>
             <option value="2y">2Y</option>
             <option value="5y">5Y</option>
           </select>
           <select id="interval">
-            <option value="1d">Day</option>
+            <option value="5m">Live 5m</option>
+            <option value="1d" selected>Day</option>
             <option value="1wk">Week</option>
           </select>
           <button id="runBtn" type="submit" data-i18n="analyze">分析</button>
           <button id="addWatchBtn" type="button" class="secondary" data-i18n="addWatch">加入關注</button>
         </form>
+        <div class="refreshbar">
+          <button id="autoBtn" class="secondary" type="button" data-i18n="autoOn">自動刷新：開</button>
+          <span class="muted" id="refreshMeta">-</span>
+        </div>
       </div>
     </header>
 
     <section class="cards">
       <article class="card"><span data-i18n="symbol">股票代號</span><strong id="ticker">-</strong></article>
-      <article class="card"><span data-i18n="close">收盤價</span><strong id="price">-</strong></article>
+      <article class="card"><span data-i18n="close">收盤/最新</span><strong id="price">-</strong></article>
       <article class="card"><span data-i18n="change">漲跌</span><strong id="change">-</strong></article>
       <article class="card"><span data-i18n="risk">風險</span><strong id="risk">-</strong></article>
       <article class="card"><span data-i18n="trend">趨勢</span><strong id="trend">-</strong></article>
@@ -158,12 +147,12 @@
         </div>
         <div class="quote-row">
           <div>
-            <strong id="liveTitle" data-i18n="liveSnapshot">站內即時摘要</strong>
+            <strong data-i18n="liveSnapshot">站內即時摘要</strong>
             <div class="muted" id="liveMeta">-</div>
           </div>
           <span class="tag" id="predictionBadge">-</span>
         </div>
-        <div class="chart-hint" id="chartHint">點擊 K 線圖可開啟 Google Finance 即時看盤；圖上的 BUY 為條件式訊號參考。</div>
+        <div class="chart-hint" id="chartHint" data-i18n="chartHint">點擊 K 線圖可開啟 Google Finance；BUY 是條件式參考訊號。</div>
         <canvas id="chart"></canvas>
       </article>
 
@@ -183,7 +172,7 @@
           <div id="watchlist" class="watchlist"></div>
         </article>
         <article class="panel">
-          <h2 data-i18n="playbook">交易劇本</h2>
+          <h2 data-i18n="playbook">白話交易劇本</h2>
           <div class="kvgrid" id="playbook"></div>
         </article>
       </aside>
@@ -192,8 +181,19 @@
     <section class="grid">
       <article class="panel"><h2 data-i18n="technical">技術指標</h2><div class="kvgrid" id="technical"></div></article>
       <article class="panel"><h2 data-i18n="levels">壓力支撐</h2><div class="kvgrid" id="levels"></div></article>
-      <article class="panel"><h2 data-i18n="suitability">短中長建議</h2><div class="kvgrid" id="suitability"></div></article>
+      <article class="panel">
+        <h2 data-i18n="suitability">短中長建議</h2>
+        <div class="kvgrid" id="suitability"></div>
+        <p class="explain" id="scoreHelp"></p>
+      </article>
       <article class="panel"><h2 data-i18n="news">利多 / 利空</h2><div id="newsBox"></div></article>
+    </section>
+
+    <section class="grid">
+      <article class="panel"><h2 data-i18n="macro">總經 / 量化模型</h2><div class="kvgrid" id="macroBox"></div></article>
+      <article class="panel"><h2 data-i18n="modelWhy">模型依據</h2><div id="modelDrivers" class="plainbox"></div></article>
+      <article class="panel"><h2 data-i18n="periodHelpTitle">Today / Day / Week 是什麼</h2><p class="summary" data-i18n="periodHelp"></p></article>
+      <article class="panel"><h2 data-i18n="refreshHelpTitle">動態追蹤</h2><p class="summary" data-i18n="refreshHelp"></p></article>
     </section>
   </main>
 
@@ -205,89 +205,91 @@
     let lang = localStorage.getItem("srr.lang") || "zh-tw";
     let watch = JSON.parse(localStorage.getItem("srr.watch") || "[]");
     let watchState = JSON.parse(localStorage.getItem("srr.watchState") || "{}");
+    let autoRefresh = true;
 
     const dict = {
       "zh-tw": {
-        subtitle: "輸入美股或台股代號，快速整理股價、K 線、新聞情緒、風險、壓力支撐與交易週期適合度。",
-        analyze: "分析", addWatch: "加入關注", symbol: "股票代號", close: "收盤價", change: "漲跌",
-        risk: "風險", trend: "趨勢", chartTitle: "K 線 / MA5 / MA20 / MA60 / Volume",
-        liveSnapshot: "站內即時摘要", summary: "總結", watchlist: "關注清單", playbook: "交易劇本",
-        technical: "技術指標", levels: "壓力支撐", suitability: "短中長建議", news: "利多 / 利空",
+        subtitle: "輸入美股或台股代號，快速整理股價、K 線、新聞、風險、總經與短長期建議。",
+        analyze: "分析", addWatch: "加入關注", autoOn: "自動刷新：開", autoOff: "自動刷新：關",
+        symbol: "股票代號", close: "收盤/最新", change: "漲跌", risk: "風險", trend: "趨勢",
+        chartTitle: "K 線 / MA5 / MA20 / MA60 / Volume", liveSnapshot: "站內即時摘要", summary: "總結",
+        watchlist: "關注清單", playbook: "白話交易劇本", technical: "技術指標", levels: "壓力支撐",
+        suitability: "短中長建議", news: "利多 / 利空", macro: "總經 / 量化模型", modelWhy: "模型依據",
+        twTime: "台灣時間", usTime: "美東時間", fx: "USD/TWD", macroMood: "總經氣氛",
+        periodHelpTitle: "Today / Day / Week 是什麼", refreshHelpTitle: "動態追蹤",
+        periodHelp: "Today=當日 5 分鐘線，適合看盤中變化；Day=每日 K 線，適合看波段；Week=每週 K 線，適合看長線大方向。",
+        refreshHelp: "頁面開著時會每 60 秒重抓目前股票與關注清單；Today 模式會把新 5 分鐘線接到圖上。",
+        chartHint: "點擊 K 線圖可開啟 Google Finance；BUY 是條件式參考訊號。",
+        scoreHelp: "括弧內數字是 0-100 分適合度：70 以上較適合，50-69 觀察，低於 50 先避開。",
         marketTW: "台股：漲紅跌綠", marketUS: "美股：漲綠跌紅", noWatch: "尚未加入關注股票",
-        bullish: "偏多", bearish: "偏空", neutral: "中性", sideways: "盤整",
-        suitable: "適合", watch: "觀察", avoid: "避開", positive: "利多", negative: "利空", neutralNews: "中性",
+        bullish: "偏多", bearish: "偏空", neutral: "中性", sideways: "盤整", "risk-on": "偏樂觀", "risk-off": "偏保守", mixed: "混合",
+        suitable: "適合", watch: "觀察", avoid: "避開", positive: "利多", negative: "利空",
         trigger: "突破觀察", pressure: "壓力區", backtest: "回測區", stop: "停損參考",
-        intraday: "當沖", short: "短期", long: "長期", forecast5: "5 日預測", forecast20: "20 日預測",
-        confidence: "信心", model: "模型", advice: "建議",
-        chartHint: "點擊 K 線圖可開啟 Google Finance 即時看盤；圖上的 BUY 為條件式訊號參考。",
-        openGoogle: "已開啟 Google Finance 即時看盤"
+        intraday: "當沖", short: "短期", long: "長期", forecast5: "5 期預測", forecast20: "20 期預測",
+        confidence: "信心", model: "模型", advice: "建議", updated: "更新"
       },
       "zh-cn": {
-        subtitle: "输入美股或台股代码，快速整理股价、K线、新闻情绪、风险、压力支撑与交易周期适合度。",
-        analyze: "分析", addWatch: "加入关注", symbol: "股票代码", close: "收盘价", change: "涨跌",
-        risk: "风险", trend: "趋势", chartTitle: "K线 / MA5 / MA20 / MA60 / Volume",
-        liveSnapshot: "站内即时摘要", summary: "总结", watchlist: "关注清单", playbook: "交易剧本",
-        technical: "技术指标", levels: "压力支撑", suitability: "短中长建议", news: "利多 / 利空",
+        subtitle: "输入美股或台股代码，快速整理股价、K线、新闻、风险、总经与短长期建议。",
+        analyze: "分析", addWatch: "加入关注", autoOn: "自动刷新：开", autoOff: "自动刷新：关",
+        symbol: "股票代码", close: "收盘/最新", change: "涨跌", risk: "风险", trend: "趋势",
+        chartTitle: "K线 / MA5 / MA20 / MA60 / Volume", liveSnapshot: "站内即时摘要", summary: "总结",
+        watchlist: "关注清单", playbook: "白话交易剧本", technical: "技术指标", levels: "压力支撑",
+        suitability: "短中长建议", news: "利多 / 利空", macro: "总经 / 量化模型", modelWhy: "模型依据",
+        twTime: "台湾时间", usTime: "美东时间", fx: "USD/TWD", macroMood: "总经气氛",
+        periodHelpTitle: "Today / Day / Week 是什么", refreshHelpTitle: "动态追踪",
+        periodHelp: "Today=当日5分钟线，适合看盘中变化；Day=每日K线，适合看波段；Week=每周K线，适合看长线方向。",
+        refreshHelp: "页面开着时会每60秒重抓目前股票与关注清单；Today模式会把新的5分钟线接到图上。",
+        chartHint: "点击K线图可开启 Google Finance；BUY 是条件式参考信号。",
+        scoreHelp: "括号内数字是0-100分适合度：70以上较适合，50-69观察，低于50先避开。",
         marketTW: "台股：涨红跌绿", marketUS: "美股：涨绿跌红", noWatch: "尚未加入关注股票",
-        bullish: "偏多", bearish: "偏空", neutral: "中性", sideways: "盘整",
-        suitable: "适合", watch: "观察", avoid: "避开", positive: "利多", negative: "利空", neutralNews: "中性",
+        bullish: "偏多", bearish: "偏空", neutral: "中性", sideways: "盘整", "risk-on": "偏乐观", "risk-off": "偏保守", mixed: "混合",
+        suitable: "适合", watch: "观察", avoid: "避开", positive: "利多", negative: "利空",
         trigger: "突破观察", pressure: "压力区", backtest: "回测区", stop: "止损参考",
-        intraday: "当冲", short: "短期", long: "长期", forecast5: "5日预测", forecast20: "20日预测",
-        confidence: "信心", model: "模型", advice: "建议",
-        chartHint: "点击K线图可开启 Google Finance 即时看盘；图上的 BUY 为条件式信号参考。",
-        openGoogle: "已开启 Google Finance 即时看盘"
+        intraday: "当冲", short: "短期", long: "长期", forecast5: "5期预测", forecast20: "20期预测",
+        confidence: "信心", model: "模型", advice: "建议", updated: "更新"
       },
       en: {
-        subtitle: "Enter a US or Taiwan ticker to review price action, candles, news sentiment, risk, support/resistance and trading suitability.",
-        analyze: "Analyze", addWatch: "Watch", symbol: "Symbol", close: "Close", change: "Change",
-        risk: "Risk", trend: "Trend", chartTitle: "Candles / MA5 / MA20 / MA60 / Volume",
-        liveSnapshot: "Live Snapshot", summary: "Summary", watchlist: "Watchlist", playbook: "Playbook",
-        technical: "Technical", levels: "Levels", suitability: "Suitability", news: "Bullish / Bearish",
+        subtitle: "Enter a US or Taiwan ticker to review price, candles, news, risk, macro context and trading suitability.",
+        analyze: "Analyze", addWatch: "Watch", autoOn: "Auto refresh: on", autoOff: "Auto refresh: off",
+        symbol: "Symbol", close: "Close/latest", change: "Change", risk: "Risk", trend: "Trend",
+        chartTitle: "Candles / MA5 / MA20 / MA60 / Volume", liveSnapshot: "Live Snapshot", summary: "Summary",
+        watchlist: "Watchlist", playbook: "Plain Playbook", technical: "Technical", levels: "Levels",
+        suitability: "Suitability", news: "Bullish / Bearish", macro: "Macro / Quant", modelWhy: "Model Drivers",
+        twTime: "Taiwan Time", usTime: "US Eastern", fx: "USD/TWD", macroMood: "Macro Mood",
+        periodHelpTitle: "What Today / Day / Week Mean", refreshHelpTitle: "Live Tracking",
+        periodHelp: "Today uses 5-minute candles for intraday tracking. Day uses daily candles for swing analysis. Week uses weekly candles for long-term direction.",
+        refreshHelp: "While the page is open, the app refreshes the current symbol and watchlist every 60 seconds. Today mode appends fresh 5-minute action.",
+        chartHint: "Click the candle chart to open Google Finance. BUY markers are conditional reference signals.",
+        scoreHelp: "Numbers in brackets are 0-100 suitability scores: 70+ suitable, 50-69 watch, below 50 avoid.",
         marketTW: "Taiwan: up red / down green", marketUS: "US: up green / down red", noWatch: "No watched symbols yet",
-        bullish: "Bullish", bearish: "Bearish", neutral: "Neutral", sideways: "Sideways",
-        suitable: "Suitable", watch: "Watch", avoid: "Avoid", positive: "Bullish", negative: "Bearish", neutralNews: "Neutral",
+        bullish: "Bullish", bearish: "Bearish", neutral: "Neutral", sideways: "Sideways", "risk-on": "Risk-on", "risk-off": "Risk-off", mixed: "Mixed",
+        suitable: "Suitable", watch: "Watch", avoid: "Avoid", positive: "Bullish", negative: "Bearish",
         trigger: "Breakout", pressure: "Pressure", backtest: "Backtest", stop: "Stop ref",
-        intraday: "Intraday", short: "Short", long: "Long", forecast5: "5D forecast", forecast20: "20D forecast",
-        confidence: "Confidence", model: "Model", advice: "Advice",
-        chartHint: "Click the candle chart to open Google Finance live quote. BUY markers are conditional reference signals.",
-        openGoogle: "Opened Google Finance live quote"
+        intraday: "Intraday", short: "Short", long: "Long", forecast5: "5-step forecast", forecast20: "20-step forecast",
+        confidence: "Confidence", model: "Model", advice: "Advice", updated: "Updated"
       }
     };
     const t = (key) => (dict[lang] && dict[lang][key]) || dict.en[key] || key;
 
-    document.querySelectorAll("[data-lang]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        lang = btn.dataset.lang;
-        localStorage.setItem("srr.lang", lang);
-        applyLang();
-        if (lastData) render(lastData);
-        renderWatchlist();
-      });
-    });
-    $("form").addEventListener("submit", (event) => {
-      event.preventDefault();
-      analyze($("symbol").value.trim() || "2330");
-    });
+    document.querySelectorAll("[data-lang]").forEach((btn) => btn.addEventListener("click", () => {
+      lang = btn.dataset.lang; localStorage.setItem("srr.lang", lang); applyLang(); if (lastData) render(lastData); renderWatchlist();
+    }));
+    $("form").addEventListener("submit", (event) => { event.preventDefault(); analyze($("symbol").value.trim() || "2330"); });
     $("addWatchBtn").addEventListener("click", () => addWatch(lastData?.symbol || $("symbol").value.trim()));
+    $("autoBtn").addEventListener("click", () => { autoRefresh = !autoRefresh; $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff"); });
     window.addEventListener("resize", () => renderChart(lastData));
-    canvas.addEventListener("click", () => {
-      const href = $("googleLink").href;
-      if (href && href !== "#") {
-        $("chartHint").textContent = t("openGoogle");
-        const opened = window.open(href, "_blank", "noopener,noreferrer");
-        if (!opened) window.location.href = href;
-      }
-    });
+    canvas.addEventListener("click", () => { const href = $("googleLink").href; if (href && href !== "#") window.open(href, "_blank", "noopener,noreferrer") || (window.location.href = href); });
 
     function applyLang() {
       document.documentElement.lang = lang === "en" ? "en" : lang === "zh-cn" ? "zh-Hans" : "zh-Hant";
       document.querySelectorAll("[data-i18n]").forEach((el) => el.textContent = t(el.dataset.i18n));
+      $("scoreHelp").textContent = t("scoreHelp");
+      $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff");
     }
 
-    async function analyze(symbol) {
+    async function analyze(symbol, silent = false) {
       const button = $("runBtn");
-      button.disabled = true;
-      button.textContent = "Loading";
+      if (!silent) { button.disabled = true; button.textContent = "Loading"; }
       $("symbol").value = symbol;
       try {
         const qs = new URLSearchParams({ symbol, period: $("period").value, interval: $("interval").value });
@@ -296,11 +298,21 @@
         if (!res.ok || !data.ok) throw new Error(data.detail || "Analyze failed");
         render(data);
       } catch (error) {
-        $("summaryText").textContent = error.message;
+        if (!silent) $("summaryText").textContent = error.message;
       } finally {
-        button.disabled = false;
-        button.textContent = t("analyze");
+        button.disabled = false; button.textContent = t("analyze");
       }
+    }
+
+    async function loadContext() {
+      try {
+        const res = await fetch("/api/market-context");
+        const data = await res.json();
+        $("twTime").textContent = data.taipei_time;
+        $("usTime").textContent = data.new_york_time;
+        $("fxRate").textContent = data.usd_twd.price ? `${fmt(data.usd_twd.price)} (${signed(data.usd_twd.change_pct, "%")})` : "-";
+        $("macroMood").textContent = t(data.macro.label);
+      } catch {}
     }
 
     function quick(symbol) { analyze(symbol); }
@@ -315,44 +327,53 @@
       $("risk").textContent = `${data.risk.score}/100`;
       $("trend").textContent = label(data.risk.trend);
       $("market").textContent = isTW ? t("marketTW") : t("marketUS");
-      $("summaryText").textContent = data.risk.summary;
+      $("summaryText").textContent = plainSummary(data);
       $("riskFill").style.width = `${data.risk.score}%`;
       $("riskFill").style.background = data.risk.score >= 70 ? "var(--red)" : data.risk.score >= 40 ? "var(--amber)" : "var(--green)";
       $("liveMeta").textContent = `${data.symbol} · ${data.latest.date} · ${fmt(data.latest.close)} · ${signed(data.change.pct, "%")}`;
       $("predictionBadge").textContent = `${label(data.prediction.bias)} · ${t("confidence")} ${data.prediction.confidence}%`;
-      $("chartHint").textContent = t("chartHint");
       updateLinks(data);
-
-      kv("technical", {
-        MA5: data.technical.ma5, MA20: data.technical.ma20, MA60: data.technical.ma60,
-        RSI: data.technical.rsi14, MACD: data.technical.macd, "MACD Signal": data.technical.macd_signal,
-        "ATR %": `${fmt(data.technical.atr_pct)}%`, "Volume Ratio": data.technical.volume_ratio
-      });
-      kv("levels", {
-        [t("trigger")]: data.levels.breakout_call,
-        [t("pressure")]: data.levels.resistance_60d,
-        [t("backtest")]: data.levels.backtest_zone,
-        [t("stop")]: data.levels.stop_loss_reference
-      });
+      kv("technical", { MA5: data.technical.ma5, MA20: data.technical.ma20, MA60: data.technical.ma60, RSI: data.technical.rsi14, MACD: data.technical.macd, "ATR %": `${fmt(data.technical.atr_pct)}%`, "Vol ratio": data.technical.volume_ratio });
+      kv("levels", { [t("trigger")]: data.levels.breakout_call, [t("pressure")]: data.levels.resistance_60d, [t("backtest")]: data.levels.backtest_zone, [t("stop")]: data.levels.stop_loss_reference });
       kv("suitability", {
-        [t("intraday")]: `${label(data.suitability.intraday.label)} (${fmt(data.suitability.intraday.score)})`,
-        [t("short")]: `${label(data.suitability.short_term.label)} (${fmt(data.suitability.short_term.score)})`,
-        [t("long")]: `${label(data.suitability.long_term.label)} (${fmt(data.suitability.long_term.score)})`,
+        [t("intraday")]: explainScore(data.suitability.intraday),
+        [t("short")]: explainScore(data.suitability.short_term),
+        [t("long")]: explainScore(data.suitability.long_term),
         [t("forecast5")]: signed(data.prediction.forecast_5d_pct, "%"),
         [t("forecast20")]: signed(data.prediction.forecast_20d_pct, "%"),
-        [t("advice")]: data.prediction.advice
+        [t("advice")]: translateAdvice(data.prediction.bias)
       });
-      kv("playbook", {
-        [t("trigger")]: `> ${fmt(data.levels.breakout_call)}`,
-        [t("pressure")]: fmt(data.levels.resistance_60d),
-        [t("backtest")]: fmt(data.levels.backtest_zone),
-        [t("model")]: data.prediction.model
-      });
+      kv("playbook", { [t("trigger")]: `> ${fmt(data.levels.breakout_call)}`, [t("pressure")]: fmt(data.levels.resistance_60d), [t("backtest")]: fmt(data.levels.backtest_zone), [t("model")]: data.prediction.model });
+      kv("macroBox", macroPairs(data.macro));
+      $("modelDrivers").innerHTML = data.prediction.drivers.map((x) => `<div class="muted">${escapeHtml(x)}</div>`).join("");
       $("newsBox").innerHTML = `<span class="tag ${data.news.label === "positive" ? "good" : data.news.label === "negative" ? "bad" : "warn"}">${label(data.news.label)} · +${data.news.positive} / -${data.news.negative}</span>` +
         data.news.items.map((n) => `<div class="news"><a href="${n.link}" target="_blank" rel="noreferrer">${escapeHtml(n.title)}</a><div class="muted">${n.source} · ${n.published || ""} · score ${n.sentiment}</div></div>`).join("");
       renderChart(data);
+      $("refreshMeta").textContent = `${t("updated")} ${new Date().toLocaleTimeString()}`;
       if (!watch.includes(data.symbol)) renderWatchlist();
     }
+
+    function plainSummary(data) {
+      return `${label(data.risk.trend)}，風險 ${data.risk.score}/100。${t("trigger")} ${fmt(data.levels.breakout_call)}，${t("pressure")} ${fmt(data.levels.resistance_60d)}，${t("backtest")} ${fmt(data.levels.backtest_zone)}。${t("model")}：${label(data.prediction.bias)}，${t("confidence")} ${data.prediction.confidence}%。`;
+    }
+
+    function explainScore(item) {
+      return `${label(item.label)} · ${fmt(item.score)}/100`;
+    }
+
+    function translateAdvice(bias) {
+      if (lang === "en") return lastData.prediction.advice;
+      if (bias === "bullish") return lang === "zh-cn" ? "偏多，但更适合等回测再进；守住均线才适合放长。" : "偏多，但更適合等回測再進；守住均線才適合放長。";
+      if (bias === "bearish") return lang === "zh-cn" ? "偏空，先别追价；等站回 MA20 或卖压减弱。" : "偏空，先別追價；等站回 MA20 或賣壓減弱。";
+      return lang === "zh-cn" ? "盘整，用支撑压力操作，不要预设单边。" : "盤整，用支撐壓力操作，不要預設單邊。";
+    }
+
+    function macroPairs(macro) {
+      const items = macro.items || {};
+      return { "S&P 500": pctText(items.sp500), Nasdaq: pctText(items.nasdaq), SOX: pctText(items.sox), "US 10Y": pctText(items.us10y), "USD index": pctText(items.usd_index), Mood: t(macro.label) };
+    }
+
+    function pctText(item) { return item && item.change_pct !== null ? `${fmt(item.price)} · ${signed(item.change_pct, "%")}` : "-"; }
 
     function updateLinks(data) {
       const plain = data.symbol.replace(".TW", "").replace(".TWO", "");
@@ -367,183 +388,84 @@
       if (!clean) return;
       if (!watch.includes(clean)) watch.push(clean);
       localStorage.setItem("srr.watch", JSON.stringify(watch));
-      renderWatchlist();
-      refreshWatchlist();
+      renderWatchlist(); refreshWatchlist();
     }
-
     function removeWatch(symbol, event) {
-      event.stopPropagation();
-      watch = watch.filter((item) => item !== symbol);
-      delete watchState[symbol];
-      localStorage.setItem("srr.watch", JSON.stringify(watch));
-      localStorage.setItem("srr.watchState", JSON.stringify(watchState));
-      renderWatchlist();
+      event.stopPropagation(); watch = watch.filter((item) => item !== symbol); delete watchState[symbol];
+      localStorage.setItem("srr.watch", JSON.stringify(watch)); localStorage.setItem("srr.watchState", JSON.stringify(watchState)); renderWatchlist();
     }
-
     function renderWatchlist(rows = null) {
       const box = $("watchlist");
       const list = rows || watch.map((symbol) => ({ symbol, state: watchState[symbol] || null }));
-      if (!list.length) {
-        box.innerHTML = `<div class="muted">${t("noWatch")}</div>`;
-        return;
-      }
+      if (!list.length) { box.innerHTML = `<div class="muted">${t("noWatch")}</div>`; return; }
       box.innerHTML = list.map(({ symbol, state }) => {
-        const pct = state?.pct ?? 0;
-        const direction = pct >= 0 ? "up" : "down";
-        const cls = state?.flash ? `flash-${direction}` : "";
-        return `<div class="watch-item ${cls}" onclick="quick('${symbol}')">
-          <div><strong>${symbol}</strong><small>${state ? `${fmt(state.price)} · ${signed(pct, "%")}` : "..."}</small></div>
-          <span class="arrow ${direction === "up" ? "up" : "down"}">${arrow(pct)}</span>
-          <button class="remove" type="button" onclick="removeWatch('${symbol}', event)">×</button>
-        </div>`;
+        const pct = state?.pct ?? 0; const direction = pct >= 0 ? "up" : "down"; const cls = state?.flash ? `flash-${direction}` : "";
+        return `<div class="watch-item ${cls}" onclick="quick('${symbol}')"><div><strong>${symbol}</strong><small>${state ? `${fmt(state.price)} · ${signed(pct, "%")}` : "..."}</small></div><span class="arrow ${direction === "up" ? "up" : "down"}">${arrow(pct)}</span><button class="remove" type="button" onclick="removeWatch('${symbol}', event)">x</button></div>`;
       }).join("");
     }
-
     async function refreshWatchlist() {
       if (!watch.length) return renderWatchlist();
       const rows = [];
       for (const symbol of watch) {
         try {
-          const qs = new URLSearchParams({ symbol, period: "6mo", interval: "1d" });
-          const res = await fetch(`/api/analyze?${qs}`);
-          const data = await res.json();
-          if (!res.ok || !data.ok) throw new Error("fetch failed");
+          const qs = new URLSearchParams({ symbol, period: "1d", interval: "5m" });
+          const res = await fetch(`/api/analyze?${qs}`); const data = await res.json(); if (!res.ok || !data.ok) throw new Error("fetch failed");
           const previous = watchState[data.symbol]?.price;
-          const state = {
-            price: data.latest.close,
-            pct: data.change.pct,
-            flash: previous !== undefined && Math.abs(data.latest.close - previous) > 0.0001
-          };
-          watchState[data.symbol] = state;
-          rows.push({ symbol: data.symbol, state });
-        } catch {
-          rows.push({ symbol, state: watchState[symbol] || null });
-        }
+          const state = { price: data.latest.close, pct: data.change.pct, flash: previous !== undefined && Math.abs(data.latest.close - previous) > 0.0001 };
+          watchState[data.symbol] = state; rows.push({ symbol: data.symbol, state });
+        } catch { rows.push({ symbol, state: watchState[symbol] || null }); }
       }
-      localStorage.setItem("srr.watchState", JSON.stringify(watchState));
-      renderWatchlist(rows);
+      localStorage.setItem("srr.watchState", JSON.stringify(watchState)); renderWatchlist(rows);
     }
 
     function renderChart(data) {
       if (!data) return;
-      const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.max(320, Math.round(rect.width * dpr));
-      canvas.height = Math.max(360, Math.round(rect.height * dpr));
+      const rect = canvas.getBoundingClientRect(); const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(320, Math.round(rect.width * dpr)); canvas.height = Math.max(360, Math.round(rect.height * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const w = rect.width, h = rect.height;
-      ctx.clearRect(0, 0, w, h);
-      const rows = data.chart;
-      const pad = { l: 52, r: 16, t: 18, b: 94 };
-      const chartH = h - pad.t - pad.b;
-      const min = Math.min(...rows.map((r) => r.low)) * 0.985;
-      const max = Math.max(...rows.map((r) => r.high)) * 1.015;
-      const volMax = Math.max(...rows.map((r) => r.volume));
-      const x = (i) => pad.l + i * ((w - pad.l - pad.r) / Math.max(1, rows.length - 1));
-      const y = (p) => pad.t + (max - p) / (max - min) * chartH;
-      const vy = (v) => h - 28 - (v / volMax) * 56;
+      const w = rect.width, h = rect.height; ctx.clearRect(0, 0, w, h);
+      const rows = data.chart; const pad = { l: 52, r: 16, t: 18, b: 94 }; const chartH = h - pad.t - pad.b;
+      const min = Math.min(...rows.map((r) => r.low)) * 0.985; const max = Math.max(...rows.map((r) => r.high)) * 1.015; const volMax = Math.max(...rows.map((r) => r.volume));
+      const x = (i) => pad.l + i * ((w - pad.l - pad.r) / Math.max(1, rows.length - 1)); const y = (p) => pad.t + (max - p) / (max - min) * chartH; const vy = (v) => h - 28 - (v / volMax) * 56;
       ctx.strokeStyle = "#26345f";
-      for (let i = 0; i < 5; i++) {
-        const yy = pad.t + i * chartH / 4;
-        ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(w - pad.r, yy); ctx.stroke();
-        ctx.fillStyle = "#97a4c2"; ctx.font = "12px Segoe UI"; ctx.fillText(fmt(max - i * (max - min) / 4), 5, yy + 4);
-      }
+      for (let i = 0; i < 5; i++) { const yy = pad.t + i * chartH / 4; ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(w - pad.r, yy); ctx.stroke(); ctx.fillStyle = "#97a4c2"; ctx.font = "12px Segoe UI"; ctx.fillText(fmt(max - i * (max - min) / 4), 5, yy + 4); }
       const barW = Math.max(3, (w - pad.l - pad.r) / rows.length * .62);
-      rows.forEach((r, i) => {
-        const xx = x(i);
-        ctx.strokeStyle = r.color; ctx.fillStyle = r.color;
-        ctx.beginPath(); ctx.moveTo(xx, y(r.high)); ctx.lineTo(xx, y(r.low)); ctx.stroke();
-        const top = y(Math.max(r.open, r.close));
-        const bottom = y(Math.min(r.open, r.close));
-        ctx.fillRect(xx - barW / 2, top, barW, Math.max(1, bottom - top));
-        ctx.globalAlpha = .35; ctx.fillRect(xx - barW / 2, vy(r.volume), barW, h - 28 - vy(r.volume)); ctx.globalAlpha = 1;
-      });
-      drawLine(rows, "ma5", "#76a9ff", x, y);
-      drawLine(rows, "ma20", "#fbbf24", x, y);
-      drawLine(rows, "ma60", "#c084fc", x, y);
-      drawBuySignals(data, rows, x, y, min, max);
-      ctx.fillStyle = "#97a4c2";
-      ctx.fillText(rows[0].date, pad.l, h - 8);
-      ctx.fillText(rows.at(-1).date, Math.max(pad.l, w - 92), h - 8);
+      rows.forEach((r, i) => { const xx = x(i); ctx.strokeStyle = r.color; ctx.fillStyle = r.color; ctx.beginPath(); ctx.moveTo(xx, y(r.high)); ctx.lineTo(xx, y(r.low)); ctx.stroke(); const top = y(Math.max(r.open, r.close)); const bottom = y(Math.min(r.open, r.close)); ctx.fillRect(xx - barW / 2, top, barW, Math.max(1, bottom - top)); ctx.globalAlpha = .35; ctx.fillRect(xx - barW / 2, vy(r.volume), barW, h - 28 - vy(r.volume)); ctx.globalAlpha = 1; });
+      drawLine(rows, "ma5", "#76a9ff", x, y); drawLine(rows, "ma20", "#fbbf24", x, y); drawLine(rows, "ma60", "#c084fc", x, y); drawBuySignals(data, rows, x, y);
+      ctx.fillStyle = "#97a4c2"; ctx.fillText(rows[0].date, pad.l, h - 8); ctx.fillText(rows.at(-1).date, Math.max(pad.l, w - 92), h - 8);
     }
-
-    function drawBuySignals(data, rows, x, y, min, max) {
-      const signals = findBuySignals(data, rows).slice(-5);
-      signals.forEach((signal) => {
-        const row = rows[signal.index];
-        const xx = x(signal.index);
-        const yy = Math.max(28, y(row.low) - 18);
-        ctx.save();
-        ctx.fillStyle = "rgba(34,197,94,.16)";
-        ctx.strokeStyle = "#22c55e";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(xx, yy + 4, 13, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = "#86efac";
-        ctx.font = "700 11px Segoe UI";
-        ctx.textAlign = "center";
-        ctx.fillText("BUY", xx, yy + 8);
-        ctx.fillStyle = "#22c55e";
-        ctx.beginPath();
-        ctx.moveTo(xx, yy + 19);
-        ctx.lineTo(xx - 5, yy + 29);
-        ctx.lineTo(xx + 5, yy + 29);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
+    function drawLine(rows, key, color, x, y) {
+      ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath(); let started = false;
+      rows.forEach((r, i) => { if (!r[key]) return; if (!started) { ctx.moveTo(x(i), y(r[key])); started = true; } else ctx.lineTo(x(i), y(r[key])); }); ctx.stroke();
+    }
+    function drawBuySignals(data, rows, x, y) {
+      findBuySignals(data, rows).slice(-5).forEach((signal) => {
+        const row = rows[signal.index]; const xx = x(signal.index); const yy = Math.max(28, y(row.low) - 18);
+        ctx.save(); ctx.fillStyle = "rgba(34,197,94,.16)"; ctx.strokeStyle = "#22c55e"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(xx, yy + 4, 13, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#86efac"; ctx.font = "700 11px Segoe UI"; ctx.textAlign = "center"; ctx.fillText("BUY", xx, yy + 8); ctx.fillStyle = "#22c55e"; ctx.beginPath(); ctx.moveTo(xx, yy + 19); ctx.lineTo(xx - 5, yy + 29); ctx.lineTo(xx + 5, yy + 29); ctx.closePath(); ctx.fill(); ctx.restore();
       });
     }
-
     function findBuySignals(data, rows) {
       const signals = [];
       for (let i = 2; i < rows.length; i++) {
-        const prev = rows[i - 1];
-        const row = rows[i];
+        const prev = rows[i - 1], row = rows[i];
         const crossMa20 = row.close > row.ma20 && prev.close <= prev.ma20;
         const reclaimMa5 = row.close > row.ma5 && prev.close < prev.ma5 && row.close > row.open;
         const nearBacktest = row.low <= data.levels.backtest_zone * 1.012 && row.close > row.open;
         const trendOk = data.prediction.bias !== "bearish" || data.risk.score < 45;
-        const notOverheated = data.technical.rsi14 < 78;
-        if ((crossMa20 || reclaimMa5 || nearBacktest) && trendOk && notOverheated) {
-          signals.push({ index: i });
-          i += 5;
-        }
+        if ((crossMa20 || reclaimMa5 || nearBacktest) && trendOk && data.technical.rsi14 < 78) { signals.push({ index: i }); i += 5; }
       }
-      if (!signals.length && data.prediction.bias === "bullish") {
-        const idx = Math.max(2, rows.length - 8);
-        signals.push({ index: idx });
-      }
+      if (!signals.length && data.prediction.bias === "bullish") signals.push({ index: Math.max(2, rows.length - 8) });
       return signals;
     }
-
-    function drawLine(rows, key, color, x, y) {
-      ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath();
-      let started = false;
-      rows.forEach((r, i) => {
-        if (!r[key]) return;
-        if (!started) { ctx.moveTo(x(i), y(r[key])); started = true; } else ctx.lineTo(x(i), y(r[key]));
-      });
-      ctx.stroke();
-    }
-
-    function kv(id, obj) {
-      $(id).innerHTML = Object.entries(obj).map(([k, v]) => `<div class="kv"><span>${k}</span><strong>${typeof v === "number" ? fmt(v) : v}</strong></div>`).join("");
-    }
-    function label(value) {
-      return t(value) || value;
-    }
+    function kv(id, obj) { $(id).innerHTML = Object.entries(obj).map(([k, v]) => `<div class="kv"><span>${k}</span><strong>${typeof v === "number" ? fmt(v) : v}</strong></div>`).join(""); }
+    function label(value) { return t(value) || value; }
     function fmt(n) { return Number(n || 0).toLocaleString(lang === "en" ? "en-US" : "zh-TW", { maximumFractionDigits: 2 }); }
     function signed(n, suffix = "") { return `${Number(n || 0) >= 0 ? "+" : ""}${fmt(n)}${suffix}`; }
     function arrow(n) { return Number(n || 0) >= 0 ? "▲" : "▼"; }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
 
-    applyLang();
-    renderWatchlist();
-    analyze($("symbol").value);
-    refreshWatchlist();
-    setInterval(refreshWatchlist, 60000);
+    applyLang(); renderWatchlist(); loadContext(); analyze($("symbol").value); refreshWatchlist();
+    setInterval(() => { loadContext(); if (autoRefresh && lastData) analyze(lastData.symbol, true); if (autoRefresh) refreshWatchlist(); }, 60000);
   </script>
 </body>
 </html>
