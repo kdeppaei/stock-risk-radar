@@ -263,6 +263,57 @@ def recommendations(
     }
 
 
+@app.get("/api/portfolio")
+def portfolio(
+    amount: float = Query(..., gt=0),
+    currency: str = Query("TWD", pattern="^(TWD|USD)$"),
+    risk_pct: float = Query(35, ge=0, le=100),
+    profile: str = Query("balanced", pattern="^(conservative|balanced|aggressive)$"),
+    horizon: str = Query("long", pattern="^(short|long)$"),
+    markets: str = Query("US,TW", max_length=16),
+) -> dict[str, Any]:
+    selected_markets = {part.strip().upper() for part in markets.split(",") if part.strip()}
+    pool = []
+    for market in sorted(selected_markets):
+        rows = [item for item in STOCK_UNIVERSE if item["market"] == market]
+        pool.extend(sorted(rows, key=lambda item: item["market_cap_usd"], reverse=True)[:18])
+
+    candidates: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        future_map = {executor.submit(portfolio_candidate, item): item for item in pool}
+        for future in as_completed(future_map):
+            result = future.result()
+            if result:
+                candidates.append(result)
+    if len(candidates) < 3:
+        raise HTTPException(status_code=422, detail="Not enough portfolio candidates.")
+
+    scored = [score_portfolio_candidate(row, risk_pct, profile, horizon) for row in candidates]
+    scored.sort(key=lambda item: item["portfolio_score"], reverse=True)
+    chosen = diversify_candidates(scored, 6 if risk_pct >= 45 else 5)
+    allocations = allocate_portfolio(chosen, amount, currency, risk_pct, profile)
+    stats = portfolio_statistics(allocations, horizon)
+    usd_twd = quote_last("TWD=X").get("price") or 31.8
+    rows = build_allocation_rows(allocations, amount, currency, usd_twd)
+    return {
+        "ok": True,
+        "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "input": {"amount": number(amount), "currency": currency, "risk_pct": number(risk_pct), "profile": profile, "horizon": horizon, "markets": sorted(selected_markets)},
+        "summary": {
+            "cash_weight_pct": number(sum(item["weight"] for item in allocations if item["symbol"] == "CASH") * 100),
+            "equity_weight_pct": number(sum(item["weight"] for item in allocations if item["symbol"] != "CASH") * 100),
+            "expected_annual_return_pct": number(stats["annual_return"] * 100),
+            "annual_volatility_pct": number(stats["annual_volatility"] * 100),
+            "sharpe_proxy": number(stats["sharpe_proxy"]),
+            "confidence_level_pct": stats["confidence_level_pct"],
+        },
+        "intervals": stats["intervals"],
+        "allocations": rows,
+        "report": build_portfolio_report(risk_pct, profile, horizon, stats),
+        "methodology": "Uses 1-year daily returns, OLS/momentum stock scores, volatility targeting, max-position caps, cash reserve, and historical-normal confidence intervals. This is research output, not investment advice.",
+    }
+
+
 @app.get("/api/analyze")
 def analyze(
     symbol: str = Query(..., min_length=1, max_length=32),
@@ -544,6 +595,239 @@ def screener_quality_score(
     return {"score": score, "reasons": reasons[:3]}
 
 
+def portfolio_candidate(item: dict[str, Any]) -> dict[str, Any] | None:
+    rows = fetch_price_history(item["symbol"], "1y", "1d")
+    if len(rows) < 80:
+        return None
+    rows = calculate_indicators(rows)
+    latest, previous = rows[-1], rows[-2]
+    neutral_news = {"label": "neutral", "positive": 0, "negative": 0, "score": 0, "items": []}
+    levels = support_resistance(rows)
+    risk = build_risk(latest, levels, neutral_news)
+    suitability = build_suitability(latest, risk, neutral_news)
+    prediction = build_prediction(rows, latest, risk, neutral_news)
+    quality = screener_quality_score(latest, risk, suitability, prediction, item)
+    closes = [row["close"] for row in rows if row["close"]]
+    returns = [(closes[i] / closes[i - 1] - 1) for i in range(1, len(closes)) if closes[i - 1]]
+    annual_return = avg(returns[-252:]) * 252 if returns else 0
+    annual_volatility = stddev(returns[-252:]) * math.sqrt(252) if len(returns) > 2 else 0
+    return {
+        "symbol": item["symbol"],
+        "name": item["name"],
+        "market": item["market"],
+        "industry": item["industry"],
+        "price": number(latest["close"]),
+        "change_pct": number((latest["close"] / previous["close"] - 1) * 100) if previous["close"] else 0,
+        "market_cap_usd": int(item["market_cap_usd"]),
+        "volume": int(latest["volume"] or 0),
+        "quality_score": quality["score"],
+        "risk_score": risk["score"],
+        "trend": risk["trend"],
+        "bias": prediction["bias"],
+        "short_score": suitability["short_term"]["score"],
+        "long_score": suitability["long_term"]["score"],
+        "forecast_20d_pct": prediction["forecast_20d_pct"],
+        "confidence": prediction["confidence"],
+        "ret20_pct": number(latest["RET20"] * 100),
+        "annual_return": annual_return,
+        "annual_volatility": annual_volatility,
+        "daily_returns": returns[-252:],
+        "reasons": quality["reasons"],
+    }
+
+
+def score_portfolio_candidate(row: dict[str, Any], risk_pct: float, profile: str, horizon: str) -> dict[str, Any]:
+    horizon_score = row["short_score"] if horizon == "short" else row["long_score"]
+    trend_bonus = 6 if row["trend"] == "bullish" else -7 if row["trend"] == "bearish" else 0
+    bias_bonus = 6 if row["bias"] == "bullish" else -5 if row["bias"] == "bearish" else 0
+    vol_pct = row["annual_volatility"] * 100
+    vol_target = 12 + risk_pct * 0.28
+    vol_penalty = max(0, vol_pct - vol_target) * (0.45 if profile == "conservative" else 0.28 if profile == "balanced" else 0.16)
+    upside = row["forecast_20d_pct"] * (0.7 if horizon == "short" else 0.35)
+    score = (
+        row["quality_score"] * 0.34
+        + horizon_score * 0.24
+        + (100 - row["risk_score"]) * 0.16
+        + row["confidence"] * 0.10
+        + trend_bonus
+        + bias_bonus
+        + upside
+        - vol_penalty
+    )
+    if profile == "aggressive":
+        score += max(0, row["annual_return"] * 100) * 0.06
+    if profile == "conservative":
+        score -= max(0, row["risk_score"] - 45) * 0.12
+    return {**row, "portfolio_score": bounded(score)}
+
+
+def diversify_candidates(rows: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    chosen: list[dict[str, Any]] = []
+    industry_counts: dict[str, int] = {}
+    market_counts: dict[str, int] = {}
+    for row in rows:
+        if industry_counts.get(row["industry"], 0) >= 2:
+            continue
+        if market_counts.get(row["market"], 0) >= max(3, limit - 1):
+            continue
+        chosen.append(row)
+        industry_counts[row["industry"]] = industry_counts.get(row["industry"], 0) + 1
+        market_counts[row["market"]] = market_counts.get(row["market"], 0) + 1
+        if len(chosen) >= limit:
+            break
+    if len(chosen) < min(3, limit):
+        for row in rows:
+            if row not in chosen:
+                chosen.append(row)
+            if len(chosen) >= limit:
+                break
+    return chosen
+
+
+def cash_weight(risk_pct: float, profile: str) -> float:
+    base = 0.34 if profile == "conservative" else 0.22 if profile == "balanced" else 0.10
+    adjustment = (50 - risk_pct) / 100 * 0.22
+    return max(0.04, min(0.55, base + adjustment))
+
+
+def allocate_portfolio(
+    chosen: list[dict[str, Any]],
+    amount: float,
+    currency: str,
+    risk_pct: float,
+    profile: str,
+) -> list[dict[str, Any]]:
+    if not chosen:
+        return [{"symbol": "CASH", "name": "Cash reserve", "market": currency, "industry": "Cash", "weight": 1.0}]
+    cash = cash_weight(risk_pct, profile)
+    cap = 0.22 if profile == "conservative" else 0.28 if profile == "balanced" else 0.35
+    equity_budget = 1 - cash
+    raw_scores = [max(5, row["portfolio_score"]) for row in chosen]
+    total_score = sum(raw_scores) or 1
+    rows: list[dict[str, Any]] = []
+    capped_extra = 0.0
+    for row, score in zip(chosen, raw_scores):
+        weight = equity_budget * score / total_score
+        if weight > cap:
+            capped_extra += weight - cap
+            weight = cap
+        rows.append({**row, "weight": weight})
+    room_rows = [row for row in rows if row["weight"] < cap]
+    room_total = sum(cap - row["weight"] for row in room_rows)
+    if capped_extra and room_total:
+        for row in room_rows:
+            row["weight"] += capped_extra * ((cap - row["weight"]) / room_total)
+    used = sum(row["weight"] for row in rows)
+    rows.append({"symbol": "CASH", "name": "Cash reserve", "market": currency, "industry": "Cash", "weight": max(0, 1 - used)})
+    return sorted(rows, key=lambda item: item["weight"], reverse=True)
+
+
+def portfolio_statistics(allocations: list[dict[str, Any]], horizon: str) -> dict[str, Any]:
+    assets = [item for item in allocations if item.get("symbol") != "CASH" and item.get("daily_returns")]
+    min_len = min((len(item["daily_returns"]) for item in assets), default=0)
+    if min_len >= 20:
+        daily = []
+        for i in range(-min_len, 0):
+            daily.append(sum(item["daily_returns"][i] * item["weight"] for item in assets))
+        annual_return = avg(daily) * 252
+        annual_volatility = stddev(daily) * math.sqrt(252)
+        sample_size = len(daily)
+    else:
+        annual_return = sum(item.get("annual_return", 0) * item["weight"] for item in assets)
+        annual_volatility = math.sqrt(sum((item.get("annual_volatility", 0) * item["weight"]) ** 2 for item in assets))
+        sample_size = 0
+    confidence_level = bounded(55 + min(20, math.sqrt(max(1, sample_size)) * 1.8) + min(12, len(assets) * 2), 55, 90)
+    return {
+        "annual_return": annual_return,
+        "annual_volatility": annual_volatility,
+        "sharpe_proxy": annual_return / annual_volatility if annual_volatility else 0,
+        "confidence_level_pct": confidence_level,
+        "intervals": {
+            "selected": interval_payload(annual_return, annual_volatility, 20 if horizon == "short" else 252),
+            "short_20d": interval_payload(annual_return, annual_volatility, 20),
+            "long_252d": interval_payload(annual_return, annual_volatility, 252),
+        },
+        "sample_size": sample_size,
+    }
+
+
+def interval_payload(annual_return: float, annual_volatility: float, days: int) -> dict[str, Any]:
+    mean_return = annual_return * days / 252
+    sigma = annual_volatility * math.sqrt(days / 252)
+    return {
+        "days": days,
+        "expected_return_pct": number(mean_return * 100),
+        "ci80_low_pct": number((mean_return - 1.2816 * sigma) * 100),
+        "ci80_high_pct": number((mean_return + 1.2816 * sigma) * 100),
+        "ci95_low_pct": number((mean_return - 1.96 * sigma) * 100),
+        "ci95_high_pct": number((mean_return + 1.96 * sigma) * 100),
+        "downside_95_pct": number((mean_return - 1.645 * sigma) * 100),
+    }
+
+
+def build_allocation_rows(
+    allocations: list[dict[str, Any]],
+    amount: float,
+    currency: str,
+    usd_twd: float,
+) -> list[dict[str, Any]]:
+    rows = []
+    rate = usd_twd or 31.8
+    for item in allocations:
+        input_amount = amount * item["weight"]
+        if item["symbol"] == "CASH":
+            rows.append({
+                "symbol": "CASH",
+                "name": "Cash reserve",
+                "market": currency,
+                "industry": "Cash",
+                "weight_pct": number(item["weight"] * 100),
+                "amount": number(input_amount),
+                "currency": currency,
+                "shares": 0,
+                "price": 1,
+                "score": None,
+                "reasons": ["cash buffer for volatility and entry flexibility"],
+            })
+            continue
+        local_currency = "TWD" if item["market"] == "TW" else "USD"
+        local_amount = input_amount
+        if currency == "TWD" and local_currency == "USD":
+            local_amount = input_amount / rate
+        elif currency == "USD" and local_currency == "TWD":
+            local_amount = input_amount * rate
+        shares = int(local_amount // item["price"]) if item["price"] else 0
+        rows.append({
+            "symbol": item["symbol"],
+            "name": item["name"],
+            "market": item["market"],
+            "industry": item["industry"],
+            "weight_pct": number(item["weight"] * 100),
+            "amount": number(input_amount),
+            "currency": currency,
+            "local_amount": number(local_amount),
+            "local_currency": local_currency,
+            "shares": shares,
+            "price": item["price"],
+            "score": item["portfolio_score"],
+            "risk_score": item["risk_score"],
+            "confidence": item["confidence"],
+            "forecast_20d_pct": item["forecast_20d_pct"],
+            "reasons": item.get("reasons", [])[:3],
+        })
+    return rows
+
+
+def build_portfolio_report(risk_pct: float, profile: str, horizon: str, stats: dict[str, Any]) -> list[str]:
+    selected = stats["intervals"]["selected"]
+    return [
+        f"Profile={profile}, horizon={horizon}, stated risk tolerance={number(risk_pct)}%. The allocation caps single positions, keeps a cash buffer, and diversifies by market and industry.",
+        f"Expected annual return is {number(stats['annual_return'] * 100)}% with estimated annual volatility {number(stats['annual_volatility'] * 100)}%. The Sharpe proxy is {number(stats['sharpe_proxy'])}.",
+        f"For the selected horizon ({selected['days']} trading days), the historical-normal 80% confidence interval is {selected['ci80_low_pct']}% to {selected['ci80_high_pct']}%; the 95% interval is {selected['ci95_low_pct']}% to {selected['ci95_high_pct']}%.",
+        "Confidence intervals are based on recent daily returns and assume the distribution does not abruptly change. News shocks, earnings gaps, liquidity events and FX moves can exceed the interval.",
+    ]
+
+
 def fetch_macro_snapshot() -> dict[str, Any]:
     symbols = {"sp500": "^GSPC", "nasdaq": "^IXIC", "sox": "^SOX", "us10y": "^TNX", "usd_index": "DX-Y.NYB"}
     rows = {key: quote_last(sym) for key, sym in symbols.items()}
@@ -789,6 +1073,13 @@ def pct_change(values: list[float], periods: int) -> float:
 
 def avg(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0
+
+
+def stddev(values: list[float]) -> float:
+    if len(values) < 2:
+        return 0
+    m = avg(values)
+    return math.sqrt(sum((value - m) ** 2 for value in values) / (len(values) - 1))
 
 
 def bounded(value: float, low: int = 0, high: int = 100) -> int:

@@ -63,6 +63,22 @@
     .recommend-row small, .headline-row small { display: block; color: var(--muted); margin-top: 3px; }
     .headline-row strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .headline-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .story-stage { margin-top: 12px; }
+    .story-hero { position: relative; min-height: 286px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #0f172f; }
+    .story-visual { position: absolute; inset: 0; display: grid; place-items: center; background: linear-gradient(135deg, #1d4ed8, #111936 54%, #0f766e); }
+    .story-visual::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(11,16,32,.08), rgba(11,16,32,.82)); }
+    .story-topic { position: relative; z-index: 1; display: grid; place-items: center; width: 118px; height: 118px; border-radius: 50%; border: 1px solid rgba(255,255,255,.38); background: rgba(255,255,255,.12); color: white; font-size: 42px; font-weight: 900; }
+    .story-overlay { position: absolute; left: 18px; right: 18px; bottom: 20px; z-index: 2; display: grid; gap: 8px; max-width: 840px; }
+    .story-overlay a { color: var(--text); text-decoration: none; }
+    .story-overlay strong { display: block; font-size: 24px; line-height: 1.25; text-shadow: 0 2px 14px rgba(0,0,0,.45); }
+    .story-overlay small { color: #dbeafe; }
+    .story-nav { position: absolute; z-index: 3; top: 50%; transform: translateY(-50%); width: 36px; height: 48px; padding: 0; border-color: rgba(255,255,255,.22); background: rgba(15,23,47,.72); }
+    .story-prev { left: 10px; }
+    .story-next { right: 10px; }
+    .story-dots { position: absolute; z-index: 3; left: 50%; bottom: 10px; transform: translateX(-50%); display: flex; gap: 5px; max-width: 70%; overflow: hidden; padding: 5px 7px; border-radius: 999px; background: rgba(15,23,47,.72); }
+    .story-dot { width: 18px; height: 5px; padding: 0; border: 0; border-radius: 999px; background: rgba(255,255,255,.38); }
+    .story-dot.active { background: white; }
+    .headline-thumb { height: 70px; border-radius: 6px; margin-bottom: 8px; display: grid; place-items: center; color: white; font-weight: 900; letter-spacing: 0; background: linear-gradient(135deg, #1d4ed8, #0f766e); }
     .score-chip { color: #bfdbfe; text-align: right; font-size: 12px; }
     .score-chip b { display: block; color: var(--text); font-size: 16px; margin-top: 2px; }
     .video-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
@@ -71,10 +87,21 @@
     .forum-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 10px; }
     textarea { min-height: 70px; resize: vertical; border-radius: 7px; border: 1px solid var(--line); background: #0f172f; color: var(--text); padding: 10px 12px; font: inherit; }
     .forum-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+    .sticker-bar { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+    .sticker-btn { width: 38px; height: 34px; padding: 0; background: var(--card); border-color: var(--line); font-size: 18px; }
     .forum-list { display: grid; gap: 8px; margin-top: 10px; }
     .forum-post { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
     .forum-post-head { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
     .forum-delete { width: 32px; height: 28px; padding: 0; background: transparent; color: var(--muted); border-color: var(--line); }
+    .portfolio-form { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 10px; align-items: end; margin-top: 12px; }
+    .portfolio-form input, .portfolio-form select { width: 100%; }
+    .portfolio-form input[type="range"] { padding: 0; accent-color: #3b82f6; }
+    .portfolio-results { display: grid; gap: 12px; margin-top: 14px; }
+    .portfolio-summary, .interval-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+    .allocation-list { display: grid; gap: 8px; }
+    .allocation-row { display: grid; grid-template-columns: minmax(190px, 1fr) repeat(4, minmax(84px, auto)); gap: 10px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
+    .allocation-row strong, .allocation-row small { display: block; }
+    .report-list { display: grid; gap: 8px; }
     .screener-panel { margin-bottom: 16px; }
     .screener-controls { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 10px; align-items: end; margin-top: 12px; }
     .screener-controls input { width: 100%; }
@@ -120,12 +147,15 @@
     .explain { margin-top: 10px; font-size: 13px; }
     @keyframes blinkUp { 50% { background: rgba(34,197,94,.18); } }
     @keyframes blinkDown { 50% { background: rgba(239,68,68,.18); } }
-    @media (max-width: 1120px) { header, .main, .grid, .statusbar { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards, .screener-results { grid-template-columns: repeat(2, 1fr); } .screener-controls { grid-template-columns: repeat(3, 1fr); } .screener-row, .recommend-row { grid-template-columns: 1fr 1fr; } .metric, .score-chip { text-align: left; } .shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 1120px) { header, .main, .grid, .statusbar { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards, .screener-results { grid-template-columns: repeat(2, 1fr); } .screener-controls, .portfolio-form { grid-template-columns: repeat(3, 1fr); } .screener-row, .recommend-row, .allocation-row { grid-template-columns: 1fr 1fr; } .portfolio-summary, .interval-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .metric, .score-chip { text-align: left; } .shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 640px) {
       .wrap { width: min(100% - 18px, 1440px); }
       .search, .langbar, .quickbar, .chart-actions, .refreshbar { display: grid; grid-template-columns: 1fr 1fr; }
       input, select, button, a.button { width: 100%; }
-      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form { grid-template-columns: 1fr; }
+      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form, .portfolio-form, .portfolio-summary, .interval-grid, .allocation-row { grid-template-columns: 1fr; }
+      .story-hero { min-height: 238px; }
+      .story-overlay strong { font-size: 19px; }
+      .story-topic { width: 86px; height: 86px; font-size: 30px; }
       canvas { height: 430px; }
       .watch-item { grid-template-columns: 1fr auto; }
       .remove { grid-column: 2; }
@@ -191,6 +221,7 @@
         <button class="workspace-tab active" type="button" data-workspace-tab="recommend" data-reco-i18n="tabRecommend">推薦</button>
         <button class="workspace-tab" type="button" data-workspace-tab="news" data-reco-i18n="tabNews">要聞</button>
         <button class="workspace-tab" type="button" data-workspace-tab="forum" data-reco-i18n="tabForum">討論</button>
+        <button class="workspace-tab" type="button" data-workspace-tab="portfolio" data-reco-i18n="tabPortfolio">組合</button>
         <button class="workspace-tab" type="button" data-workspace-tab="help" data-reco-i18n="tabHelp">說明</button>
       </div>
       <div class="workspace-body">
@@ -207,6 +238,7 @@
         </section>
         <section class="workspace-pane" id="pane-news">
           <h2 data-reco-i18n="headlines">財經要聞 / 直播入口</h2>
+          <div id="featuredStory" class="story-stage"></div>
           <div class="ticker"><div id="marketTicker" class="ticker-track">Loading...</div></div>
           <div id="headlineBoard" class="headline-board"></div>
           <div id="videoLinks" class="video-links"></div>
@@ -222,7 +254,22 @@
             <textarea id="forumText" maxlength="280" data-reco-placeholder="forumPlaceholder" placeholder="輸入盤中觀察、新聞連結或提醒"></textarea>
             <button id="forumPostBtn" type="button" data-reco-i18n="post">送出</button>
           </div>
+          <div id="stickerBar" class="sticker-bar"></div>
           <div id="forumList" class="forum-list"></div>
+        </section>
+        <section class="workspace-pane" id="pane-portfolio">
+          <h2 data-reco-i18n="portfolioTitle">投資組合推薦</h2>
+          <p class="explain" data-reco-i18n="portfolioHint">填入資金、幣別與風險承受度，系統會用技術面、回歸動能、波動與分散規則產生長短期配置報告。</p>
+          <form id="portfolioForm" class="portfolio-form">
+            <label><span class="muted" data-reco-i18n="portfolioAmount">投入金額</span><input id="pfAmount" type="number" min="0" step="1000" value="100000" /></label>
+            <label><span class="muted" data-reco-i18n="portfolioCurrency">幣別</span><select id="pfCurrency"><option value="TWD">TWD</option><option value="USD">USD</option></select></label>
+            <label><span class="muted" data-reco-i18n="portfolioRisk">風險承受度</span><input id="pfRisk" type="range" min="0" max="100" value="35" /><small class="muted" id="pfRiskLabel">35%</small></label>
+            <label><span class="muted" data-reco-i18n="portfolioProfile">型態</span><select id="pfProfile"><option value="conservative" data-reco-i18n="profileConservative">保守</option><option value="balanced" selected data-reco-i18n="profileBalanced">均衡</option><option value="aggressive" data-reco-i18n="profileAggressive">積極</option></select></label>
+            <label><span class="muted" data-reco-i18n="portfolioHorizon">週期</span><select id="pfHorizon"><option value="long" data-reco-i18n="horizonLong">長期</option><option value="short" data-reco-i18n="horizonShort">短期</option></select></label>
+            <label><span class="muted" data-reco-i18n="portfolioMarkets">市場</span><select id="pfMarkets"><option value="US,TW" data-reco-i18n="marketBoth">美股 + 台股</option><option value="US" data-reco-i18n="marketOnlyUS">美股</option><option value="TW" data-reco-i18n="marketOnlyTW">台股</option></select></label>
+            <button id="pfRunBtn" type="submit" data-reco-i18n="portfolioRun">產生組合</button>
+          </form>
+          <div id="portfolioReport" class="portfolio-results"></div>
         </section>
         <section class="workspace-pane" id="pane-help">
           <h2 data-reco-i18n="shortcutTitle">快捷鍵</h2>
@@ -334,7 +381,12 @@
     let autoRefresh = true;
     let lastQuotePrice = null;
     let recommendationData = null;
+    let screenerOptionsData = null;
+    let screenerData = null;
+    let portfolioData = null;
+    let featuredIndex = 0;
     let forumPosts = [];
+    const STICKERS = ["👍", "🔥", "🚀", "📈", "📉", "⚠️", "💡", "✅", "🤔", "💎"];
 
     const recoCopy = {
       "zh-tw": {
@@ -410,6 +462,97 @@
     };
     const st = (key) => (screenerCopy[lang] && screenerCopy[lang][key]) || screenerCopy.en[key] || key;
 
+    Object.assign(recoCopy["zh-tw"], {
+      tabRecommend: "常用", tabNews: "要聞", tabForum: "討論", tabPortfolio: "組合", tabHelp: "說明",
+      title: "近期股票推薦", hint: "依回歸動能、技術面、消息面、基本面與流動性綜合評分排序。",
+      refresh: "刷新推薦", loading: "讀取推薦中", ranking: "綜合排名", headlines: "財經要聞 / 直播入口",
+      updated: "更新", scanned: "掃描", ranked: "排名", score: "總分", stats: "統計", tech: "技術", news: "消息", base: "基本面",
+      why: "依據", noData: "暫無資料", open: "開啟", videoHint: "直播偵測需 YouTube API；目前提供即時搜尋入口。",
+      forumTitle: "匿名即時討論", forumHint: "本機匿名留言，不需登入；依台灣日期每日自動重置。",
+      forumPlaceholder: "輸入盤中觀察、新聞連結或提醒，Enter 送出，Shift+Enter 換行", post: "送出", todayRoom: "今日討論室", emptyForum: "目前沒有留言",
+      shortcutTitle: "快捷鍵", shortcutFocus: "聚焦股票輸入", shortcutAnalyze: "查詢目前股票", shortcutRecommend: "開啟推薦",
+      shortcutNews: "開啟要聞", shortcutForum: "開啟討論", shortcutPortfolio: "開啟組合", shortcutHelp: "開啟說明",
+      shortcutRefresh: "刷新推薦", shortcutScreener: "執行股票篩選", shortcutWatch: "加入關注",
+      portfolioTitle: "投資組合推薦", portfolioHint: "填入資金、幣別與風險承受度，系統會用技術面、回歸動能、波動與分散規則產生長短期配置報告。",
+      portfolioAmount: "投入金額", portfolioCurrency: "幣別", portfolioRisk: "風險承受度", portfolioProfile: "型態",
+      profileConservative: "保守", profileBalanced: "均衡", profileAggressive: "積極", portfolioHorizon: "週期",
+      horizonLong: "長期", horizonShort: "短期", portfolioMarkets: "市場", marketBoth: "美股 + 台股", marketOnlyUS: "美股", marketOnlyTW: "台股",
+      portfolioRun: "產生組合", portfolioBuilding: "組合計算中", portfolioSummary: "組合摘要", allocation: "配置明細",
+      intervals: "信賴區間", report: "嚴謹報告", expectedReturn: "預期年化", volatility: "年化波動", sharpe: "Sharpe 近似",
+      confidenceLevel: "信心水準", cashWeight: "現金", equityWeight: "股票", selectedInterval: "選定週期", method: "方法"
+    });
+    Object.assign(recoCopy["zh-cn"], {
+      tabRecommend: "常用", tabNews: "要闻", tabForum: "讨论", tabPortfolio: "组合", tabHelp: "说明",
+      title: "近期股票推荐", hint: "按回归动能、技术面、消息面、基本面与流动性综合评分排序。",
+      refresh: "刷新推荐", loading: "读取推荐中", ranking: "综合排名", headlines: "财经要闻 / 直播入口",
+      updated: "更新", scanned: "扫描", ranked: "排名", score: "总分", stats: "统计", tech: "技术", news: "消息", base: "基本面",
+      why: "依据", noData: "暂无资料", open: "开启", videoHint: "直播侦测需 YouTube API；目前提供即时搜寻入口。",
+      forumTitle: "匿名即时讨论", forumHint: "本机匿名留言，不需登入；按台湾日期每日自动重置。",
+      forumPlaceholder: "输入盘中观察、新闻链接或提醒，Enter 发送，Shift+Enter 换行", post: "发送", todayRoom: "今日讨论室", emptyForum: "目前没有留言",
+      shortcutTitle: "快捷键", shortcutFocus: "聚焦股票输入", shortcutAnalyze: "查询目前股票", shortcutRecommend: "开启推荐",
+      shortcutNews: "开启要闻", shortcutForum: "开启讨论", shortcutPortfolio: "开启组合", shortcutHelp: "开启说明",
+      shortcutRefresh: "刷新推荐", shortcutScreener: "执行股票筛选", shortcutWatch: "加入关注",
+      portfolioTitle: "投资组合推荐", portfolioHint: "填入资金、币别与风险承受度，系统会用技术面、回归动能、波动与分散规则产生长短期配置报告。",
+      portfolioAmount: "投入金额", portfolioCurrency: "币别", portfolioRisk: "风险承受度", portfolioProfile: "类型",
+      profileConservative: "保守", profileBalanced: "均衡", profileAggressive: "积极", portfolioHorizon: "周期",
+      horizonLong: "长期", horizonShort: "短期", portfolioMarkets: "市场", marketBoth: "美股 + 台股", marketOnlyUS: "美股", marketOnlyTW: "台股",
+      portfolioRun: "生成组合", portfolioBuilding: "组合计算中", portfolioSummary: "组合摘要", allocation: "配置明细",
+      intervals: "置信区间", report: "严谨报告", expectedReturn: "预期年化", volatility: "年化波动", sharpe: "Sharpe 近似",
+      confidenceLevel: "置信水平", cashWeight: "现金", equityWeight: "股票", selectedInterval: "选定周期", method: "方法"
+    });
+    Object.assign(recoCopy.en, {
+      tabRecommend: "Home", tabNews: "News", tabForum: "Forum", tabPortfolio: "Portfolio", tabHelp: "Help",
+      forumPlaceholder: "Add intraday notes, links, or reminders. Enter posts, Shift+Enter adds a line.",
+      shortcutPortfolio: "Open portfolio",
+      portfolioTitle: "Portfolio Recommendation", portfolioHint: "Enter capital, currency and risk tolerance. The model blends technicals, regression momentum, volatility and diversification rules.",
+      portfolioAmount: "Capital", portfolioCurrency: "Currency", portfolioRisk: "Risk tolerance", portfolioProfile: "Profile",
+      profileConservative: "Conservative", profileBalanced: "Balanced", profileAggressive: "Aggressive", portfolioHorizon: "Horizon",
+      horizonLong: "Long-term", horizonShort: "Short-term", portfolioMarkets: "Market", marketBoth: "US + Taiwan", marketOnlyUS: "US", marketOnlyTW: "Taiwan",
+      portfolioRun: "Build portfolio", portfolioBuilding: "Building portfolio", portfolioSummary: "Portfolio Summary", allocation: "Allocation",
+      intervals: "Confidence Intervals", report: "Research Report", expectedReturn: "Expected annual", volatility: "Annual vol", sharpe: "Sharpe proxy",
+      confidenceLevel: "Confidence level", cashWeight: "Cash", equityWeight: "Equity", selectedInterval: "Selected horizon", method: "Method"
+    });
+
+    Object.assign(screenerCopy["zh-tw"], {
+      title: "股票篩選器", hint: "選市場、產業與股價範圍，系統會依品質分數、市值或成交量列出候選股。",
+      us: "美股", tw: "台股", minPrice: "最低股價", maxPrice: "最高股價", sort: "排序",
+      sortQuality: "品質分數", sortCap: "市值", sortVolume: "成交量", sortChange: "漲跌幅",
+      run: "篩選股票", loading: "篩選中", ready: "檔符合", empty: "沒有符合條件的股票，請放寬價格或產業條件。",
+      scanned: "已掃描", matched: "符合", quality: "品質", price: "股價", risk: "風險", volume: "成交量",
+      cap: "市值", add: "關注", reasons: "依據", note: "市值為內建近似排序值；價格與成交量來自 Yahoo chart。"
+    });
+    Object.assign(screenerCopy["zh-cn"], {
+      title: "股票筛选器", hint: "选市场、产业与股价范围，系统会按品质分数、市值或成交量列出候选股。",
+      us: "美股", tw: "台股", minPrice: "最低股价", maxPrice: "最高股价", sort: "排序",
+      sortQuality: "品质分数", sortCap: "市值", sortVolume: "成交量", sortChange: "涨跌幅",
+      run: "筛选股票", loading: "筛选中", ready: "档符合", empty: "没有符合条件的股票，请放宽价格或产业条件。",
+      scanned: "已扫描", matched: "符合", quality: "品质", price: "股价", risk: "风险", volume: "成交量",
+      cap: "市值", add: "关注", reasons: "依据", note: "市值为内建近似排序值；价格与成交量来自 Yahoo chart。"
+    });
+
+    const industryCopy = {
+      "zh-tw": { Automotive: "汽車", Communication: "通訊", Consumer: "消費", Energy: "能源", Financials: "金融", Healthcare: "醫療", Industrials: "工業", Materials: "原物料", Retail: "零售", Semiconductors: "半導體", Shipping: "航運", Technology: "科技", Cash: "現金" },
+      "zh-cn": { Automotive: "汽车", Communication: "通信", Consumer: "消费", Energy: "能源", Financials: "金融", Healthcare: "医疗", Industrials: "工业", Materials: "原物料", Retail: "零售", Semiconductors: "半导体", Shipping: "航运", Technology: "科技", Cash: "现金" },
+      en: {}
+    };
+    const reasonCopy = {
+      "zh-tw": {
+        "regression/momentum positive": "回歸與動能偏正向", "technical risk controlled": "技術風險可控", "news tone supportive": "消息面偏支持",
+        "large/liquid leader": "大型高流動性標的", "balanced watch candidate": "均衡觀察候選", "trend above key averages": "趨勢站上關鍵均線",
+        "model bias bullish": "模型偏多", "risk score controlled": "風險分數可控", "volume above average": "成交量高於均量",
+        "balanced but not high-conviction": "均衡但信號未強烈", "cash buffer for volatility and entry flexibility": "保留現金以應對波動與等待進場"
+      },
+      "zh-cn": {
+        "regression/momentum positive": "回归与动能偏正向", "technical risk controlled": "技术风险可控", "news tone supportive": "消息面偏支持",
+        "large/liquid leader": "大型高流动性标的", "balanced watch candidate": "均衡观察候选", "trend above key averages": "趋势站上关键均线",
+        "model bias bullish": "模型偏多", "risk score controlled": "风险分数可控", "volume above average": "成交量高于均量",
+        "balanced but not high-conviction": "均衡但信号未强烈", "cash buffer for volatility and entry flexibility": "保留现金以应对波动与等待进场"
+      },
+      en: {}
+    };
+    function industryLabel(value) { return (industryCopy[lang] && industryCopy[lang][value]) || value; }
+    function reasonLabel(value) { return (reasonCopy[lang] && reasonCopy[lang][value]) || value; }
+
     const dict = {
       "zh-tw": {
         subtitle: "輸入美股或台股代號，快速整理股價、K 線、新聞、風險、總經與短長期建議。",
@@ -474,8 +617,57 @@
     };
     const t = (key) => (dict[lang] && dict[lang][key]) || dict.en[key] || key;
 
+    Object.assign(dict["zh-tw"], {
+      subtitle: "輸入美股或台股代號，檢查價格、K 線、新聞、風險、總經與當沖/短期/長期適合度。",
+      analyze: "分析", addWatch: "加入關注", autoOn: "自動刷新：開", autoOff: "自動刷新：關",
+      symbol: "股票代號", close: "收盤/最新", change: "漲跌", risk: "風險", trend: "趨勢",
+      chartTitle: "K 線 / MA5 / MA20 / MA60 / Volume", liveSnapshot: "站內即時摘要", summary: "摘要",
+      watchlist: "關注清單", playbook: "小白操作參考", technical: "技術面", levels: "支撐壓力",
+      suitability: "短中長建議", news: "利好 / 利空", macro: "總經 / 量化", modelWhy: "模型依據",
+      twTime: "台灣時間", usTime: "美東時間", fx: "USD/TWD", macroMood: "總經氣氛",
+      periodHelpTitle: "Today / Day / Week 用途", refreshHelpTitle: "即時追蹤",
+      periodHelp: "Today 使用 5 分 K 追蹤盤中；Day 使用日 K 看波段；Week 使用週 K 看長期方向。",
+      refreshHelp: "頁面開著時，時間每秒跳動、目前股票報價約每 10 秒更新，Today 模式約每 30 秒重抓 5 分 K。",
+      chartHint: "點 K 線圖可另外開啟 Google Finance；BUY 是條件式參考訊號，不是保證買點。",
+      scoreHelp: "括弧數字是 0-100 適合度分數：70 以上較適合，50-69 觀察，低於 50 避開或等待。",
+      marketTW: "台股：漲紅 / 跌綠", marketUS: "美股：漲綠 / 跌紅", noWatch: "尚未加入關注股票",
+      bullish: "偏多", bearish: "偏空", neutral: "中性", sideways: "盤整", "risk-on": "風險偏好", "risk-off": "避險", mixed: "混合",
+      suitable: "適合", watch: "觀察", avoid: "避開", positive: "利好", negative: "利空",
+      trigger: "突破觀察", pressure: "壓力", backtest: "回測區", stop: "停損參考",
+      intraday: "當沖", short: "短期", long: "長期", forecast5: "5 日預測", forecast20: "20 日預測",
+      confidence: "信心", model: "模型", advice: "建議", updated: "更新"
+    });
+    Object.assign(dict["zh-cn"], {
+      subtitle: "输入美股或台股代号，检查价格、K 线、新闻、风险、总经与当冲/短期/长期适合度。",
+      analyze: "分析", addWatch: "加入关注", autoOn: "自动刷新：开", autoOff: "自动刷新：关",
+      symbol: "股票代码", close: "收盘/最新", change: "涨跌", risk: "风险", trend: "趋势",
+      chartTitle: "K 线 / MA5 / MA20 / MA60 / Volume", liveSnapshot: "站内即时摘要", summary: "摘要",
+      watchlist: "关注清单", playbook: "新手操作参考", technical: "技术面", levels: "支撑压力",
+      suitability: "短中长建议", news: "利好 / 利空", macro: "总经 / 量化", modelWhy: "模型依据",
+      twTime: "台湾时间", usTime: "美东时间", fx: "USD/TWD", macroMood: "总经气氛",
+      periodHelpTitle: "Today / Day / Week 用途", refreshHelpTitle: "即时追踪",
+      periodHelp: "Today 使用 5 分 K 追踪盘中；Day 使用日 K 看波段；Week 使用周 K 看长期方向。",
+      refreshHelp: "页面开着时，时间每秒跳动、目前股票报价约每 10 秒更新，Today 模式约每 30 秒重抓 5 分 K。",
+      chartHint: "点 K 线图可另外开启 Google Finance；BUY 是条件式参考信号，不是保证买点。",
+      scoreHelp: "括号数字是 0-100 适合度分数：70 以上较适合，50-69 观察，低于 50 避开或等待。",
+      marketTW: "台股：涨红 / 跌绿", marketUS: "美股：涨绿 / 跌红", noWatch: "尚未加入关注股票",
+      bullish: "偏多", bearish: "偏空", neutral: "中性", sideways: "盘整", "risk-on": "风险偏好", "risk-off": "避险", mixed: "混合",
+      suitable: "适合", watch: "观察", avoid: "避开", positive: "利好", negative: "利空",
+      trigger: "突破观察", pressure: "压力", backtest: "回测区", stop: "止损参考",
+      intraday: "当冲", short: "短期", long: "长期", forecast5: "5 日预测", forecast20: "20 日预测",
+      confidence: "信心", model: "模型", advice: "建议", updated: "更新"
+    });
+
     document.querySelectorAll("[data-lang]").forEach((btn) => btn.addEventListener("click", () => {
-      lang = btn.dataset.lang; localStorage.setItem("srr.lang", lang); applyLang(); if (lastData) render(lastData); renderWatchlist(); if (recommendationData) renderRecommendations(recommendationData);
+      lang = btn.dataset.lang;
+      localStorage.setItem("srr.lang", lang);
+      applyLang();
+      if (lastData) render(lastData);
+      renderWatchlist();
+      if (recommendationData) renderRecommendations(recommendationData);
+      if (screenerOptionsData) renderScreenerOptions(screenerOptionsData);
+      if (screenerData) renderScreener(screenerData);
+      if (portfolioData) renderPortfolio(portfolioData);
     }));
     $("form").addEventListener("submit", (event) => { event.preventDefault(); analyze($("symbol").value.trim() || "2330"); });
     $("addWatchBtn").addEventListener("click", () => addWatch(lastData?.symbol || $("symbol").value.trim()));
@@ -483,6 +675,9 @@
     $("scRunBtn").addEventListener("click", () => runScreener());
     $("recoRefreshBtn").addEventListener("click", () => loadRecommendations());
     $("forumPostBtn").addEventListener("click", () => postForumMessage());
+    $("forumText").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); postForumMessage(); } });
+    $("portfolioForm").addEventListener("submit", (event) => { event.preventDefault(); runPortfolio(); });
+    $("pfRisk").addEventListener("input", updatePortfolioRiskLabel);
     document.querySelectorAll("[data-workspace-tab]").forEach((btn) => btn.addEventListener("click", () => switchWorkspaceTab(btn.dataset.workspaceTab)));
     document.addEventListener("keydown", handleShortcuts);
     window.addEventListener("resize", () => renderChart(lastData));
@@ -497,6 +692,8 @@
       $("scoreHelp").textContent = t("scoreHelp");
       $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff");
       $("recoRefreshBtn").textContent = rt("refresh");
+      updatePortfolioRiskLabel();
+      renderStickers();
       renderShortcuts();
       renderForum();
     }
@@ -522,7 +719,8 @@
         "1": () => switchWorkspaceTab("recommend"),
         "2": () => switchWorkspaceTab("news"),
         "3": () => switchWorkspaceTab("forum"),
-        "4": () => switchWorkspaceTab("help"),
+        "4": () => switchWorkspaceTab("portfolio"),
+        "5": () => switchWorkspaceTab("help"),
         r: () => loadRecommendations(),
         f: () => runScreener(),
         w: () => addWatch(lastData?.symbol || $("symbol").value.trim()),
@@ -540,7 +738,8 @@
         ["Alt+1", rt("shortcutRecommend")],
         ["Alt+2", rt("shortcutNews")],
         ["Alt+3", rt("shortcutForum")],
-        ["Alt+4", rt("shortcutHelp")],
+        ["Alt+4", rt("shortcutPortfolio")],
+        ["Alt+5", rt("shortcutHelp")],
         ["Alt+R", rt("shortcutRefresh")],
         ["Alt+F", rt("shortcutScreener")],
         ["Alt+W", rt("shortcutWatch")],
@@ -587,6 +786,22 @@
       renderForum();
     }
 
+    function renderStickers() {
+      if (!$("stickerBar")) return;
+      $("stickerBar").innerHTML = STICKERS.map((item) => `<button class="sticker-btn" type="button" onclick="insertSticker('${item}')" title="${escapeHtml(item)}">${item}</button>`).join("");
+    }
+
+    function insertSticker(item) {
+      const box = $("forumText");
+      const start = box.selectionStart || box.value.length;
+      const end = box.selectionEnd || box.value.length;
+      const next = `${box.value.slice(0, start)}${item}${box.value.slice(end)}`;
+      box.value = next.slice(0, 280);
+      box.focus();
+      const cursor = Math.min(start + item.length, box.value.length);
+      box.setSelectionRange(cursor, cursor);
+    }
+
     function deleteForumPost(id) {
       forumPosts = forumPosts.filter((post) => post.id !== id);
       saveForum();
@@ -611,16 +826,22 @@
       try {
         const res = await fetch("/api/screener/options");
         const data = await res.json();
-        const selected = new Set(["Semiconductors", "Technology", "Financials"]);
-        $("scIndustries").innerHTML = data.industries.map((industry) => {
-          const checked = selected.has(industry) ? "checked" : "";
-          return `<label class="industry-check"><input type="checkbox" value="${escapeHtml(industry)}" ${checked} /> ${escapeHtml(industry)}</label>`;
-        }).join("");
-        $("screenerCount").textContent = `${data.count} ${st("ready")}`;
+        screenerOptionsData = data;
+        renderScreenerOptions(data);
         runScreener();
       } catch (error) {
         $("scMeta").textContent = error.message;
       }
+    }
+
+    function renderScreenerOptions(data) {
+      const active = new Set([...document.querySelectorAll("#scIndustries input:checked")].map((input) => input.value));
+      const selected = active.size ? active : new Set(["Semiconductors", "Technology", "Financials"]);
+      $("scIndustries").innerHTML = data.industries.map((industry) => {
+        const checked = selected.has(industry) ? "checked" : "";
+        return `<label class="industry-check"><input type="checkbox" value="${escapeHtml(industry)}" ${checked} /> ${escapeHtml(industryLabel(industry))}</label>`;
+      }).join("");
+      $("screenerCount").textContent = `${data.count} ${st("ready")}`;
     }
 
     async function runScreener() {
@@ -644,6 +865,7 @@
         const res = await fetch(`/api/screener?${qs}`);
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.detail || "Screener failed");
+        screenerData = data;
         renderScreener(data);
       } catch (error) {
         $("scMeta").textContent = error.message;
@@ -663,9 +885,9 @@
       }
       $("scResults").innerHTML = data.rows.map((row) => {
         const direction = row.change_pct >= 0 ? "up" : "down";
-        const reasons = (row.reasons || []).map((item) => escapeHtml(item)).join(", ");
+        const reasons = (row.reasons || []).map((item) => escapeHtml(reasonLabel(item))).join(", ");
         return `<div class="screener-row" onclick="analyze('${row.symbol}')">
-          <div><strong>${escapeHtml(row.symbol)}</strong><small>${escapeHtml(row.name)} · ${row.market} · ${escapeHtml(row.industry)}</small><small>${st("reasons")}: ${reasons}</small></div>
+          <div><strong>${escapeHtml(row.symbol)}</strong><small>${escapeHtml(row.name)} · ${row.market} · ${escapeHtml(industryLabel(row.industry))}</small><small>${st("reasons")}: ${reasons}</small></div>
           <div class="metric"><span>${st("quality")}</span><b>${row.quality_score}/100</b></div>
           <div class="metric"><span>${st("price")}</span><b>${fmt(row.price)}</b></div>
           <div class="metric"><span>${st("risk")}</span><b>${row.risk_score}/100</b></div>
@@ -702,11 +924,11 @@
         $("recommendList").innerHTML = `<div class="plainbox muted">${rt("noData")}</div>`;
       } else {
         $("recommendList").innerHTML = data.rows.map((row, index) => {
-          const reasons = (row.recommend_reasons || row.reasons || []).map((item) => escapeHtml(item)).join(", ");
+          const reasons = (row.recommend_reasons || row.reasons || []).map((item) => escapeHtml(reasonLabel(item))).join(", ");
           const direction = row.change_pct >= 0 ? "up" : "down";
           return `<div class="recommend-row" onclick="analyze('${row.symbol}')">
             <span class="rank">${index + 1}</span>
-            <div><strong>${escapeHtml(row.symbol)} · ${escapeHtml(row.name)}</strong><small>${row.market} · ${escapeHtml(row.industry)} · <span class="${direction}">${arrow(row.change_pct)} ${signed(row.change_pct, "%")}</span></small><small>${rt("why")}: ${reasons}</small></div>
+            <div><strong>${escapeHtml(row.symbol)} · ${escapeHtml(row.name)}</strong><small>${row.market} · ${escapeHtml(industryLabel(row.industry))} · <span class="${direction}">${arrow(row.change_pct)} ${signed(row.change_pct, "%")}</span></small><small>${rt("why")}: ${reasons}</small></div>
             <div class="score-chip"><span>${rt("score")}</span><b>${row.composite_score}</b></div>
             <div class="score-chip"><span>${rt("stats")}</span><b>${row.statistics_score}</b></div>
             <div class="score-chip"><span>${rt("tech")}</span><b>${row.technical_score}</b></div>
@@ -716,13 +938,174 @@
       }
 
       const headlines = data.headlines || [];
+      renderFeaturedStories(headlines);
       const tickerItems = headlines;
       $("marketTicker").innerHTML = tickerItems.length
         ? tickerItems.map((item) => `<a href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">${escapeHtml(item.title)}</a>`).join("")
         : `<span class="muted">${rt("noData")}</span>`;
-      $("headlineBoard").innerHTML = headlines.slice(0, 5).map((item) => `<a class="headline-row" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.source)} · ${escapeHtml(item.published || "")}</small></a>`).join("");
+      $("headlineBoard").innerHTML = headlines.slice(0, 6).map((item, index) => `<a class="headline-row" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer"><div class="headline-thumb" style="${storyStyle(index)}">${escapeHtml(storyMark(item))}</div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.source)} · ${escapeHtml(item.published || "")}</small></a>`).join("");
       const videos = data.video_links || [];
       $("videoLinks").innerHTML = videos.map((item) => `<a class="button secondary" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">${escapeHtml(item.title)}</a>`).join("") + `<span class="muted">${rt("videoHint")}</span>`;
+    }
+
+    function storyStyle(index) {
+      const gradients = [
+        "background:linear-gradient(135deg,#1d4ed8,#0f766e)",
+        "background:linear-gradient(135deg,#7c3aed,#be123c)",
+        "background:linear-gradient(135deg,#0f766e,#ca8a04)",
+        "background:linear-gradient(135deg,#2563eb,#4338ca)",
+        "background:linear-gradient(135deg,#be123c,#b45309)",
+        "background:linear-gradient(135deg,#0891b2,#166534)"
+      ];
+      return gradients[index % gradients.length];
+    }
+
+    function storyMark(item) {
+      const topic = `${item.topic || ""} ${item.source || ""}`.toUpperCase();
+      if (topic.includes("TW")) return "TW";
+      if (topic.includes("US")) return "US";
+      return "$";
+    }
+
+    function renderFeaturedStories(headlines) {
+      if (!$("featuredStory")) return;
+      if (!headlines.length) {
+        $("featuredStory").innerHTML = `<div class="plainbox muted">${rt("noData")}</div>`;
+        return;
+      }
+      featuredIndex = ((featuredIndex % headlines.length) + headlines.length) % headlines.length;
+      const item = headlines[featuredIndex];
+      const dots = headlines.slice(0, 12).map((_, index) => `<button class="story-dot ${index === featuredIndex ? "active" : ""}" type="button" onclick="setFeaturedStory(${index}, true)" aria-label="story ${index + 1}"></button>`).join("");
+      $("featuredStory").innerHTML = `<div class="story-hero">
+        <div class="story-visual" style="${storyStyle(featuredIndex)}"><div class="story-topic">${escapeHtml(storyMark(item))}</div></div>
+        <button class="story-nav story-prev" type="button" onclick="setFeaturedStory(-1)">‹</button>
+        <button class="story-nav story-next" type="button" onclick="setFeaturedStory(1)">›</button>
+        <div class="story-overlay"><a href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer"><strong>${escapeHtml(item.title)}</strong></a><small>${escapeHtml(item.source)} · ${escapeHtml(item.published || "")}</small></div>
+        <div class="story-dots">${dots}</div>
+      </div>`;
+    }
+
+    function setFeaturedStory(value, absolute = false) {
+      const headlines = recommendationData?.headlines || [];
+      if (!headlines.length) return;
+      featuredIndex = absolute ? value : featuredIndex + value;
+      renderFeaturedStories(headlines);
+    }
+
+    function updatePortfolioRiskLabel() {
+      if (!$("pfRiskLabel")) return;
+      $("pfRiskLabel").textContent = `${$("pfRisk").value}%`;
+    }
+
+    async function runPortfolio() {
+      const button = $("pfRunBtn");
+      button.disabled = true;
+      button.textContent = rt("portfolioBuilding");
+      $("portfolioReport").innerHTML = `<div class="plainbox muted">${rt("portfolioBuilding")}...</div>`;
+      try {
+        const qs = new URLSearchParams({
+          amount: $("pfAmount").value || "100000",
+          currency: $("pfCurrency").value,
+          risk_pct: $("pfRisk").value,
+          profile: $("pfProfile").value,
+          horizon: $("pfHorizon").value,
+          markets: $("pfMarkets").value
+        });
+        const res = await fetch(`/api/portfolio?${qs}`);
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "Portfolio failed");
+        portfolioData = data;
+        renderPortfolio(data);
+      } catch (error) {
+        $("portfolioReport").innerHTML = `<div class="plainbox muted">${escapeHtml(error.message)}</div>`;
+      } finally {
+        button.disabled = false;
+        button.textContent = rt("portfolioRun");
+      }
+    }
+
+    function renderPortfolio(data) {
+      const summary = data.summary || {};
+      const selected = data.intervals?.selected || {};
+      const allocationRows = (data.allocations || []).map((row) => {
+        const clickable = row.symbol !== "CASH";
+        const reasons = (row.reasons || []).map((item) => escapeHtml(reasonLabel(item))).join(", ");
+        const local = row.local_currency ? `${money(row.local_amount, row.local_currency)} / ${row.shares} sh` : money(row.amount, row.currency);
+        return `<div class="allocation-row" ${clickable ? `onclick="analyze('${row.symbol}')"` : ""}>
+          <div><strong>${escapeHtml(row.symbol)} · ${escapeHtml(row.name)}</strong><small>${escapeHtml(row.market)} · ${escapeHtml(industryLabel(row.industry))}</small><small>${reasons}</small></div>
+          <div class="metric"><span>Weight</span><b>${fmt(row.weight_pct)}%</b></div>
+          <div class="metric"><span>${rt("portfolioAmount")}</span><b>${money(row.amount, row.currency)}</b></div>
+          <div class="metric"><span>Local</span><b>${escapeHtml(local)}</b></div>
+          <div class="metric"><span>${rt("score")}</span><b>${row.score === null ? "-" : row.score}</b></div>
+        </div>`;
+      }).join("");
+      $("portfolioReport").innerHTML = `
+        <div>
+          <h3>${rt("portfolioSummary")}</h3>
+          <div class="portfolio-summary">
+            ${summaryCard(rt("expectedReturn"), signed(summary.expected_annual_return_pct, "%"))}
+            ${summaryCard(rt("volatility"), `${fmt(summary.annual_volatility_pct)}%`)}
+            ${summaryCard(rt("sharpe"), fmt(summary.sharpe_proxy))}
+            ${summaryCard(rt("confidenceLevel"), `${fmt(summary.confidence_level_pct)}%`)}
+            ${summaryCard(rt("cashWeight"), `${fmt(summary.cash_weight_pct)}%`)}
+            ${summaryCard(rt("equityWeight"), `${fmt(summary.equity_weight_pct)}%`)}
+            ${summaryCard(rt("selectedInterval"), `${selected.days || "-"}d ${signed(selected.expected_return_pct, "%")}`)}
+            ${summaryCard(rt("method"), data.methodology ? "OLS + Vol" : "-")}
+          </div>
+        </div>
+        <div>
+          <h3>${rt("intervals")}</h3>
+          <div class="interval-grid">
+            ${intervalCard(rt("selectedInterval"), selected)}
+            ${intervalCard("20D", data.intervals?.short_20d || {})}
+            ${intervalCard("252D", data.intervals?.long_252d || {})}
+          </div>
+        </div>
+        <div>
+          <h3>${rt("allocation")}</h3>
+          <div class="allocation-list">${allocationRows}</div>
+        </div>
+        <div>
+          <h3>${rt("report")}</h3>
+          <div class="report-list">${portfolioNarrative(data).map((item) => `<div class="plainbox">${escapeHtml(item)}</div>`).join("")}</div>
+        </div>`;
+    }
+
+    function summaryCard(labelText, value) {
+      return `<div class="kv"><span>${escapeHtml(labelText)}</span><strong>${escapeHtml(value)}</strong></div>`;
+    }
+
+    function intervalCard(title, item) {
+      return `<div class="kv"><span>${escapeHtml(title)} · ${item.days || "-"}d</span><strong>${signed(item.expected_return_pct, "%")}</strong><small class="muted">80%: ${signed(item.ci80_low_pct, "%")} ~ ${signed(item.ci80_high_pct, "%")}</small><small class="muted">95%: ${signed(item.ci95_low_pct, "%")} ~ ${signed(item.ci95_high_pct, "%")}</small></div>`;
+    }
+
+    function portfolioNarrative(data) {
+      const input = data.input || {};
+      const summary = data.summary || {};
+      const selected = data.intervals?.selected || {};
+      if (lang === "en") {
+        return [
+          `Profile ${input.profile}, ${input.horizon} horizon, risk tolerance ${fmt(input.risk_pct)}%. The model caps single positions, keeps a cash buffer and diversifies by market and industry.`,
+          `Expected annual return is ${signed(summary.expected_annual_return_pct, "%")} with estimated annual volatility ${fmt(summary.annual_volatility_pct)}%. Sharpe proxy is ${fmt(summary.sharpe_proxy)}.`,
+          `For ${selected.days} trading days, the 80% confidence interval is ${signed(selected.ci80_low_pct, "%")} to ${signed(selected.ci80_high_pct, "%")}; the 95% interval is ${signed(selected.ci95_low_pct, "%")} to ${signed(selected.ci95_high_pct, "%")}.`,
+          "The interval uses recent daily returns and a historical-normal assumption. Earnings gaps, macro shocks, liquidity and FX moves can exceed the range."
+        ];
+      }
+      const zhHans = lang === "zh-cn";
+      return [
+        `${zhHans ? "类型" : "型態"} ${rt(`profile${capitalize(input.profile || "balanced")}`) || input.profile}，${rt(input.horizon === "short" ? "horizonShort" : "horizonLong")}，${zhHans ? "风险承受度" : "風險承受度"} ${fmt(input.risk_pct)}%。模型会限制单一持股、保留现金，并按市场与产业分散。`,
+        `${zhHans ? "预期年化报酬" : "預期年化報酬"} ${signed(summary.expected_annual_return_pct, "%")}，${zhHans ? "估计年化波动" : "估計年化波動"} ${fmt(summary.annual_volatility_pct)}%，Sharpe ${zhHans ? "近似值" : "近似值"} ${fmt(summary.sharpe_proxy)}。`,
+        `${selected.days} ${zhHans ? "个交易日" : "個交易日"}的 80% ${zhHans ? "置信区间" : "信賴區間"}為 ${signed(selected.ci80_low_pct, "%")} 到 ${signed(selected.ci80_high_pct, "%")}；95% ${zhHans ? "置信区间" : "信賴區間"}為 ${signed(selected.ci95_low_pct, "%")} 到 ${signed(selected.ci95_high_pct, "%")}。`,
+        `${zhHans ? "区间根据近期日报酬与历史常态假设估算；财报跳空、总经冲击、流动性与汇率变化都可能超出区间。" : "區間根據近期日報酬與歷史常態假設估算；財報跳空、總經衝擊、流動性與匯率變化都可能超出區間。"}`
+      ];
+    }
+
+    function money(value, currency) {
+      return `${currency || ""} ${Number(value || 0).toLocaleString(lang === "en" ? "en-US" : "zh-TW", { maximumFractionDigits: 2 })}`;
+    }
+
+    function capitalize(value) {
+      return String(value || "").charAt(0).toUpperCase() + String(value || "").slice(1);
     }
 
     async function analyze(symbol, silent = false) {
