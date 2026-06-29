@@ -99,6 +99,51 @@ STOCK_UNIVERSE = [
     {"symbol": "2357.TW", "name": "Asustek", "market": "TW", "industry": "Technology", "market_cap_usd": 12000000000},
 ]
 
+RELATED_ASSETS: dict[str, list[dict[str, Any]]] = {
+    "MU": [
+        {"symbol": "MUU", "name": "Direxion Daily MU Bull 2X ETF", "type": "leveraged_etf", "relation": "2x long ETF", "structure": "derivative", "why": "Tracks Micron with daily 2x long leverage; useful for high-beta directional monitoring."},
+        {"symbol": "SOXL", "name": "Direxion Daily Semiconductor Bull 3X", "type": "leveraged_etf", "relation": "semiconductor 3x basket", "structure": "sector_beta", "why": "Leveraged semiconductor basket; often moves with memory and AI chip risk appetite."},
+        {"symbol": "SOXS", "name": "Direxion Daily Semiconductor Bear 3X", "type": "inverse_etf", "relation": "semiconductor inverse hedge", "structure": "sector_beta", "why": "Inverse leveraged semiconductor ETF; rising SOXS can imply sector selling pressure."},
+        {"symbol": "NVDA", "name": "NVIDIA", "type": "customer_demand", "relation": "AI/server demand driver", "structure": "vertical", "why": "AI server demand can support memory and HBM cycles."},
+        {"symbol": "AMD", "name": "AMD", "type": "customer_peer", "relation": "AI/CPU platform demand", "structure": "vertical", "why": "Data-center platform demand affects memory attachment and chip-cycle sentiment."},
+        {"symbol": "WDC", "name": "Western Digital", "type": "peer", "relation": "memory/storage peer", "structure": "horizontal", "why": "Storage cycle and NAND pricing can move with memory-sector expectations."},
+        {"symbol": "STX", "name": "Seagate", "type": "peer", "relation": "storage peer", "structure": "horizontal", "why": "Storage demand provides a related read-through for enterprise hardware demand."},
+        {"symbol": "SMH", "name": "VanEck Semiconductor ETF", "type": "sector_etf", "relation": "semiconductor ETF", "structure": "sector_beta", "why": "Broad semiconductor ETF for sector-level confirmation."},
+    ],
+    "NVDA": [
+        {"symbol": "NVDL", "name": "GraniteShares 2x Long NVDA", "type": "leveraged_etf", "relation": "2x long ETF", "structure": "derivative", "why": "Single-stock leveraged ETF; reflects high-beta NVDA speculation."},
+        {"symbol": "NVDS", "name": "AXS 1.25X NVDA Bear", "type": "inverse_etf", "relation": "inverse NVDA product", "structure": "derivative", "why": "Inverse product; strength can hint at short-term hedging or bearish pressure."},
+        {"symbol": "TSM", "name": "TSMC ADR", "type": "supplier", "relation": "foundry supplier", "structure": "vertical", "why": "TSMC manufactures advanced chips for leading AI/GPU demand."},
+        {"symbol": "2330.TW", "name": "TSMC Taiwan", "type": "supplier", "relation": "foundry supplier", "structure": "vertical", "why": "Taiwan listing of TSMC; important AI supply-chain read-through."},
+        {"symbol": "AVGO", "name": "Broadcom", "type": "peer", "relation": "AI/custom silicon peer", "structure": "horizontal", "why": "Competes in AI connectivity/custom silicon sentiment."},
+        {"symbol": "AMD", "name": "AMD", "type": "peer", "relation": "AI accelerator peer", "structure": "horizontal", "why": "GPU/AI accelerator peer for horizontal comparison."},
+        {"symbol": "SMH", "name": "VanEck Semiconductor ETF", "type": "sector_etf", "relation": "semiconductor ETF", "structure": "sector_beta", "why": "Sector ETF for confirming whether move is stock-specific or sector-wide."},
+    ],
+    "TSLA": [
+        {"symbol": "TSLL", "name": "Direxion Daily TSLA Bull 2X", "type": "leveraged_etf", "relation": "2x long ETF", "structure": "derivative", "why": "Single-stock leveraged ETF; reflects high-beta Tesla speculation."},
+        {"symbol": "TSLQ", "name": "AXS TSLA Bear Daily ETF", "type": "inverse_etf", "relation": "inverse TSLA product", "structure": "derivative", "why": "Inverse product; strength can imply hedging or bearish positioning."},
+        {"symbol": "GM", "name": "General Motors", "type": "peer", "relation": "auto peer", "structure": "horizontal", "why": "Traditional auto peer for EV/auto demand comparison."},
+        {"symbol": "F", "name": "Ford", "type": "peer", "relation": "auto peer", "structure": "horizontal", "why": "Auto-cycle and EV pricing pressure comparison."},
+        {"symbol": "LI", "name": "Li Auto", "type": "peer", "relation": "China EV peer", "structure": "horizontal", "why": "China EV demand and pricing read-through."},
+        {"symbol": "ALB", "name": "Albemarle", "type": "supplier", "relation": "battery material supplier", "structure": "vertical", "why": "Lithium supply chain can influence EV margin expectations."},
+    ],
+    "2330.TW": [
+        {"symbol": "TSM", "name": "TSMC ADR", "type": "adr", "relation": "US ADR", "structure": "same_company", "why": "US-listed ADR for the same company; useful during US market hours."},
+        {"symbol": "NVDA", "name": "NVIDIA", "type": "customer", "relation": "AI chip customer", "structure": "vertical", "why": "Advanced AI chip demand is a key foundry demand driver."},
+        {"symbol": "AAPL", "name": "Apple", "type": "customer", "relation": "consumer chip customer", "structure": "vertical", "why": "Smartphone/device cycle can affect advanced-node utilization."},
+        {"symbol": "ASML", "name": "ASML", "type": "supplier", "relation": "lithography supplier", "structure": "vertical", "why": "EUV equipment supplier; capex and leading-node supply chain read-through."},
+        {"symbol": "2454.TW", "name": "MediaTek", "type": "customer_peer", "relation": "IC design customer", "structure": "vertical", "why": "Fabless IC demand maps into foundry orders."},
+        {"symbol": "2303.TW", "name": "UMC", "type": "peer", "relation": "foundry peer", "structure": "horizontal", "why": "Mature-node foundry peer for cycle comparison."},
+        {"symbol": "SMH", "name": "VanEck Semiconductor ETF", "type": "sector_etf", "relation": "semiconductor ETF", "structure": "sector_beta", "why": "US semiconductor ETF for sector confirmation."},
+    ],
+    "2454.TW": [
+        {"symbol": "2330.TW", "name": "TSMC", "type": "supplier", "relation": "foundry supplier", "structure": "vertical", "why": "MediaTek relies on foundry capacity and advanced process availability."},
+        {"symbol": "QCOM", "name": "Qualcomm", "type": "peer", "relation": "mobile chipset peer", "structure": "horizontal", "why": "Smartphone chipset competitor and demand benchmark."},
+        {"symbol": "2379.TW", "name": "Realtek", "type": "peer", "relation": "IC design peer", "structure": "horizontal", "why": "Taiwan IC design peer for local sector sentiment."},
+        {"symbol": "3034.TW", "name": "Novatek", "type": "peer", "relation": "IC design peer", "structure": "horizontal", "why": "IC design peer for demand-cycle comparison."},
+    ],
+}
+
 
 def init_db() -> None:
     with sqlite3.connect(DB_PATH) as conn:
@@ -263,6 +308,34 @@ def recommendations(
     }
 
 
+@app.get("/api/movers")
+def movers(
+    markets: str = Query("US,TW", max_length=16),
+    limit: int = Query(8, ge=3, le=12),
+) -> dict[str, Any]:
+    selected_markets = {part.strip().upper() for part in markets.split(",") if part.strip()}
+    pool: list[dict[str, Any]] = []
+    for market in sorted(selected_markets):
+        rows = [item for item in STOCK_UNIVERSE if item["market"] == market]
+        pool.extend(sorted(rows, key=lambda item: item["market_cap_usd"], reverse=True)[:24])
+
+    rows: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        future_map = {executor.submit(mover_quote, item): item for item in pool}
+        for future in as_completed(future_map):
+            result = future.result()
+            if result:
+                rows.append(result)
+    rows.sort(key=lambda item: item["change_pct"], reverse=True)
+    return {
+        "ok": True,
+        "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "scanned": len(pool),
+        "gainers": rows[:limit],
+        "losers": sorted(rows, key=lambda item: item["change_pct"])[:limit],
+    }
+
+
 @app.get("/api/portfolio")
 def portfolio(
     amount: float = Query(..., gt=0),
@@ -369,6 +442,7 @@ def analyze(
         "prediction": prediction,
         "news": news,
         "macro": macro,
+        "related": related_assets(resolved, market),
         "chart": build_chart_rows(rows[-180:], market),
     }
     save_log(raw, resolved, market, response)
@@ -446,6 +520,86 @@ def quote_last(symbol: str) -> dict[str, Any]:
         return {"symbol": symbol, "price": None, "change_pct": None}
     last, prev = rows[-1]["close"], rows[-2]["close"]
     return {"symbol": symbol, "price": number(last, 4), "change_pct": number((last / prev - 1) * 100) if prev else None}
+
+
+def mover_quote(item: dict[str, Any]) -> dict[str, Any] | None:
+    rows = fetch_price_history(item["symbol"], "1d", "5m") or fetch_price_history(item["symbol"], "5d", "1d")
+    if len(rows) < 2:
+        return None
+    latest, previous = rows[-1], rows[-2]
+    return {
+        "symbol": item["symbol"],
+        "name": item["name"],
+        "market": item["market"],
+        "industry": item["industry"],
+        "price": number(latest["close"]),
+        "change_pct": number((latest["close"] / previous["close"] - 1) * 100) if previous["close"] else 0,
+        "volume": int(latest["volume"] or 0),
+        "source": "1d/5m" if len(rows) > 10 else "5d/1d",
+    }
+
+
+def related_assets(symbol: str, market: str) -> list[dict[str, Any]]:
+    key = symbol.upper()
+    alias_key = {"TSM": "2330.TW", "2330": "2330.TW"}.get(key, key)
+    base_item = find_universe_item(symbol)
+    seeds = list(RELATED_ASSETS.get(alias_key, []))
+    if not seeds and base_item:
+        peers = [
+            item for item in STOCK_UNIVERSE
+            if item["symbol"] != base_item["symbol"] and item["industry"] == base_item["industry"]
+        ]
+        for peer in sorted(peers, key=lambda item: item["market_cap_usd"], reverse=True)[:6]:
+            seeds.append({
+                "symbol": peer["symbol"],
+                "name": peer["name"],
+                "type": "peer",
+                "relation": "same industry peer",
+                "structure": "horizontal",
+                "why": f"Same {base_item['industry']} industry; useful for checking whether the move is stock-specific or sector-wide.",
+            })
+    if not seeds:
+        return []
+
+    enriched: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        future_map = {executor.submit(related_quote, row): row for row in seeds[:8]}
+        for future in as_completed(future_map):
+            result = future.result()
+            if result:
+                enriched.append(result)
+    order = {row["symbol"]: index for index, row in enumerate(seeds)}
+    enriched.sort(key=lambda item: order.get(item["symbol"], 999))
+    return enriched
+
+
+def related_quote(row: dict[str, Any]) -> dict[str, Any] | None:
+    quote = quote_last(row["symbol"])
+    return {
+        **row,
+        "price": quote.get("price"),
+        "change_pct": quote.get("change_pct"),
+        "strength": relation_strength(row["type"], row["structure"]),
+    }
+
+
+def relation_strength(relation_type: str, structure: str) -> str:
+    if relation_type in {"leveraged_etf", "inverse_etf", "adr"}:
+        return "direct/high"
+    if structure == "vertical":
+        return "supply-chain/medium"
+    if structure == "horizontal":
+        return "peer/medium"
+    return "sector/medium"
+
+
+def find_universe_item(symbol: str) -> dict[str, Any] | None:
+    plain = symbol.upper()
+    candidates = {plain, plain.replace(".TW", "").replace(".TWO", "")}
+    for item in STOCK_UNIVERSE:
+        if item["symbol"].upper() in candidates or item["symbol"].replace(".TW", "").replace(".TWO", "").upper() in candidates:
+            return item
+    return None
 
 
 def screen_one_stock(item: dict[str, Any]) -> dict[str, Any] | None:

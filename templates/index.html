@@ -49,13 +49,17 @@
     .workspace-pane { display: none; }
     .workspace-pane.active { display: block; }
     .workspace-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
-    .ticker { margin-top: 12px; background: #0f172f; border: 1px solid var(--line); border-radius: 7px; overflow-x: auto; white-space: nowrap; scroll-snap-type: x mandatory; }
-    .ticker-track { display: inline-flex; gap: 10px; min-width: 100%; padding: 10px; }
-    .ticker a { color: #dbeafe; text-decoration: none; flex: 0 0 auto; max-width: min(520px, 82vw); overflow: hidden; text-overflow: ellipsis; scroll-snap-align: start; }
+    .section-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+    .ticker { margin-top: 12px; background: #0f172f; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; white-space: nowrap; }
+    .ticker-track { display: inline-flex; gap: 28px; width: max-content; min-width: 100%; padding: 10px; animation: marquee 38s linear infinite; }
+    .ticker:hover .ticker-track, .headline-board:hover .news-rail { animation-play-state: paused; }
+    .ticker a { color: #dbeafe; text-decoration: none; flex: 0 0 auto; max-width: min(520px, 82vw); overflow: hidden; text-overflow: ellipsis; }
     .ticker a:hover { color: var(--blue); }
-    .recommend-list, .headline-board { display: flex; gap: 10px; margin-top: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
+    .recommend-list { display: flex; gap: 10px; margin-top: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
+    .headline-board { margin-top: 10px; overflow: hidden; }
+    .news-rail { display: flex; gap: 10px; width: max-content; animation: marquee 58s linear infinite; }
     .recommend-row, .headline-row { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
-    .headline-row { display: block; color: var(--text); text-decoration: none; flex: 0 0 min(460px, 86vw); min-height: 112px; max-height: 126px; overflow: hidden; scroll-snap-align: start; }
+    .headline-row { display: block; color: var(--text); text-decoration: none; flex: 0 0 min(420px, 82vw); min-height: 214px; max-height: 230px; overflow: hidden; }
     .recommend-row { display: grid; grid-template-columns: auto minmax(180px, 1fr) repeat(4, minmax(62px, auto)); gap: 10px; align-items: center; cursor: pointer; flex: 0 0 min(620px, 92vw); scroll-snap-align: start; }
     .recommend-row:hover, .headline-row:hover { border-color: var(--blue); }
     .rank { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #243766; color: #bfdbfe; font-weight: 800; }
@@ -78,7 +82,18 @@
     .story-dots { position: absolute; z-index: 3; left: 50%; bottom: 10px; transform: translateX(-50%); display: flex; gap: 5px; max-width: 70%; overflow: hidden; padding: 5px 7px; border-radius: 999px; background: rgba(15,23,47,.72); }
     .story-dot { width: 18px; height: 5px; padding: 0; border: 0; border-radius: 999px; background: rgba(255,255,255,.38); }
     .story-dot.active { background: white; }
-    .headline-thumb { height: 70px; border-radius: 6px; margin-bottom: 8px; display: grid; place-items: center; color: white; font-weight: 900; letter-spacing: 0; background: linear-gradient(135deg, #1d4ed8, #0f766e); }
+    .headline-thumb { height: 118px; border-radius: 6px; margin-bottom: 8px; display: grid; place-items: center; color: white; font-weight: 900; letter-spacing: 0; background: linear-gradient(135deg, #1d4ed8, #0f766e); background-size: cover; background-position: top center; }
+    .mover-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .mover-column { background: #0f172f; border: 1px solid var(--line); border-radius: 7px; padding: 10px; min-width: 0; }
+    .mover-list { display: grid; gap: 7px; margin-top: 8px; }
+    .mover-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 8px; cursor: pointer; }
+    .mover-item:hover, .relation-card:hover { border-color: var(--blue); }
+    .relation-grid { display: grid; gap: 8px; margin-top: 10px; }
+    .relation-card { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; cursor: pointer; }
+    .relation-card strong, .relation-card small { display: block; }
+    .relation-card p { margin-top: 6px; color: #dbeafe; font-size: 13px; line-height: 1.45; }
+    .relation-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+    @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
     .score-chip { color: #bfdbfe; text-align: right; font-size: 12px; }
     .score-chip b { display: block; color: var(--text); font-size: 16px; margin-top: 2px; }
     .video-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
@@ -160,7 +175,7 @@
       .wrap { width: min(100% - 18px, 1440px); }
       .search, .langbar, .quickbar, .chart-actions, .refreshbar { display: grid; grid-template-columns: 1fr 1fr; }
       input, select, button, a.button { width: 100%; }
-      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form, .portfolio-form, .portfolio-summary, .interval-grid, .allocation-row { grid-template-columns: 1fr; }
+      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form, .portfolio-form, .portfolio-summary, .interval-grid, .allocation-row, .mover-board { grid-template-columns: 1fr; }
       .forum-shell { height: min(520px, calc(100vh - 160px)); }
       .forum-post { max-width: 88%; }
       .chat-drawer { right: 9px; left: 9px; bottom: 78px; width: auto; height: min(620px, calc(100vh - 96px)); }
@@ -231,6 +246,7 @@
     <section class="panel workspace-panel">
       <div class="workspace-tabs">
         <button class="workspace-tab active" type="button" data-workspace-tab="recommend" data-reco-i18n="tabRecommend">推薦</button>
+        <button class="workspace-tab" type="button" data-workspace-tab="screener" data-reco-i18n="tabScreener">篩選</button>
         <button class="workspace-tab" type="button" data-workspace-tab="news" data-reco-i18n="tabNews">要聞</button>
         <button class="workspace-tab" type="button" data-workspace-tab="forum" data-reco-i18n="tabForum">討論</button>
         <button class="workspace-tab" type="button" data-workspace-tab="portfolio" data-reco-i18n="tabPortfolio">組合</button>
@@ -246,7 +262,11 @@
             <button id="recoRefreshBtn" class="secondary" type="button" data-reco-i18n="refresh">刷新推薦</button>
           </div>
           <p class="explain" id="recoMeta">-</p>
+          <div id="marketPulse" class="mover-board"></div>
           <div id="recommendList" class="recommend-list"></div>
+        </section>
+        <section class="workspace-pane" id="pane-screener">
+          <div id="screenerPaneMount"></div>
         </section>
         <section class="workspace-pane" id="pane-news">
           <h2 data-reco-i18n="headlines">財經要聞 / 直播入口</h2>
@@ -350,6 +370,11 @@
           <div class="riskbar"><div id="riskFill"></div></div>
         </article>
         <article class="panel">
+          <h2 data-i18n="relatedTitle">關聯標的</h2>
+          <p class="explain" data-i18n="relatedHint">槓桿 ETF、同業、上下游與產業 ETF。</p>
+          <div id="relatedBox" class="relation-grid"></div>
+        </article>
+        <article class="panel">
           <h2 data-i18n="watchlist">關注清單</h2>
           <div class="quickbar">
             <button class="secondary" type="button" onclick="quick('2330')">2330</button>
@@ -417,8 +442,10 @@
     let recommendationData = null;
     let screenerOptionsData = null;
     let screenerData = null;
+    let moversData = null;
     let portfolioData = null;
     let featuredIndex = 0;
+    let storyTimer = null;
     let forumPosts = [];
     let chatOpen = false;
     const STICKERS = ["👍", "🔥", "🚀", "📈", "📉", "⚠️", "💡", "✅", "🤔", "💎"];
@@ -498,7 +525,7 @@
     const st = (key) => (screenerCopy[lang] && screenerCopy[lang][key]) || screenerCopy.en[key] || key;
 
     Object.assign(recoCopy["zh-tw"], {
-      tabRecommend: "常用", tabNews: "要聞", tabForum: "討論", tabPortfolio: "組合", tabHelp: "說明",
+      tabRecommend: "常用", tabScreener: "篩選", tabNews: "要聞", tabForum: "討論", tabPortfolio: "組合", tabHelp: "說明",
       title: "近期股票推薦", hint: "依回歸動能、技術面、消息面、基本面與流動性綜合評分排序。",
       refresh: "刷新推薦", loading: "讀取推薦中", ranking: "綜合排名", headlines: "財經要聞 / 直播入口",
       updated: "更新", scanned: "掃描", ranked: "排名", score: "總分", stats: "統計", tech: "技術", news: "消息", base: "基本面",
@@ -506,8 +533,10 @@
       forumTitle: "匿名即時討論", forumHint: "本機匿名留言，不需登入；依台灣日期每日自動重置。",
       forumPlaceholder: "輸入盤中觀察、新聞連結或提醒，Enter 送出，Shift+Enter 換行", post: "送出", todayRoom: "今日討論室", emptyForum: "目前沒有留言",
       shortcutTitle: "快捷鍵", shortcutFocus: "聚焦股票輸入", shortcutAnalyze: "查詢目前股票", shortcutRecommend: "開啟推薦",
-      shortcutNews: "開啟要聞", shortcutForum: "開啟討論", shortcutPortfolio: "開啟組合", shortcutHelp: "開啟說明",
+      shortcutScreenerTab: "開啟篩選", shortcutNews: "開啟要聞", shortcutForum: "開啟討論", shortcutPortfolio: "開啟組合", shortcutHelp: "開啟說明",
       shortcutRefresh: "刷新推薦", shortcutScreener: "執行股票篩選", shortcutWatch: "加入關注",
+      moversTitle: "即時漲跌報牌", gainers: "正在漲", losers: "正在跌", moversHint: "以 1d/5m 或近 5 日資料估算，依 Yahoo chart 更新。",
+      relatedType: "關係", relatedStrength: "相關性", relatedStructure: "結構", noRelated: "暫無關聯標的",
       portfolioTitle: "投資組合推薦", portfolioHint: "填入資金、幣別與風險承受度，系統會用技術面、回歸動能、波動與分散規則產生長短期配置報告。",
       portfolioAmount: "投入金額", portfolioCurrency: "幣別", portfolioRisk: "風險承受度", portfolioProfile: "型態",
       profileConservative: "保守", profileBalanced: "均衡", profileAggressive: "積極", portfolioHorizon: "週期",
@@ -517,7 +546,7 @@
       confidenceLevel: "信心水準", cashWeight: "現金", equityWeight: "股票", selectedInterval: "選定週期", method: "方法"
     });
     Object.assign(recoCopy["zh-cn"], {
-      tabRecommend: "常用", tabNews: "要闻", tabForum: "讨论", tabPortfolio: "组合", tabHelp: "说明",
+      tabRecommend: "常用", tabScreener: "筛选", tabNews: "要闻", tabForum: "讨论", tabPortfolio: "组合", tabHelp: "说明",
       title: "近期股票推荐", hint: "按回归动能、技术面、消息面、基本面与流动性综合评分排序。",
       refresh: "刷新推荐", loading: "读取推荐中", ranking: "综合排名", headlines: "财经要闻 / 直播入口",
       updated: "更新", scanned: "扫描", ranked: "排名", score: "总分", stats: "统计", tech: "技术", news: "消息", base: "基本面",
@@ -525,8 +554,10 @@
       forumTitle: "匿名即时讨论", forumHint: "本机匿名留言，不需登入；按台湾日期每日自动重置。",
       forumPlaceholder: "输入盘中观察、新闻链接或提醒，Enter 发送，Shift+Enter 换行", post: "发送", todayRoom: "今日讨论室", emptyForum: "目前没有留言",
       shortcutTitle: "快捷键", shortcutFocus: "聚焦股票输入", shortcutAnalyze: "查询目前股票", shortcutRecommend: "开启推荐",
-      shortcutNews: "开启要闻", shortcutForum: "开启讨论", shortcutPortfolio: "开启组合", shortcutHelp: "开启说明",
+      shortcutScreenerTab: "开启筛选", shortcutNews: "开启要闻", shortcutForum: "开启讨论", shortcutPortfolio: "开启组合", shortcutHelp: "开启说明",
       shortcutRefresh: "刷新推荐", shortcutScreener: "执行股票筛选", shortcutWatch: "加入关注",
+      moversTitle: "即时涨跌报价", gainers: "正在涨", losers: "正在跌", moversHint: "以 1d/5m 或近 5 日资料估算，按 Yahoo chart 更新。",
+      relatedType: "关系", relatedStrength: "相关性", relatedStructure: "结构", noRelated: "暂无关联标的",
       portfolioTitle: "投资组合推荐", portfolioHint: "填入资金、币别与风险承受度，系统会用技术面、回归动能、波动与分散规则产生长短期配置报告。",
       portfolioAmount: "投入金额", portfolioCurrency: "币别", portfolioRisk: "风险承受度", portfolioProfile: "类型",
       profileConservative: "保守", profileBalanced: "均衡", profileAggressive: "积极", portfolioHorizon: "周期",
@@ -536,9 +567,11 @@
       confidenceLevel: "置信水平", cashWeight: "现金", equityWeight: "股票", selectedInterval: "选定周期", method: "方法"
     });
     Object.assign(recoCopy.en, {
-      tabRecommend: "Home", tabNews: "News", tabForum: "Forum", tabPortfolio: "Portfolio", tabHelp: "Help",
+      tabRecommend: "Home", tabScreener: "Screener", tabNews: "News", tabForum: "Forum", tabPortfolio: "Portfolio", tabHelp: "Help",
       forumPlaceholder: "Add intraday notes, links, or reminders. Enter posts, Shift+Enter adds a line.",
-      shortcutPortfolio: "Open portfolio",
+      shortcutScreenerTab: "Open screener", shortcutPortfolio: "Open portfolio",
+      moversTitle: "Live Movers", gainers: "Rising", losers: "Falling", moversHint: "Uses 1d/5m or recent 5-day Yahoo chart data.",
+      relatedType: "Type", relatedStrength: "Correlation", relatedStructure: "Structure", noRelated: "No related assets yet",
       portfolioTitle: "Portfolio Recommendation", portfolioHint: "Enter capital, currency and risk tolerance. The model blends technicals, regression momentum, volatility and diversification rules.",
       portfolioAmount: "Capital", portfolioCurrency: "Currency", portfolioRisk: "Risk tolerance", portfolioProfile: "Profile",
       profileConservative: "Conservative", profileBalanced: "Balanced", profileAggressive: "Aggressive", portfolioHorizon: "Horizon",
@@ -647,7 +680,8 @@
         suitable: "Suitable", watch: "Watch", avoid: "Avoid", positive: "Bullish", negative: "Bearish",
         trigger: "Breakout", pressure: "Pressure", backtest: "Backtest", stop: "Stop ref",
         intraday: "Intraday", short: "Short", long: "Long", forecast5: "5-step forecast", forecast20: "20-step forecast",
-        confidence: "Confidence", model: "Model", advice: "Advice", updated: "Updated"
+        confidence: "Confidence", model: "Model", advice: "Advice", updated: "Updated",
+        relatedTitle: "Related Assets", relatedHint: "Leveraged ETFs, peers, upstream/downstream and sector ETFs."
       }
     };
     const t = (key) => (dict[lang] && dict[lang][key]) || dict.en[key] || key;
@@ -670,7 +704,8 @@
       suitable: "適合", watch: "觀察", avoid: "避開", positive: "利好", negative: "利空",
       trigger: "突破觀察", pressure: "壓力", backtest: "回測區", stop: "停損參考",
       intraday: "當沖", short: "短期", long: "長期", forecast5: "5 日預測", forecast20: "20 日預測",
-      confidence: "信心", model: "模型", advice: "建議", updated: "更新"
+      confidence: "信心", model: "模型", advice: "建議", updated: "更新",
+      relatedTitle: "關聯標的", relatedHint: "槓桿 ETF、同業、上下游與產業 ETF。"
     });
     Object.assign(dict["zh-cn"], {
       subtitle: "输入美股或台股代号，检查价格、K 线、新闻、风险、总经与当冲/短期/长期适合度。",
@@ -690,7 +725,8 @@
       suitable: "适合", watch: "观察", avoid: "避开", positive: "利好", negative: "利空",
       trigger: "突破观察", pressure: "压力", backtest: "回测区", stop: "止损参考",
       intraday: "当冲", short: "短期", long: "长期", forecast5: "5 日预测", forecast20: "20 日预测",
-      confidence: "信心", model: "模型", advice: "建议", updated: "更新"
+      confidence: "信心", model: "模型", advice: "建议", updated: "更新",
+      relatedTitle: "关联标的", relatedHint: "杠杆 ETF、同业、上下游与产业 ETF。"
     });
 
     document.querySelectorAll("[data-lang]").forEach((btn) => btn.addEventListener("click", () => {
@@ -700,9 +736,11 @@
       if (lastData) render(lastData);
       renderWatchlist();
       if (recommendationData) renderRecommendations(recommendationData);
+      if (moversData) renderMovers(moversData);
       if (screenerOptionsData) renderScreenerOptions(screenerOptionsData);
       if (screenerData) renderScreener(screenerData);
       if (portfolioData) renderPortfolio(portfolioData);
+      if (lastData) renderRelated(lastData.related || []);
     }));
     $("form").addEventListener("submit", (event) => { event.preventDefault(); analyze($("symbol").value.trim() || "2330"); });
     $("addWatchBtn").addEventListener("click", () => addWatch(lastData?.symbol || $("symbol").value.trim()));
@@ -721,6 +759,12 @@
     document.addEventListener("keydown", handleShortcuts);
     window.addEventListener("resize", () => renderChart(lastData));
     canvas.addEventListener("click", () => openExternal($("googleLink").href));
+
+    function mountScreenerPanel() {
+      const mount = $("screenerPaneMount");
+      const panel = document.querySelector(".screener-panel");
+      if (mount && panel && panel.parentElement !== mount) mount.appendChild(panel);
+    }
 
     function applyLang() {
       document.documentElement.lang = lang === "en" ? "en" : lang === "zh-cn" ? "zh-Hans" : "zh-Hant";
@@ -756,10 +800,11 @@
       if (!event.altKey) return;
       const actions = {
         "1": () => switchWorkspaceTab("recommend"),
-        "2": () => switchWorkspaceTab("news"),
-        "3": () => switchWorkspaceTab("forum"),
-        "4": () => switchWorkspaceTab("portfolio"),
-        "5": () => switchWorkspaceTab("help"),
+        "2": () => switchWorkspaceTab("screener"),
+        "3": () => switchWorkspaceTab("news"),
+        "4": () => switchWorkspaceTab("forum"),
+        "5": () => switchWorkspaceTab("portfolio"),
+        "6": () => switchWorkspaceTab("help"),
         r: () => loadRecommendations(),
         f: () => runScreener(),
         w: () => addWatch(lastData?.symbol || $("symbol").value.trim()),
@@ -775,10 +820,11 @@
         ["Ctrl+K", rt("shortcutFocus")],
         ["Enter", rt("shortcutAnalyze")],
         ["Alt+1", rt("shortcutRecommend")],
-        ["Alt+2", rt("shortcutNews")],
-        ["Alt+3", rt("shortcutForum")],
-        ["Alt+4", rt("shortcutPortfolio")],
-        ["Alt+5", rt("shortcutHelp")],
+        ["Alt+2", rt("shortcutScreenerTab")],
+        ["Alt+3", rt("shortcutNews")],
+        ["Alt+4", rt("shortcutForum")],
+        ["Alt+5", rt("shortcutPortfolio")],
+        ["Alt+6", rt("shortcutHelp")],
         ["Alt+R", rt("shortcutRefresh")],
         ["Alt+F", rt("shortcutScreener")],
         ["Alt+W", rt("shortcutWatch")],
@@ -961,6 +1007,29 @@
       }).join("");
     }
 
+    async function loadMovers() {
+      try {
+        const res = await fetch("/api/movers?markets=US,TW&limit=6");
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "Movers failed");
+        moversData = data;
+        renderMovers(data);
+      } catch (error) {
+        $("marketPulse").innerHTML = `<div class="plainbox muted">${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    function renderMovers(data) {
+      const column = (title, rows, cls) => `<div class="mover-column">
+        <div class="section-head"><h2>${escapeHtml(title)}</h2><span class="tag">${escapeHtml(rt("moversHint"))}</span></div>
+        <div class="mover-list">${(rows || []).map((row) => `<div class="mover-item" onclick="analyze('${row.symbol}')">
+          <div><strong>${escapeHtml(row.symbol)}</strong><small class="muted">${escapeHtml(row.name)} · ${escapeHtml(industryLabel(row.industry))}</small></div>
+          <div class="${cls}"><strong>${arrow(row.change_pct)} ${signed(row.change_pct, "%")}</strong><small>${fmt(row.price)}</small></div>
+        </div>`).join("") || `<div class="muted">${rt("noData")}</div>`}</div>
+      </div>`;
+      $("marketPulse").innerHTML = column(rt("gainers"), data.gainers, "up") + column(rt("losers"), data.losers, "down");
+    }
+
     async function loadRecommendations() {
       const button = $("recoRefreshBtn");
       button.disabled = true;
@@ -1004,9 +1073,10 @@
       renderFeaturedStories(headlines);
       const tickerItems = headlines;
       $("marketTicker").innerHTML = tickerItems.length
-        ? tickerItems.map((item) => `<a href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">${escapeHtml(item.title)}</a>`).join("")
+        ? [...tickerItems, ...tickerItems].map((item) => `<a href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">${escapeHtml(item.title)}</a>`).join("")
         : `<span class="muted">${rt("noData")}</span>`;
-      $("headlineBoard").innerHTML = headlines.slice(0, 6).map((item, index) => `<a class="headline-row" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer"><div class="headline-thumb" style="${storyStyle(index)}">${escapeHtml(storyMark(item))}</div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.source)} · ${escapeHtml(item.published || "")}</small></a>`).join("");
+      const cards = headlines.slice(0, 8).map((item, index) => `<a class="headline-row" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer"><div class="headline-thumb" style="${storyThumbStyle(item, index)}">${escapeHtml(storyMark(item))}</div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.source)} · ${escapeHtml(item.published || "")}</small></a>`).join("");
+      $("headlineBoard").innerHTML = cards ? `<div class="news-rail">${cards}${cards}</div>` : `<div class="plainbox muted">${rt("noData")}</div>`;
       const videos = data.video_links || [];
       $("videoLinks").innerHTML = videos.map((item) => `<a class="button secondary" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">${escapeHtml(item.title)}</a>`).join("") + `<span class="muted">${rt("videoHint")}</span>`;
     }
@@ -1021,6 +1091,21 @@
         "background:linear-gradient(135deg,#0891b2,#166534)"
       ];
       return gradients[index % gradients.length];
+    }
+
+    function storyImageUrl(item) {
+      if (!item?.link) return "";
+      return `https://s.wordpress.com/mshots/v1/${encodeURIComponent(item.link)}?w=900`;
+    }
+
+    function storyVisualStyle(item, index) {
+      const image = storyImageUrl(item);
+      return image ? `background-image:linear-gradient(180deg,rgba(11,16,32,.08),rgba(11,16,32,.82)),url('${image}');background-size:cover;background-position:top center;` : storyStyle(index);
+    }
+
+    function storyThumbStyle(item, index) {
+      const image = storyImageUrl(item);
+      return image ? `background-image:linear-gradient(180deg,rgba(11,16,32,.08),rgba(11,16,32,.62)),url('${image}');` : storyStyle(index);
     }
 
     function storyMark(item) {
@@ -1040,12 +1125,13 @@
       const item = headlines[featuredIndex];
       const dots = headlines.slice(0, 12).map((_, index) => `<button class="story-dot ${index === featuredIndex ? "active" : ""}" type="button" onclick="setFeaturedStory(${index}, true)" aria-label="story ${index + 1}"></button>`).join("");
       $("featuredStory").innerHTML = `<div class="story-hero">
-        <div class="story-visual" style="${storyStyle(featuredIndex)}"><div class="story-topic">${escapeHtml(storyMark(item))}</div></div>
+        <div class="story-visual" style="${storyVisualStyle(item, featuredIndex)}"><div class="story-topic">${escapeHtml(storyMark(item))}</div></div>
         <button class="story-nav story-prev" type="button" onclick="setFeaturedStory(-1)">‹</button>
         <button class="story-nav story-next" type="button" onclick="setFeaturedStory(1)">›</button>
         <div class="story-overlay"><a href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer"><strong>${escapeHtml(item.title)}</strong></a><small>${escapeHtml(item.source)} · ${escapeHtml(item.published || "")}</small></div>
         <div class="story-dots">${dots}</div>
       </div>`;
+      restartStoryTimer(headlines.length);
     }
 
     function setFeaturedStory(value, absolute = false) {
@@ -1053,6 +1139,64 @@
       if (!headlines.length) return;
       featuredIndex = absolute ? value : featuredIndex + value;
       renderFeaturedStories(headlines);
+    }
+
+    function restartStoryTimer(count) {
+      if (storyTimer) clearInterval(storyTimer);
+      if (count <= 1) return;
+      storyTimer = setInterval(() => setFeaturedStory(1), 6500);
+    }
+
+    function renderRelated(rows) {
+      if (!$("relatedBox")) return;
+      if (!rows.length) {
+        $("relatedBox").innerHTML = `<div class="plainbox muted">${rt("noRelated")}</div>`;
+        return;
+      }
+      $("relatedBox").innerHTML = rows.map((row) => {
+        const direction = Number(row.change_pct || 0) >= 0 ? "up" : "down";
+        return `<div class="relation-card" onclick="analyze('${row.symbol}')">
+          <strong>${escapeHtml(row.symbol)} · ${escapeHtml(row.name || "")}</strong>
+          <small class="${direction}">${arrow(row.change_pct)} ${signed(row.change_pct, "%")} · ${fmt(row.price)}</small>
+          <p>${escapeHtml(relationshipText(row))}</p>
+          <div class="relation-meta">
+            <span class="tag">${escapeHtml(rt("relatedType"))}: ${escapeHtml(relationTypeLabel(row.type))}</span>
+            <span class="tag">${escapeHtml(rt("relatedStrength"))}: ${escapeHtml(row.strength || "-")}</span>
+            <span class="tag">${escapeHtml(rt("relatedStructure"))}: ${escapeHtml(structureLabel(row.structure))}</span>
+          </div>
+        </div>`;
+      }).join("");
+    }
+
+    function relationshipText(row) {
+      if (lang === "en") return row.why || row.relation || "";
+      const zhHans = lang === "zh-cn";
+      const relation = row.relation || "";
+      const why = row.why || "";
+      if (row.type === "leveraged_etf") return `${relation}：${zhHans ? "单股或产业杠杆做多工具，通常放大同方向波动。" : "單股或產業槓桿做多工具，通常放大同方向波動。"}`;
+      if (row.type === "inverse_etf") return `${relation}：${zhHans ? "反向或避险工具，上涨时常代表卖压/避险升温。" : "反向或避險工具，上漲時常代表賣壓/避險升溫。"}`;
+      if (row.structure === "vertical") return `${relation}：${zhHans ? "上下游关系，需求、产能或成本会互相传导。" : "上下游關係，需求、產能或成本會互相傳導。"}`;
+      if (row.structure === "horizontal") return `${relation}：${zhHans ? "同业水平比较，用来判断个股或产业同步性。" : "同業水平比較，用來判斷個股或產業同步性。"}`;
+      if (row.type === "adr") return `${relation}：${zhHans ? "同公司不同市场挂牌，可观察跨市场资金反应。" : "同公司不同市場掛牌，可觀察跨市場資金反應。"}`;
+      return why || relation;
+    }
+
+    function relationTypeLabel(value) {
+      const labels = {
+        "zh-tw": { leveraged_etf: "槓桿 ETF", inverse_etf: "反向 ETF", sector_etf: "產業 ETF", peer: "同業", supplier: "上游供應", customer: "下游客戶", customer_peer: "客戶/同業", customer_demand: "需求驅動", adr: "ADR" },
+        "zh-cn": { leveraged_etf: "杠杆 ETF", inverse_etf: "反向 ETF", sector_etf: "产业 ETF", peer: "同业", supplier: "上游供应", customer: "下游客户", customer_peer: "客户/同业", customer_demand: "需求驱动", adr: "ADR" },
+        en: {}
+      };
+      return labels[lang]?.[value] || value || "-";
+    }
+
+    function structureLabel(value) {
+      const labels = {
+        "zh-tw": { derivative: "衍生/槓桿", sector_beta: "產業連動", vertical: "垂直上下游", horizontal: "水平同業", same_company: "同公司" },
+        "zh-cn": { derivative: "衍生/杠杆", sector_beta: "产业联动", vertical: "垂直上下游", horizontal: "水平同业", same_company: "同公司" },
+        en: {}
+      };
+      return labels[lang]?.[value] || value || "-";
     }
 
     function updatePortfolioRiskLabel() {
@@ -1215,6 +1359,7 @@
       $("liveMeta").textContent = `${data.symbol} · ${data.latest.date} · ${fmt(data.latest.close)} · ${signed(data.change.pct, "%")}`;
       $("predictionBadge").textContent = `${label(data.prediction.bias)} · ${t("confidence")} ${data.prediction.confidence}%`;
       updateLinks(data);
+      renderRelated(data.related || []);
       kv("technical", { MA5: data.technical.ma5, MA20: data.technical.ma20, MA60: data.technical.ma60, RSI: data.technical.rsi14, MACD: data.technical.macd, "ATR %": `${fmt(data.technical.atr_pct)}%`, "Vol ratio": data.technical.volume_ratio });
       kv("levels", { [t("trigger")]: data.levels.breakout_call, [t("pressure")]: data.levels.resistance_60d, [t("backtest")]: data.levels.backtest_zone, [t("stop")]: data.levels.stop_loss_reference });
       kv("suitability", {
@@ -1392,10 +1537,11 @@
     function compactCap(n) { return "$" + compact(n); }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
 
-    applyLang(); loadForum(); renderWatchlist(); tickClocks(); loadContext(); loadRecommendations(); loadScreenerOptions(); analyze($("symbol").value); refreshWatchlist();
+    mountScreenerPanel(); applyLang(); loadForum(); renderWatchlist(); tickClocks(); loadContext(); loadRecommendations(); loadMovers(); loadScreenerOptions(); analyze($("symbol").value); refreshWatchlist();
     setInterval(tickClocks, 1000);
     setInterval(loadContext, 60000);
     setInterval(refreshQuote, 10000);
+    setInterval(loadMovers, 60000);
     setInterval(() => { if (autoRefresh && lastData && ($("period").value === "1d" || $("interval").value === "5m")) analyze(lastData.symbol, true); }, 30000);
     setInterval(() => { if (autoRefresh) refreshWatchlist(); }, 60000);
     setInterval(loadForum, 600000);
