@@ -84,15 +84,23 @@
     .video-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
     .shortcut-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-top: 10px; }
     .shortcut-key { display: inline-flex; min-width: 64px; justify-content: center; padding: 4px 7px; border: 1px solid var(--line); border-radius: 6px; background: #0f172f; color: #bfdbfe; font-weight: 700; }
-    .forum-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 10px; }
+    .forum-shell { height: min(540px, calc(100vh - 220px)); min-height: 360px; display: grid; grid-template-rows: auto 1fr auto auto; gap: 8px; margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; background: #0d1530; padding: 10px; }
+    .forum-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 0; }
     textarea { min-height: 70px; resize: vertical; border-radius: 7px; border: 1px solid var(--line); background: #0f172f; color: var(--text); padding: 10px 12px; font: inherit; }
     .forum-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
-    .sticker-bar { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+    .sticker-bar { display: flex; gap: 7px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; margin-top: 0; }
     .sticker-btn { width: 38px; height: 34px; padding: 0; background: var(--card); border-color: var(--line); font-size: 18px; }
-    .forum-list { display: grid; gap: 8px; margin-top: 10px; }
-    .forum-post { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
-    .forum-post-head { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .forum-list { display: grid; gap: 8px; align-content: start; overflow-y: auto; min-height: 0; background: #0f172f; border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
+    .forum-post { width: fit-content; max-width: min(78%, 720px); background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 9px 12px; line-height: 1.45; }
+    .forum-post.mine { justify-self: end; background: #263f88; border-color: #3b82f6; }
+    .forum-post-head { display: flex; justify-content: space-between; gap: 8px; color: #bfdbfe; font-size: 12px; margin-bottom: 6px; }
     .forum-delete { width: 32px; height: 28px; padding: 0; background: transparent; color: var(--muted); border-color: var(--line); }
+    .chat-fab { position: fixed; right: 18px; bottom: 18px; z-index: 60; width: 54px; height: 54px; padding: 0; border-radius: 50%; background: #4f46e5; border: 3px solid #f8fafc; box-shadow: 0 16px 42px rgba(0,0,0,.36); font-weight: 900; }
+    .chat-drawer { position: fixed; right: 18px; bottom: 84px; z-index: 59; display: none; width: min(390px, calc(100vw - 28px)); height: min(620px, calc(100vh - 110px)); background: #101a35; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 24px 70px rgba(0,0,0,.45); padding: 10px; }
+    .chat-drawer.open { display: grid; grid-template-rows: auto auto 1fr auto auto; gap: 8px; }
+    .chat-drawer-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .chat-close { width: 34px; height: 34px; padding: 0; border-radius: 50%; background: transparent; border-color: var(--line); }
+    .chat-drawer textarea { min-height: 44px; max-height: 86px; resize: none; }
     .portfolio-form { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 10px; align-items: end; margin-top: 12px; }
     .portfolio-form input, .portfolio-form select { width: 100%; }
     .portfolio-form input[type="range"] { padding: 0; accent-color: #3b82f6; }
@@ -153,6 +161,10 @@
       .search, .langbar, .quickbar, .chart-actions, .refreshbar { display: grid; grid-template-columns: 1fr 1fr; }
       input, select, button, a.button { width: 100%; }
       .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form, .portfolio-form, .portfolio-summary, .interval-grid, .allocation-row { grid-template-columns: 1fr; }
+      .forum-shell { height: min(520px, calc(100vh - 160px)); }
+      .forum-post { max-width: 88%; }
+      .chat-drawer { right: 9px; left: 9px; bottom: 78px; width: auto; height: min(620px, calc(100vh - 96px)); }
+      .chat-fab { right: 14px; bottom: 14px; }
       .story-hero { min-height: 238px; }
       .story-overlay strong { font-size: 19px; }
       .story-topic { width: 86px; height: 86px; font-size: 30px; }
@@ -246,16 +258,18 @@
         <section class="workspace-pane" id="pane-forum">
           <h2 data-reco-i18n="forumTitle">匿名即時討論</h2>
           <p class="explain" data-reco-i18n="forumHint">本機匿名留言，不需登入；依台灣日期每日自動重置。</p>
-          <div class="forum-meta">
-            <span class="tag" id="forumId">-</span>
-            <span class="muted" id="forumResetMeta">-</span>
+          <div class="forum-shell">
+            <div class="forum-meta">
+              <span class="tag" id="forumId">-</span>
+              <span class="muted" id="forumResetMeta">-</span>
+            </div>
+            <div id="forumList" class="forum-list"></div>
+            <div id="stickerBar" class="sticker-bar"></div>
+            <div class="forum-form">
+              <textarea id="forumText" maxlength="280" data-reco-placeholder="forumPlaceholder" placeholder="輸入盤中觀察、新聞連結或提醒"></textarea>
+              <button id="forumPostBtn" type="button" data-reco-i18n="post">送出</button>
+            </div>
           </div>
-          <div class="forum-form">
-            <textarea id="forumText" maxlength="280" data-reco-placeholder="forumPlaceholder" placeholder="輸入盤中觀察、新聞連結或提醒"></textarea>
-            <button id="forumPostBtn" type="button" data-reco-i18n="post">送出</button>
-          </div>
-          <div id="stickerBar" class="sticker-bar"></div>
-          <div id="forumList" class="forum-list"></div>
         </section>
         <section class="workspace-pane" id="pane-portfolio">
           <h2 data-reco-i18n="portfolioTitle">投資組合推薦</h2>
@@ -370,6 +384,26 @@
     </section>
   </main>
 
+  <aside id="chatDrawer" class="chat-drawer" aria-live="polite">
+    <div class="chat-drawer-head">
+      <div>
+        <strong data-reco-i18n="forumTitle">匿名即時討論</strong>
+        <div class="muted" id="floatForumResetMeta">-</div>
+      </div>
+      <button id="chatClose" class="chat-close" type="button" aria-label="Close">x</button>
+    </div>
+    <div class="forum-meta">
+      <span class="tag" id="floatForumId">-</span>
+    </div>
+    <div id="floatForumList" class="forum-list"></div>
+    <div id="floatStickerBar" class="sticker-bar"></div>
+    <div class="forum-form">
+      <textarea id="floatForumText" maxlength="280" data-reco-placeholder="forumPlaceholder" placeholder="輸入盤中觀察、新聞連結或提醒"></textarea>
+      <button id="floatForumPostBtn" type="button" data-reco-i18n="post">送出</button>
+    </div>
+  </aside>
+  <button id="chatFab" class="chat-fab" type="button" aria-label="Open chat">Chat</button>
+
   <script>
     const $ = (id) => document.getElementById(id);
     const canvas = $("chart");
@@ -386,6 +420,7 @@
     let portfolioData = null;
     let featuredIndex = 0;
     let forumPosts = [];
+    let chatOpen = false;
     const STICKERS = ["👍", "🔥", "🚀", "📈", "📉", "⚠️", "💡", "✅", "🤔", "💎"];
 
     const recoCopy = {
@@ -674,8 +709,12 @@
     $("autoBtn").addEventListener("click", () => { autoRefresh = !autoRefresh; $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff"); });
     $("scRunBtn").addEventListener("click", () => runScreener());
     $("recoRefreshBtn").addEventListener("click", () => loadRecommendations());
-    $("forumPostBtn").addEventListener("click", () => postForumMessage());
-    $("forumText").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); postForumMessage(); } });
+    $("forumPostBtn").addEventListener("click", () => postForumMessage("main"));
+    $("forumText").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); postForumMessage("main"); } });
+    $("floatForumPostBtn").addEventListener("click", () => postForumMessage("float"));
+    $("floatForumText").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); postForumMessage("float"); } });
+    $("chatFab").addEventListener("click", () => toggleChatDrawer());
+    $("chatClose").addEventListener("click", () => toggleChatDrawer(false));
     $("portfolioForm").addEventListener("submit", (event) => { event.preventDefault(); runPortfolio(); });
     $("pfRisk").addEventListener("input", updatePortfolioRiskLabel);
     document.querySelectorAll("[data-workspace-tab]").forEach((btn) => btn.addEventListener("click", () => switchWorkspaceTab(btn.dataset.workspaceTab)));
@@ -777,22 +816,27 @@
       localStorage.setItem(forumKey(), JSON.stringify(forumPosts.slice(-80)));
     }
 
-    function postForumMessage() {
-      const text = $("forumText").value.trim();
+    function postForumMessage(source = "main") {
+      const input = source === "float" ? $("floatForumText") : $("forumText");
+      const text = input.value.trim();
       if (!text) return;
       forumPosts.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, user: forumUserId(), text: text.slice(0, 280), time: Date.now() });
-      $("forumText").value = "";
+      input.value = "";
       saveForum();
       renderForum();
     }
 
     function renderStickers() {
-      if (!$("stickerBar")) return;
-      $("stickerBar").innerHTML = STICKERS.map((item) => `<button class="sticker-btn" type="button" onclick="insertSticker('${item}')" title="${escapeHtml(item)}">${item}</button>`).join("");
+      if ($("stickerBar")) {
+        $("stickerBar").innerHTML = STICKERS.map((item) => `<button class="sticker-btn" type="button" onclick="insertSticker('${item}', 'main')" title="${escapeHtml(item)}">${item}</button>`).join("");
+      }
+      if ($("floatStickerBar")) {
+        $("floatStickerBar").innerHTML = STICKERS.map((item) => `<button class="sticker-btn" type="button" onclick="insertSticker('${item}', 'float')" title="${escapeHtml(item)}">${item}</button>`).join("");
+      }
     }
 
-    function insertSticker(item) {
-      const box = $("forumText");
+    function insertSticker(item, target = "main") {
+      const box = target === "float" ? $("floatForumText") : $("forumText");
       const start = box.selectionStart || box.value.length;
       const end = box.selectionEnd || box.value.length;
       const next = `${box.value.slice(0, start)}${item}${box.value.slice(end)}`;
@@ -809,17 +853,36 @@
     }
 
     function renderForum() {
-      if (!$("forumList")) return;
-      $("forumId").textContent = forumUserId();
-      $("forumResetMeta").textContent = `${rt("todayRoom")} ${forumDateKey()}`;
+      const userId = forumUserId();
+      const roomText = `${rt("todayRoom")} ${forumDateKey()}`;
+      if ($("forumId")) $("forumId").textContent = userId;
+      if ($("floatForumId")) $("floatForumId").textContent = userId;
+      if ($("forumResetMeta")) $("forumResetMeta").textContent = roomText;
+      if ($("floatForumResetMeta")) $("floatForumResetMeta").textContent = roomText;
+      const targets = [$("forumList"), $("floatForumList")].filter(Boolean);
       if (!forumPosts.length) {
-        $("forumList").innerHTML = `<div class="plainbox muted">${rt("emptyForum")}</div>`;
+        targets.forEach((target) => target.innerHTML = `<div class="plainbox muted">${rt("emptyForum")}</div>`);
         return;
       }
-      $("forumList").innerHTML = forumPosts.slice().reverse().map((post) => {
+      const html = forumPosts.map((post) => {
         const time = new Date(post.time).toLocaleTimeString(lang === "en" ? "en-US" : "zh-TW", { hour: "2-digit", minute: "2-digit" });
-        return `<div class="forum-post"><div class="forum-post-head"><span>${escapeHtml(post.user)} · ${time}</span><button class="forum-delete" type="button" onclick="deleteForumPost('${post.id}')">x</button></div><div>${escapeHtml(post.text)}</div></div>`;
+        const mine = post.user === userId ? "mine" : "";
+        return `<div class="forum-post ${mine}"><div class="forum-post-head"><span>${escapeHtml(post.user)} · ${time}</span><button class="forum-delete" type="button" onclick="deleteForumPost('${post.id}')">x</button></div><div>${escapeHtml(post.text)}</div></div>`;
       }).join("");
+      targets.forEach((target) => {
+        target.innerHTML = html;
+        target.scrollTop = target.scrollHeight;
+      });
+    }
+
+    function toggleChatDrawer(force = null) {
+      chatOpen = force === null ? !chatOpen : Boolean(force);
+      $("chatDrawer").classList.toggle("open", chatOpen);
+      $("chatFab").textContent = chatOpen ? "x" : "Chat";
+      if (chatOpen) {
+        renderForum();
+        setTimeout(() => $("floatForumText").focus(), 50);
+      }
     }
 
     async function loadScreenerOptions() {
