@@ -41,25 +41,40 @@
     .card strong { font-size: 22px; white-space: nowrap; }
     .card.flash-up, .status.flash-up { border-color: var(--green); box-shadow: 0 0 0 2px rgba(34,197,94,.22); animation: blinkUp 1s ease-in-out 2; }
     .card.flash-down, .status.flash-down { border-color: var(--red); box-shadow: 0 0 0 2px rgba(239,68,68,.22); animation: blinkDown 1s ease-in-out 2; }
-    .recommend-panel { margin-bottom: 16px; overflow: hidden; }
-    .recommend-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 12px; margin-top: 12px; }
-    .ticker { margin-top: 12px; background: #0f172f; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; white-space: nowrap; }
-    .ticker-track { display: inline-flex; gap: 26px; min-width: 100%; padding: 10px 0; animation: marquee 46s linear infinite; }
-    .ticker:hover .ticker-track { animation-play-state: paused; }
-    .ticker a { color: #dbeafe; text-decoration: none; }
+    .workspace-panel { margin-bottom: 16px; padding: 0; overflow: hidden; }
+    .workspace-tabs { display: flex; gap: 3px; overflow-x: auto; background: #0f172f; border-bottom: 1px solid var(--line); padding: 6px 8px 0; }
+    .workspace-tab { height: 38px; min-width: 88px; border-radius: 7px 7px 0 0; background: #172241; border-color: var(--line); color: #bfdbfe; }
+    .workspace-tab.active { background: var(--panel); color: var(--text); border-bottom-color: var(--panel); }
+    .workspace-body { padding: 14px; }
+    .workspace-pane { display: none; }
+    .workspace-pane.active { display: block; }
+    .workspace-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+    .ticker { margin-top: 12px; background: #0f172f; border: 1px solid var(--line); border-radius: 7px; overflow-x: auto; white-space: nowrap; scroll-snap-type: x mandatory; }
+    .ticker-track { display: inline-flex; gap: 10px; min-width: 100%; padding: 10px; }
+    .ticker a { color: #dbeafe; text-decoration: none; flex: 0 0 auto; max-width: min(520px, 82vw); overflow: hidden; text-overflow: ellipsis; scroll-snap-align: start; }
     .ticker a:hover { color: var(--blue); }
-    .recommend-list, .headline-board { display: grid; gap: 9px; margin-top: 10px; }
+    .recommend-list, .headline-board { display: flex; gap: 10px; margin-top: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
     .recommend-row, .headline-row { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
-    .headline-row { display: block; color: var(--text); text-decoration: none; }
-    .recommend-row { display: grid; grid-template-columns: auto minmax(160px, 1fr) repeat(4, minmax(70px, auto)); gap: 10px; align-items: center; cursor: pointer; }
+    .headline-row { display: block; color: var(--text); text-decoration: none; flex: 0 0 min(460px, 86vw); min-height: 112px; max-height: 126px; overflow: hidden; scroll-snap-align: start; }
+    .recommend-row { display: grid; grid-template-columns: auto minmax(180px, 1fr) repeat(4, minmax(62px, auto)); gap: 10px; align-items: center; cursor: pointer; flex: 0 0 min(620px, 92vw); scroll-snap-align: start; }
     .recommend-row:hover, .headline-row:hover { border-color: var(--blue); }
     .rank { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #243766; color: #bfdbfe; font-weight: 800; }
     .recommend-row strong, .headline-row strong { display: block; }
     .recommend-row small, .headline-row small { display: block; color: var(--muted); margin-top: 3px; }
+    .headline-row strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .headline-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .score-chip { color: #bfdbfe; text-align: right; font-size: 12px; }
     .score-chip b { display: block; color: var(--text); font-size: 16px; margin-top: 2px; }
     .video-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-    @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+    .shortcut-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-top: 10px; }
+    .shortcut-key { display: inline-flex; min-width: 64px; justify-content: center; padding: 4px 7px; border: 1px solid var(--line); border-radius: 6px; background: #0f172f; color: #bfdbfe; font-weight: 700; }
+    .forum-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 10px; }
+    textarea { min-height: 70px; resize: vertical; border-radius: 7px; border: 1px solid var(--line); background: #0f172f; color: var(--text); padding: 10px 12px; font: inherit; }
+    .forum-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+    .forum-list { display: grid; gap: 8px; margin-top: 10px; }
+    .forum-post { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
+    .forum-post-head { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .forum-delete { width: 32px; height: 28px; padding: 0; background: transparent; color: var(--muted); border-color: var(--line); }
     .screener-panel { margin-bottom: 16px; }
     .screener-controls { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 10px; align-items: end; margin-top: 12px; }
     .screener-controls input { width: 100%; }
@@ -105,15 +120,17 @@
     .explain { margin-top: 10px; font-size: 13px; }
     @keyframes blinkUp { 50% { background: rgba(34,197,94,.18); } }
     @keyframes blinkDown { 50% { background: rgba(239,68,68,.18); } }
-    @media (max-width: 1120px) { header, .main, .grid, .statusbar, .recommend-layout { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards, .screener-results { grid-template-columns: repeat(2, 1fr); } .screener-controls { grid-template-columns: repeat(3, 1fr); } .screener-row, .recommend-row { grid-template-columns: 1fr 1fr; } .metric, .score-chip { text-align: left; } }
+    @media (max-width: 1120px) { header, .main, .grid, .statusbar { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards, .screener-results { grid-template-columns: repeat(2, 1fr); } .screener-controls { grid-template-columns: repeat(3, 1fr); } .screener-row, .recommend-row { grid-template-columns: 1fr 1fr; } .metric, .score-chip { text-align: left; } .shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 640px) {
       .wrap { width: min(100% - 18px, 1440px); }
       .search, .langbar, .quickbar, .chart-actions, .refreshbar { display: grid; grid-template-columns: 1fr 1fr; }
       input, select, button, a.button { width: 100%; }
-      .cards, .kvgrid, .screener-controls, .screener-results { grid-template-columns: 1fr; }
+      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form { grid-template-columns: 1fr; }
       canvas { height: 430px; }
       .watch-item { grid-template-columns: 1fr auto; }
       .remove { grid-column: 2; }
+      .video-links { flex-wrap: nowrap; overflow-x: auto; }
+      .video-links a.button { width: auto; flex: 0 0 auto; height: 34px; font-size: 13px; }
     }
   </style>
 </head>
@@ -169,26 +186,48 @@
       <article class="card"><span data-i18n="trend">趨勢</span><strong id="trend">-</strong></article>
     </section>
 
-    <section class="panel recommend-panel">
-      <div class="chart-head">
-        <div>
-          <h2 data-reco-i18n="title">近期股票推薦 / 財經看板</h2>
-          <p class="explain" data-reco-i18n="hint">依統計回歸、消息面、技術面與市值/成交量代理基本面綜合排名。</p>
-        </div>
-        <button id="recoRefreshBtn" class="secondary" type="button" data-reco-i18n="refresh">刷新推薦</button>
+    <section class="panel workspace-panel">
+      <div class="workspace-tabs">
+        <button class="workspace-tab active" type="button" data-workspace-tab="recommend" data-reco-i18n="tabRecommend">推薦</button>
+        <button class="workspace-tab" type="button" data-workspace-tab="news" data-reco-i18n="tabNews">要聞</button>
+        <button class="workspace-tab" type="button" data-workspace-tab="forum" data-reco-i18n="tabForum">討論</button>
+        <button class="workspace-tab" type="button" data-workspace-tab="help" data-reco-i18n="tabHelp">說明</button>
       </div>
-      <div class="ticker"><div id="marketTicker" class="ticker-track">Loading...</div></div>
-      <div class="recommend-layout">
-        <div>
-          <h3 data-reco-i18n="ranking">綜合排名</h3>
+      <div class="workspace-body">
+        <section class="workspace-pane active" id="pane-recommend">
+          <div class="workspace-head">
+            <div>
+              <h2 data-reco-i18n="title">近期股票推薦</h2>
+              <p class="explain" data-reco-i18n="hint">依統計回歸、消息面、技術面與市值/成交量代理基本面綜合排名。</p>
+            </div>
+            <button id="recoRefreshBtn" class="secondary" type="button" data-reco-i18n="refresh">刷新推薦</button>
+          </div>
           <p class="explain" id="recoMeta">-</p>
           <div id="recommendList" class="recommend-list"></div>
-        </div>
-        <div>
-          <h3 data-reco-i18n="headlines">財經要聞 / 直播入口</h3>
+        </section>
+        <section class="workspace-pane" id="pane-news">
+          <h2 data-reco-i18n="headlines">財經要聞 / 直播入口</h2>
+          <div class="ticker"><div id="marketTicker" class="ticker-track">Loading...</div></div>
           <div id="headlineBoard" class="headline-board"></div>
           <div id="videoLinks" class="video-links"></div>
-        </div>
+        </section>
+        <section class="workspace-pane" id="pane-forum">
+          <h2 data-reco-i18n="forumTitle">匿名即時討論</h2>
+          <p class="explain" data-reco-i18n="forumHint">本機匿名留言，不需登入；依台灣日期每日自動重置。</p>
+          <div class="forum-meta">
+            <span class="tag" id="forumId">-</span>
+            <span class="muted" id="forumResetMeta">-</span>
+          </div>
+          <div class="forum-form">
+            <textarea id="forumText" maxlength="280" data-reco-placeholder="forumPlaceholder" placeholder="輸入盤中觀察、新聞連結或提醒"></textarea>
+            <button id="forumPostBtn" type="button" data-reco-i18n="post">送出</button>
+          </div>
+          <div id="forumList" class="forum-list"></div>
+        </section>
+        <section class="workspace-pane" id="pane-help">
+          <h2 data-reco-i18n="shortcutTitle">快捷鍵</h2>
+          <div id="shortcutGrid" class="shortcut-grid"></div>
+        </section>
       </div>
     </section>
 
@@ -295,6 +334,7 @@
     let autoRefresh = true;
     let lastQuotePrice = null;
     let recommendationData = null;
+    let forumPosts = [];
 
     const recoCopy = {
       "zh-tw": {
@@ -316,6 +356,30 @@
         why: "Why", noData: "No recommendation data yet", open: "Open", videoHint: "Live detection needs YouTube API; these are live search shortcuts for now."
       }
     };
+    Object.assign(recoCopy["zh-tw"], {
+      tabRecommend: "常用", tabNews: "要聞", tabForum: "討論", tabHelp: "說明",
+      title: "近期股票推薦", forumTitle: "匿名即時討論", forumHint: "本機匿名留言，不需登入；依台灣日期每日自動重置。",
+      forumPlaceholder: "輸入盤中觀察、新聞連結或提醒", post: "送出", todayRoom: "今日討論室", emptyForum: "目前沒有留言",
+      shortcutTitle: "快捷鍵", shortcutFocus: "聚焦股票代號", shortcutAnalyze: "分析目前代號", shortcutRecommend: "切到推薦",
+      shortcutNews: "切到要聞", shortcutForum: "切到討論", shortcutHelp: "切到說明", shortcutRefresh: "刷新推薦",
+      shortcutScreener: "執行股票篩選", shortcutWatch: "加入關注"
+    });
+    Object.assign(recoCopy["zh-cn"], {
+      tabRecommend: "常用", tabNews: "要闻", tabForum: "讨论", tabHelp: "说明",
+      title: "近期股票推荐", forumTitle: "匿名即时讨论", forumHint: "本机匿名留言，不需登入；依台湾日期每日自动重置。",
+      forumPlaceholder: "输入盘中观察、新闻链接或提醒", post: "送出", todayRoom: "今日讨论室", emptyForum: "目前没有留言",
+      shortcutTitle: "快捷键", shortcutFocus: "聚焦股票代码", shortcutAnalyze: "分析目前代码", shortcutRecommend: "切到推荐",
+      shortcutNews: "切到要闻", shortcutForum: "切到讨论", shortcutHelp: "切到说明", shortcutRefresh: "刷新推荐",
+      shortcutScreener: "执行股票筛选", shortcutWatch: "加入关注"
+    });
+    Object.assign(recoCopy.en, {
+      tabRecommend: "Home", tabNews: "News", tabForum: "Forum", tabHelp: "Help",
+      title: "Recent Stock Picks", forumTitle: "Anonymous Live Discussion", forumHint: "Local anonymous notes. No login. Resets daily by Taiwan date.",
+      forumPlaceholder: "Add intraday notes, links, or reminders", post: "Post", todayRoom: "Today room", emptyForum: "No messages yet",
+      shortcutTitle: "Shortcuts", shortcutFocus: "Focus ticker input", shortcutAnalyze: "Analyze current ticker", shortcutRecommend: "Open picks",
+      shortcutNews: "Open news", shortcutForum: "Open forum", shortcutHelp: "Open help", shortcutRefresh: "Refresh picks",
+      shortcutScreener: "Run stock screener", shortcutWatch: "Add to watchlist"
+    });
     const rt = (key) => (recoCopy[lang] && recoCopy[lang][key]) || recoCopy.en[key] || key;
 
     const screenerCopy = {
@@ -418,6 +482,9 @@
     $("autoBtn").addEventListener("click", () => { autoRefresh = !autoRefresh; $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff"); });
     $("scRunBtn").addEventListener("click", () => runScreener());
     $("recoRefreshBtn").addEventListener("click", () => loadRecommendations());
+    $("forumPostBtn").addEventListener("click", () => postForumMessage());
+    document.querySelectorAll("[data-workspace-tab]").forEach((btn) => btn.addEventListener("click", () => switchWorkspaceTab(btn.dataset.workspaceTab)));
+    document.addEventListener("keydown", handleShortcuts);
     window.addEventListener("resize", () => renderChart(lastData));
     canvas.addEventListener("click", () => openExternal($("googleLink").href));
 
@@ -426,9 +493,118 @@
       document.querySelectorAll("[data-i18n]").forEach((el) => el.textContent = t(el.dataset.i18n));
       document.querySelectorAll("[data-screen-i18n]").forEach((el) => el.textContent = st(el.dataset.screenI18n));
       document.querySelectorAll("[data-reco-i18n]").forEach((el) => el.textContent = rt(el.dataset.recoI18n));
+      document.querySelectorAll("[data-reco-placeholder]").forEach((el) => el.placeholder = rt(el.dataset.recoPlaceholder));
       $("scoreHelp").textContent = t("scoreHelp");
       $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff");
       $("recoRefreshBtn").textContent = rt("refresh");
+      renderShortcuts();
+      renderForum();
+    }
+
+    function switchWorkspaceTab(name) {
+      document.querySelectorAll("[data-workspace-tab]").forEach((btn) => btn.classList.toggle("active", btn.dataset.workspaceTab === name));
+      document.querySelectorAll(".workspace-pane").forEach((pane) => pane.classList.toggle("active", pane.id === `pane-${name}`));
+    }
+
+    function handleShortcuts(event) {
+      const target = event.target;
+      const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+      const key = event.key.toLowerCase();
+      if ((event.ctrlKey || event.metaKey) && key === "k") {
+        event.preventDefault();
+        $("symbol").focus();
+        $("symbol").select();
+        return;
+      }
+      if (isTyping && !event.altKey) return;
+      if (!event.altKey) return;
+      const actions = {
+        "1": () => switchWorkspaceTab("recommend"),
+        "2": () => switchWorkspaceTab("news"),
+        "3": () => switchWorkspaceTab("forum"),
+        "4": () => switchWorkspaceTab("help"),
+        r: () => loadRecommendations(),
+        f: () => runScreener(),
+        w: () => addWatch(lastData?.symbol || $("symbol").value.trim()),
+      };
+      if (actions[key]) {
+        event.preventDefault();
+        actions[key]();
+      }
+    }
+
+    function renderShortcuts() {
+      const rows = [
+        ["Ctrl+K", rt("shortcutFocus")],
+        ["Enter", rt("shortcutAnalyze")],
+        ["Alt+1", rt("shortcutRecommend")],
+        ["Alt+2", rt("shortcutNews")],
+        ["Alt+3", rt("shortcutForum")],
+        ["Alt+4", rt("shortcutHelp")],
+        ["Alt+R", rt("shortcutRefresh")],
+        ["Alt+F", rt("shortcutScreener")],
+        ["Alt+W", rt("shortcutWatch")],
+      ];
+      $("shortcutGrid").innerHTML = rows.map(([key, label]) => `<div class="plainbox"><span class="shortcut-key">${key}</span><div class="muted" style="margin-top:8px">${escapeHtml(label)}</div></div>`).join("");
+    }
+
+    function forumDateKey() {
+      return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    }
+
+    function forumKey() {
+      return `srr.forum.${forumDateKey()}`;
+    }
+
+    function forumUserId() {
+      let id = localStorage.getItem("srr.forum.userId");
+      if (!id) {
+        id = `ANON-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+        localStorage.setItem("srr.forum.userId", id);
+      }
+      return id;
+    }
+
+    function loadForum() {
+      const key = forumKey();
+      Object.keys(localStorage).filter((item) => item.startsWith("srr.forum.") && item !== key && item !== "srr.forum.userId").forEach((item) => localStorage.removeItem(item));
+      try { forumPosts = JSON.parse(localStorage.getItem(key) || "[]"); } catch { forumPosts = []; }
+      $("forumId").textContent = forumUserId();
+      $("forumResetMeta").textContent = `${rt("todayRoom")} ${forumDateKey()}`;
+      renderForum();
+    }
+
+    function saveForum() {
+      localStorage.setItem(forumKey(), JSON.stringify(forumPosts.slice(-80)));
+    }
+
+    function postForumMessage() {
+      const text = $("forumText").value.trim();
+      if (!text) return;
+      forumPosts.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, user: forumUserId(), text: text.slice(0, 280), time: Date.now() });
+      $("forumText").value = "";
+      saveForum();
+      renderForum();
+    }
+
+    function deleteForumPost(id) {
+      forumPosts = forumPosts.filter((post) => post.id !== id);
+      saveForum();
+      renderForum();
+    }
+
+    function renderForum() {
+      if (!$("forumList")) return;
+      $("forumId").textContent = forumUserId();
+      $("forumResetMeta").textContent = `${rt("todayRoom")} ${forumDateKey()}`;
+      if (!forumPosts.length) {
+        $("forumList").innerHTML = `<div class="plainbox muted">${rt("emptyForum")}</div>`;
+        return;
+      }
+      $("forumList").innerHTML = forumPosts.slice().reverse().map((post) => {
+        const time = new Date(post.time).toLocaleTimeString(lang === "en" ? "en-US" : "zh-TW", { hour: "2-digit", minute: "2-digit" });
+        return `<div class="forum-post"><div class="forum-post-head"><span>${escapeHtml(post.user)} · ${time}</span><button class="forum-delete" type="button" onclick="deleteForumPost('${post.id}')">x</button></div><div>${escapeHtml(post.text)}</div></div>`;
+      }).join("");
     }
 
     async function loadScreenerOptions() {
@@ -540,7 +716,7 @@
       }
 
       const headlines = data.headlines || [];
-      const tickerItems = [...headlines, ...headlines].slice(0, Math.max(2, headlines.length * 2));
+      const tickerItems = headlines;
       $("marketTicker").innerHTML = tickerItems.length
         ? tickerItems.map((item) => `<a href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">${escapeHtml(item.title)}</a>`).join("")
         : `<span class="muted">${rt("noData")}</span>`;
@@ -770,12 +946,13 @@
     function compactCap(n) { return "$" + compact(n); }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
 
-    applyLang(); renderWatchlist(); tickClocks(); loadContext(); loadRecommendations(); loadScreenerOptions(); analyze($("symbol").value); refreshWatchlist();
+    applyLang(); loadForum(); renderWatchlist(); tickClocks(); loadContext(); loadRecommendations(); loadScreenerOptions(); analyze($("symbol").value); refreshWatchlist();
     setInterval(tickClocks, 1000);
     setInterval(loadContext, 60000);
     setInterval(refreshQuote, 10000);
     setInterval(() => { if (autoRefresh && lastData && ($("period").value === "1d" || $("interval").value === "5m")) analyze(lastData.symbol, true); }, 30000);
     setInterval(() => { if (autoRefresh) refreshWatchlist(); }, 60000);
+    setInterval(loadForum, 600000);
   </script>
 </body>
 </html>

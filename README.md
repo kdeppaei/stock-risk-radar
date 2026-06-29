@@ -20,6 +20,8 @@ https://stock-risk-radar.onrender.com/#
 - Stock screener for US/Taiwan markets with price range, industry filters, and quality/market-cap/volume sorting
 - Recent recommendation board with regression, technical, news-sentiment, and liquidity/market-cap scoring
 - Finance headline ticker and YouTube finance live-search shortcuts
+- Excel-style workspace tabs for picks, finance news, anonymous local discussion, and shortcut help
+- Local anonymous discussion board with random ID, delete controls, and daily Taiwan-date reset
 
 ## Local Run
 
