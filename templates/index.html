@@ -41,6 +41,25 @@
     .card strong { font-size: 22px; white-space: nowrap; }
     .card.flash-up, .status.flash-up { border-color: var(--green); box-shadow: 0 0 0 2px rgba(34,197,94,.22); animation: blinkUp 1s ease-in-out 2; }
     .card.flash-down, .status.flash-down { border-color: var(--red); box-shadow: 0 0 0 2px rgba(239,68,68,.22); animation: blinkDown 1s ease-in-out 2; }
+    .recommend-panel { margin-bottom: 16px; overflow: hidden; }
+    .recommend-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 12px; margin-top: 12px; }
+    .ticker { margin-top: 12px; background: #0f172f; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; white-space: nowrap; }
+    .ticker-track { display: inline-flex; gap: 26px; min-width: 100%; padding: 10px 0; animation: marquee 46s linear infinite; }
+    .ticker:hover .ticker-track { animation-play-state: paused; }
+    .ticker a { color: #dbeafe; text-decoration: none; }
+    .ticker a:hover { color: var(--blue); }
+    .recommend-list, .headline-board { display: grid; gap: 9px; margin-top: 10px; }
+    .recommend-row, .headline-row { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
+    .headline-row { display: block; color: var(--text); text-decoration: none; }
+    .recommend-row { display: grid; grid-template-columns: auto minmax(160px, 1fr) repeat(4, minmax(70px, auto)); gap: 10px; align-items: center; cursor: pointer; }
+    .recommend-row:hover, .headline-row:hover { border-color: var(--blue); }
+    .rank { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #243766; color: #bfdbfe; font-weight: 800; }
+    .recommend-row strong, .headline-row strong { display: block; }
+    .recommend-row small, .headline-row small { display: block; color: var(--muted); margin-top: 3px; }
+    .score-chip { color: #bfdbfe; text-align: right; font-size: 12px; }
+    .score-chip b { display: block; color: var(--text); font-size: 16px; margin-top: 2px; }
+    .video-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
     .screener-panel { margin-bottom: 16px; }
     .screener-controls { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 10px; align-items: end; margin-top: 12px; }
     .screener-controls input { width: 100%; }
@@ -86,7 +105,7 @@
     .explain { margin-top: 10px; font-size: 13px; }
     @keyframes blinkUp { 50% { background: rgba(34,197,94,.18); } }
     @keyframes blinkDown { 50% { background: rgba(239,68,68,.18); } }
-    @media (max-width: 1120px) { header, .main, .grid, .statusbar { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards, .screener-results { grid-template-columns: repeat(2, 1fr); } .screener-controls { grid-template-columns: repeat(3, 1fr); } .screener-row { grid-template-columns: 1fr 1fr; } .metric { text-align: left; } }
+    @media (max-width: 1120px) { header, .main, .grid, .statusbar, .recommend-layout { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards, .screener-results { grid-template-columns: repeat(2, 1fr); } .screener-controls { grid-template-columns: repeat(3, 1fr); } .screener-row, .recommend-row { grid-template-columns: 1fr 1fr; } .metric, .score-chip { text-align: left; } }
     @media (max-width: 640px) {
       .wrap { width: min(100% - 18px, 1440px); }
       .search, .langbar, .quickbar, .chart-actions, .refreshbar { display: grid; grid-template-columns: 1fr 1fr; }
@@ -148,6 +167,29 @@
       <article class="card" id="changeCard"><span data-i18n="change">漲跌</span><strong id="change">-</strong></article>
       <article class="card"><span data-i18n="risk">風險</span><strong id="risk">-</strong></article>
       <article class="card"><span data-i18n="trend">趨勢</span><strong id="trend">-</strong></article>
+    </section>
+
+    <section class="panel recommend-panel">
+      <div class="chart-head">
+        <div>
+          <h2 data-reco-i18n="title">近期股票推薦 / 財經看板</h2>
+          <p class="explain" data-reco-i18n="hint">依統計回歸、消息面、技術面與市值/成交量代理基本面綜合排名。</p>
+        </div>
+        <button id="recoRefreshBtn" class="secondary" type="button" data-reco-i18n="refresh">刷新推薦</button>
+      </div>
+      <div class="ticker"><div id="marketTicker" class="ticker-track">Loading...</div></div>
+      <div class="recommend-layout">
+        <div>
+          <h3 data-reco-i18n="ranking">綜合排名</h3>
+          <p class="explain" id="recoMeta">-</p>
+          <div id="recommendList" class="recommend-list"></div>
+        </div>
+        <div>
+          <h3 data-reco-i18n="headlines">財經要聞 / 直播入口</h3>
+          <div id="headlineBoard" class="headline-board"></div>
+          <div id="videoLinks" class="video-links"></div>
+        </div>
+      </div>
     </section>
 
     <section class="panel screener-panel">
@@ -252,6 +294,29 @@
     let watchState = JSON.parse(localStorage.getItem("srr.watchState") || "{}");
     let autoRefresh = true;
     let lastQuotePrice = null;
+    let recommendationData = null;
+
+    const recoCopy = {
+      "zh-tw": {
+        title: "近期股票推薦 / 財經看板", hint: "依統計回歸、消息面、技術面與市值/成交量代理基本面綜合排名。",
+        refresh: "刷新推薦", loading: "載入推薦中", ranking: "綜合排名", headlines: "財經要聞 / 直播入口",
+        updated: "更新", scanned: "掃描", ranked: "排名", score: "總分", stats: "統計", tech: "技術", news: "消息", base: "基本",
+        why: "依據", noData: "暫無推薦資料", open: "開啟", videoHint: "直播偵測需 YouTube API；目前提供即時搜尋入口。"
+      },
+      "zh-cn": {
+        title: "近期股票推荐 / 财经看板", hint: "按统计回归、消息面、技术面与市值/成交量代理基本面综合排名。",
+        refresh: "刷新推荐", loading: "载入推荐中", ranking: "综合排名", headlines: "财经要闻 / 直播入口",
+        updated: "更新", scanned: "扫描", ranked: "排名", score: "总分", stats: "统计", tech: "技术", news: "消息", base: "基本",
+        why: "依据", noData: "暂无推荐资料", open: "开启", videoHint: "直播侦测需 YouTube API；目前提供即时搜索入口。"
+      },
+      en: {
+        title: "Recent Picks / Finance Board", hint: "Ranked by regression, news sentiment, technicals and market-cap/liquidity proxy.",
+        refresh: "Refresh picks", loading: "Loading picks", ranking: "Composite Ranking", headlines: "Finance Headlines / Live Links",
+        updated: "Updated", scanned: "Scanned", ranked: "Ranked", score: "Score", stats: "Stats", tech: "Tech", news: "News", base: "Base",
+        why: "Why", noData: "No recommendation data yet", open: "Open", videoHint: "Live detection needs YouTube API; these are live search shortcuts for now."
+      }
+    };
+    const rt = (key) => (recoCopy[lang] && recoCopy[lang][key]) || recoCopy.en[key] || key;
 
     const screenerCopy = {
       "zh-tw": {
@@ -346,21 +411,24 @@
     const t = (key) => (dict[lang] && dict[lang][key]) || dict.en[key] || key;
 
     document.querySelectorAll("[data-lang]").forEach((btn) => btn.addEventListener("click", () => {
-      lang = btn.dataset.lang; localStorage.setItem("srr.lang", lang); applyLang(); if (lastData) render(lastData); renderWatchlist();
+      lang = btn.dataset.lang; localStorage.setItem("srr.lang", lang); applyLang(); if (lastData) render(lastData); renderWatchlist(); if (recommendationData) renderRecommendations(recommendationData);
     }));
     $("form").addEventListener("submit", (event) => { event.preventDefault(); analyze($("symbol").value.trim() || "2330"); });
     $("addWatchBtn").addEventListener("click", () => addWatch(lastData?.symbol || $("symbol").value.trim()));
     $("autoBtn").addEventListener("click", () => { autoRefresh = !autoRefresh; $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff"); });
     $("scRunBtn").addEventListener("click", () => runScreener());
+    $("recoRefreshBtn").addEventListener("click", () => loadRecommendations());
     window.addEventListener("resize", () => renderChart(lastData));
-    canvas.addEventListener("click", () => { const href = $("googleLink").href; if (href && href !== "#") window.open(href, "_blank", "noopener,noreferrer") || (window.location.href = href); });
+    canvas.addEventListener("click", () => openExternal($("googleLink").href));
 
     function applyLang() {
       document.documentElement.lang = lang === "en" ? "en" : lang === "zh-cn" ? "zh-Hans" : "zh-Hant";
       document.querySelectorAll("[data-i18n]").forEach((el) => el.textContent = t(el.dataset.i18n));
       document.querySelectorAll("[data-screen-i18n]").forEach((el) => el.textContent = st(el.dataset.screenI18n));
+      document.querySelectorAll("[data-reco-i18n]").forEach((el) => el.textContent = rt(el.dataset.recoI18n));
       $("scoreHelp").textContent = t("scoreHelp");
       $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff");
+      $("recoRefreshBtn").textContent = rt("refresh");
     }
 
     async function loadScreenerOptions() {
@@ -430,6 +498,55 @@
           <button class="secondary" type="button" onclick="event.stopPropagation(); addWatch('${row.symbol}')">${st("add")}</button>
         </div>`;
       }).join("");
+    }
+
+    async function loadRecommendations() {
+      const button = $("recoRefreshBtn");
+      button.disabled = true;
+      button.textContent = rt("loading");
+      $("recoMeta").textContent = rt("loading") + "...";
+      try {
+        const res = await fetch("/api/recommendations?markets=US,TW&limit=8");
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "Recommendations failed");
+        recommendationData = data;
+        renderRecommendations(data);
+      } catch (error) {
+        $("recoMeta").textContent = error.message;
+        $("recommendList").innerHTML = `<div class="plainbox muted">${rt("noData")}</div>`;
+      } finally {
+        button.disabled = false;
+        button.textContent = rt("refresh");
+      }
+    }
+
+    function renderRecommendations(data) {
+      $("recoMeta").textContent = `${rt("updated")} ${new Date(data.updated_at || Date.now()).toLocaleTimeString()} · ${rt("scanned")} ${data.scanned} · ${rt("ranked")} ${data.ranked}`;
+      if (!data.rows.length) {
+        $("recommendList").innerHTML = `<div class="plainbox muted">${rt("noData")}</div>`;
+      } else {
+        $("recommendList").innerHTML = data.rows.map((row, index) => {
+          const reasons = (row.recommend_reasons || row.reasons || []).map((item) => escapeHtml(item)).join(", ");
+          const direction = row.change_pct >= 0 ? "up" : "down";
+          return `<div class="recommend-row" onclick="analyze('${row.symbol}')">
+            <span class="rank">${index + 1}</span>
+            <div><strong>${escapeHtml(row.symbol)} · ${escapeHtml(row.name)}</strong><small>${row.market} · ${escapeHtml(row.industry)} · <span class="${direction}">${arrow(row.change_pct)} ${signed(row.change_pct, "%")}</span></small><small>${rt("why")}: ${reasons}</small></div>
+            <div class="score-chip"><span>${rt("score")}</span><b>${row.composite_score}</b></div>
+            <div class="score-chip"><span>${rt("stats")}</span><b>${row.statistics_score}</b></div>
+            <div class="score-chip"><span>${rt("tech")}</span><b>${row.technical_score}</b></div>
+            <div class="score-chip"><span>${rt("news")}</span><b>${row.news_score}</b></div>
+          </div>`;
+        }).join("");
+      }
+
+      const headlines = data.headlines || [];
+      const tickerItems = [...headlines, ...headlines].slice(0, Math.max(2, headlines.length * 2));
+      $("marketTicker").innerHTML = tickerItems.length
+        ? tickerItems.map((item) => `<a href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">${escapeHtml(item.title)}</a>`).join("")
+        : `<span class="muted">${rt("noData")}</span>`;
+      $("headlineBoard").innerHTML = headlines.slice(0, 5).map((item) => `<a class="headline-row" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.source)} · ${escapeHtml(item.published || "")}</small></a>`).join("");
+      const videos = data.video_links || [];
+      $("videoLinks").innerHTML = videos.map((item) => `<a class="button secondary" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">${escapeHtml(item.title)}</a>`).join("") + `<span class="muted">${rt("videoHint")}</span>`;
     }
 
     async function analyze(symbol, silent = false) {
@@ -565,6 +682,11 @@
       $("tradingViewLink").href = `https://www.tradingview.com/search/?query=${encodeURIComponent(data.symbol)}`;
     }
 
+    function openExternal(href) {
+      if (!href || href === "#") return;
+      window.open(href, "_blank", "noopener,noreferrer");
+    }
+
     function addWatch(symbol) {
       const clean = (symbol || "").trim().toUpperCase();
       if (!clean) return;
@@ -648,7 +770,7 @@
     function compactCap(n) { return "$" + compact(n); }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
 
-    applyLang(); renderWatchlist(); tickClocks(); loadContext(); loadScreenerOptions(); analyze($("symbol").value); refreshWatchlist();
+    applyLang(); renderWatchlist(); tickClocks(); loadContext(); loadRecommendations(); loadScreenerOptions(); analyze($("symbol").value); refreshWatchlist();
     setInterval(tickClocks, 1000);
     setInterval(loadContext, 60000);
     setInterval(refreshQuote, 10000);

@@ -22,7 +22,7 @@ from fastapi.templating import Jinja2Templates
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "stock_risk_log.sqlite3"
 
-app = FastAPI(title="Stock Risk Radar", version="4.4.0")
+app = FastAPI(title="Stock Risk Radar", version="4.5.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["GET"], allow_headers=["*"])
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
@@ -221,6 +221,48 @@ def screener(
     }
 
 
+@app.get("/api/recommendations")
+def recommendations(
+    markets: str = Query("US,TW", max_length=16),
+    limit: int = Query(8, ge=3, le=12),
+) -> dict[str, Any]:
+    selected_markets = {part.strip().upper() for part in markets.split(",") if part.strip()}
+    pool: list[dict[str, Any]] = []
+    for market in sorted(selected_markets):
+        market_rows = [item for item in STOCK_UNIVERSE if item["market"] == market]
+        pool.extend(sorted(market_rows, key=lambda item: item["market_cap_usd"], reverse=True)[:24])
+
+    screened: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        future_map = {executor.submit(screen_one_stock, item): item for item in pool}
+        for future in as_completed(future_map):
+            result = future.result()
+            if result:
+                screened.append(result)
+
+    screened.sort(key=lambda item: item["quality_score"], reverse=True)
+    shortlist = screened[: max(12, limit * 2)]
+    enriched: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        future_map = {executor.submit(enrich_recommendation, row): row for row in shortlist}
+        for future in as_completed(future_map):
+            result = future.result()
+            if result:
+                enriched.append(result)
+
+    enriched.sort(key=lambda item: item["composite_score"], reverse=True)
+    return {
+        "ok": True,
+        "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "scanned": len(pool),
+        "ranked": len(enriched),
+        "rows": enriched[:limit],
+        "headlines": fetch_market_headlines(),
+        "video_links": finance_video_links(),
+        "model": "OLS regression + momentum, technical risk, RSS news sentiment, market-cap/liquidity proxy",
+    }
+
+
 @app.get("/api/analyze")
 def analyze(
     symbol: str = Query(..., min_length=1, max_length=32),
@@ -386,8 +428,79 @@ def screen_one_stock(item: dict[str, Any]) -> dict[str, Any] | None:
         "ret20_pct": number(latest["RET20"] * 100),
         "rsi14": number(latest["RSI14"]),
         "volume_ratio": number(latest["VOLUME_RATIO"]),
+        "forecast_20d_pct": prediction["forecast_20d_pct"],
+        "confidence": prediction["confidence"],
         "reasons": quality["reasons"],
     }
+
+
+def enrich_recommendation(row: dict[str, Any]) -> dict[str, Any] | None:
+    try:
+        news = fetch_news(row["symbol"], row["market"])
+        technical_score = bounded(100 - row["risk_score"] + (10 if row["trend"] == "bullish" else -8 if row["trend"] == "bearish" else 0))
+        statistics_score = bounded(50 + row["forecast_20d_pct"] * 1.8 + row["confidence"] * 0.25 + row["ret20_pct"] * 0.35)
+        news_score = bounded(50 + news["score"] * 8 + news["positive"] * 3 - news["negative"] * 4)
+        fundamental_score = bounded(
+            45
+            + (math.log10(max(1000000000, row["market_cap_usd"])) - 9) * 7
+            + (math.log10(max(100000, row["volume"])) - 5) * 4
+        )
+        composite = int(round(statistics_score * 0.32 + technical_score * 0.28 + news_score * 0.22 + fundamental_score * 0.18))
+        reasons = []
+        if statistics_score >= 65:
+            reasons.append("regression/momentum positive")
+        if technical_score >= 65:
+            reasons.append("technical risk controlled")
+        if news_score >= 58:
+            reasons.append("news tone supportive")
+        if fundamental_score >= 65:
+            reasons.append("large/liquid leader")
+        if not reasons:
+            reasons.append("balanced watch candidate")
+        return {
+            **row,
+            "composite_score": bounded(composite),
+            "statistics_score": statistics_score,
+            "technical_score": technical_score,
+            "news_score": news_score,
+            "fundamental_score": fundamental_score,
+            "news_label": news["label"],
+            "news_positive": news["positive"],
+            "news_negative": news["negative"],
+            "top_news": news["items"][:2],
+            "recommend_reasons": reasons[:4],
+        }
+    except Exception:
+        return None
+
+
+def fetch_market_headlines() -> list[dict[str, Any]]:
+    queries = [
+        ("TW Finance", "台股 財經 半導體 匯率 投資"),
+        ("US Finance", "US stocks earnings Fed rates market"),
+    ]
+    items: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for source, query in queries:
+        if source.startswith("TW"):
+            url = f"https://news.google.com/rss/search?q={quote_plus(query)}&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
+        else:
+            url = f"https://news.google.com/rss/search?q={quote_plus(query)}&hl=en-US&gl=US&ceid=US:en"
+        for item in fetch_feed(url, source):
+            title = item["title"].strip()
+            key = title.lower()
+            if title and key not in seen and "News fetch failed" not in title:
+                seen.add(key)
+                items.append({**item, "topic": source})
+    return items[:12]
+
+
+def finance_video_links() -> list[dict[str, str]]:
+    return [
+        {"title": "YouTube 台股財經直播搜尋", "source": "YouTube", "link": "https://www.youtube.com/results?search_query=%E5%8F%B0%E8%82%A1+%E8%B2%A1%E7%B6%93+%E7%9B%B4%E6%92%AD"},
+        {"title": "YouTube 美股財經直播搜尋", "source": "YouTube", "link": "https://www.youtube.com/results?search_query=%E7%BE%8E%E8%82%A1+%E8%B2%A1%E7%B6%93+%E7%9B%B4%E6%92%AD"},
+        {"title": "YouTube Stock Market Live", "source": "YouTube", "link": "https://www.youtube.com/results?search_query=stock+market+live"},
+    ]
 
 
 def screener_quality_score(
@@ -676,6 +789,10 @@ def pct_change(values: list[float], periods: int) -> float:
 
 def avg(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0
+
+
+def bounded(value: float, low: int = 0, high: int = 100) -> int:
+    return int(max(low, min(high, round(value))))
 
 
 def number(value: Any, digits: int = 2) -> float:
