@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import secrets
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -27,6 +28,15 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False,
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 MOVERS_CACHE: dict[tuple[str, int, str], tuple[float, dict[str, Any]]] = {}
+
+BOT_DEFS: list[dict[str, Any]] = [
+    {"id": "steady_turtle", "name": "Steady Turtle", "style": "conservative", "risk": 26, "idea": "Trend + low drawdown filter. Good for users who hate big swings."},
+    {"id": "value_guard", "name": "Value Guard", "style": "conservative", "risk": 32, "idea": "Quality, market-cap and controlled risk. Slower, less flashy."},
+    {"id": "balanced_compass", "name": "Balanced Compass", "style": "balanced", "risk": 48, "idea": "Blends trend, quality and volume confirmation."},
+    {"id": "rocket_breakout", "name": "Rocket Breakout", "style": "aggressive", "risk": 76, "idea": "Momentum and breakout hunter. Higher upside, higher whipsaw risk."},
+    {"id": "dip_reversal", "name": "Dip Reversal", "style": "balanced", "risk": 58, "idea": "Looks for pullbacks that still hold key moving averages."},
+    {"id": "chip_hunter", "name": "Chip Hunter", "style": "aggressive", "risk": 82, "idea": "Semiconductor and AI supply-chain specialist; very correlated in chip cycles."},
+]
 
 POSITIVE_WORDS = [
     "beat", "upgrade", "growth", "profit", "record", "surge", "rally", "bullish", "strong demand",
@@ -163,6 +173,28 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS profiles (
+                code TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                watch_json TEXT NOT NULL DEFAULT '[]',
+                bot_json TEXT NOT NULL DEFAULT '[]'
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS forum_posts (
+                id TEXT PRIMARY KEY,
+                room_date TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                text TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
 
 
 @app.on_event("startup")
@@ -265,6 +297,159 @@ def screener(
         "rows": rows[:limit],
         "note": "Market cap is an approximate built-in ranking value; price and volume come from Yahoo chart data.",
     }
+
+
+@app.get("/api/bots")
+def bots(
+    markets: str = Query("US,TW", max_length=16),
+    capital: float = Query(100000, gt=0),
+    style: str = Query("all", pattern="^(all|conservative|balanced|aggressive)$"),
+    limit: int = Query(5, ge=3, le=8),
+) -> dict[str, Any]:
+    selected_markets = {part.strip().upper() for part in markets.split(",") if part.strip()}
+    pool: list[dict[str, Any]] = []
+    for market in sorted(selected_markets):
+        market_rows = [item for item in STOCK_UNIVERSE if item["market"] == market]
+        pool.extend(sorted(market_rows, key=lambda item: item["market_cap_usd"], reverse=True)[:28])
+
+    candidates: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        future_map = {executor.submit(screen_one_stock, item): item for item in pool}
+        for future in as_completed(future_map):
+            result = future.result()
+            if result:
+                candidates.append(result)
+    selected_bots = [bot for bot in BOT_DEFS if style == "all" or bot["style"] == style]
+    bot_rows = [simulate_bot(bot, candidates, capital, limit) for bot in selected_bots]
+    return {
+        "ok": True,
+        "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "capital": number(capital),
+        "markets": sorted(selected_markets),
+        "scanned": len(pool),
+        "bots": bot_rows,
+        "note": "Rule-based paper simulation only. Bots do not trade real money and do not guarantee future returns.",
+    }
+
+
+@app.get("/api/hindsight")
+def hindsight(
+    symbol: str = Query(..., min_length=1, max_length=32),
+    capital: float = Query(100000, gt=0),
+    period: str = Query("1y", pattern="^(1mo|3mo|6mo|1y|2y|5y)$"),
+    interval: str = Query("1d", pattern="^(1d|1wk)$"),
+) -> dict[str, Any]:
+    raw = symbol.strip().upper()
+    normalized, market = normalize_symbol(raw)
+    rows: list[dict[str, Any]] = []
+    resolved = normalized
+    for candidate in candidate_symbols(normalized, raw):
+        rows = fetch_price_history(candidate, period, interval)
+        if rows:
+            resolved = candidate
+            break
+    if len(rows) < 5:
+        raise HTTPException(status_code=422, detail="Not enough price data for hindsight simulation.")
+    payload = hindsight_best_path(rows, capital)
+    return {
+        "ok": True,
+        "symbol": resolved,
+        "market": market,
+        "period": period,
+        "interval": interval,
+        "capital": number(capital),
+        **payload,
+        "warning": "Hindsight mode is for replay and learning. It assumes perfect past knowledge and is not a forward-looking strategy.",
+    }
+
+
+@app.post("/api/profile")
+async def create_profile(request: Request) -> dict[str, Any]:
+    payload = await safe_json(request)
+    code = normalize_profile_code(str(payload.get("code") or ""))
+    if not code:
+        code = new_profile_code()
+    ensure_profile(code)
+    return {"ok": True, "code": code, "state": read_profile(code)}
+
+
+@app.get("/api/profile/{code}")
+def get_profile(code: str) -> dict[str, Any]:
+    clean = normalize_profile_code(code)
+    if not clean:
+        raise HTTPException(status_code=422, detail="Invalid profile code.")
+    ensure_profile(clean)
+    return {"ok": True, "code": clean, "state": read_profile(clean)}
+
+
+@app.post("/api/profile/{code}")
+async def save_profile(code: str, request: Request) -> dict[str, Any]:
+    clean = normalize_profile_code(code)
+    if not clean:
+        raise HTTPException(status_code=422, detail="Invalid profile code.")
+    payload = await safe_json(request)
+    watch = payload.get("watch", [])
+    bots_followed = payload.get("bots", [])
+    if not isinstance(watch, list):
+        watch = []
+    if not isinstance(bots_followed, list):
+        bots_followed = []
+    ensure_profile(clean)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            "UPDATE profiles SET updated_at=?, watch_json=?, bot_json=? WHERE code=?",
+            (
+                datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                json.dumps([str(item).upper()[:32] for item in watch[:80]], ensure_ascii=False),
+                json.dumps([str(item)[:64] for item in bots_followed[:20]], ensure_ascii=False),
+                clean,
+            ),
+        )
+    return {"ok": True, "code": clean, "state": read_profile(clean)}
+
+
+@app.get("/api/forum")
+def get_forum(room_date: str = Query("", max_length=16)) -> dict[str, Any]:
+    date_key = room_date if room_date else datetime.now(ZoneInfo("Asia/Taipei")).strftime("%Y-%m-%d")
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT id, user_id, text, created_at FROM forum_posts WHERE room_date=? ORDER BY created_at ASC LIMIT 120",
+            (date_key,),
+        ).fetchall()
+    return {
+        "ok": True,
+        "room_date": date_key,
+        "posts": [{"id": row["id"], "user": row["user_id"], "text": row["text"], "time": row["created_at"]} for row in rows],
+    }
+
+
+@app.post("/api/forum")
+async def post_forum(request: Request) -> dict[str, Any]:
+    payload = await safe_json(request)
+    user_id = str(payload.get("user") or "ANON").strip()[:24]
+    text = str(payload.get("text") or "").strip()[:280]
+    room_date = str(payload.get("room_date") or datetime.now(ZoneInfo("Asia/Taipei")).strftime("%Y-%m-%d"))[:16]
+    if not text:
+        raise HTTPException(status_code=422, detail="Empty message.")
+    post_id = f"{int(datetime.now(timezone.utc).timestamp() * 1000)}-{secrets.token_hex(3)}"
+    created_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            "INSERT INTO forum_posts (id, room_date, user_id, text, created_at) VALUES (?, ?, ?, ?, ?)",
+            (post_id, room_date, user_id, text, created_at),
+        )
+    return {"ok": True, "post": {"id": post_id, "user": user_id, "text": text, "time": created_at}}
+
+
+@app.delete("/api/forum/{post_id}")
+def delete_forum(post_id: str, user: str = Query("", max_length=32)) -> dict[str, Any]:
+    with sqlite3.connect(DB_PATH) as conn:
+        if user:
+            conn.execute("DELETE FROM forum_posts WHERE id=? AND user_id=?", (post_id, user))
+        else:
+            conn.execute("DELETE FROM forum_posts WHERE id=?", (post_id,))
+    return {"ok": True}
 
 
 @app.get("/api/recommendations")
@@ -810,6 +995,205 @@ def screener_quality_score(
     if not reasons:
         reasons.append("balanced but not high-conviction")
     return {"score": score, "reasons": reasons[:3]}
+
+
+async def safe_json(request: Request) -> dict[str, Any]:
+    try:
+        payload = await request.json()
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def new_profile_code() -> str:
+    return f"SRR-{secrets.token_hex(3).upper()}"
+
+
+def normalize_profile_code(code: str) -> str:
+    clean = "".join(ch for ch in code.strip().upper() if ch.isalnum() or ch == "-")
+    return clean[:20]
+
+
+def ensure_profile(code: str) -> None:
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO profiles (code, created_at, updated_at, watch_json, bot_json) VALUES (?, ?, ?, '[]', '[]')",
+            (code, now, now),
+        )
+
+
+def read_profile(code: str) -> dict[str, Any]:
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT code, created_at, updated_at, watch_json, bot_json FROM profiles WHERE code=?", (code,)).fetchone()
+    if not row:
+        return {"watch": [], "bots": []}
+    try:
+        watch = json.loads(row["watch_json"] or "[]")
+    except Exception:
+        watch = []
+    try:
+        bots_followed = json.loads(row["bot_json"] or "[]")
+    except Exception:
+        bots_followed = []
+    return {"watch": watch, "bots": bots_followed, "updated_at": row["updated_at"], "created_at": row["created_at"]}
+
+
+def simulate_bot(bot: dict[str, Any], candidates: list[dict[str, Any]], capital: float, limit: int) -> dict[str, Any]:
+    scored = [score_bot_candidate(bot, row) for row in candidates]
+    scored.sort(key=lambda item: item["bot_score"], reverse=True)
+    picks = diversify_bot_picks(scored, bot, limit)
+    weights = bot_weights(picks, bot)
+    rows: list[dict[str, Any]] = []
+    for pick, weight in zip(picks, weights):
+        amount = capital * weight
+        rows.append({
+            "symbol": pick["symbol"],
+            "name": pick["name"],
+            "market": pick["market"],
+            "industry": pick["industry"],
+            "weight_pct": number(weight * 100),
+            "amount": number(amount),
+            "price": pick["price"],
+            "shares": int(amount // pick["price"]) if pick["price"] else 0,
+            "score": pick["bot_score"],
+            "change_pct": pick["change_pct"],
+            "ret20_pct": pick.get("ret20_pct"),
+            "risk_score": pick["risk_score"],
+            "reasons": pick["bot_reasons"],
+        })
+    expected = sum((row.get("ret20_pct") or row.get("change_pct") or 0) * (row["weight_pct"] / 100) for row in rows)
+    risk = number(avg([row["risk_score"] for row in rows]) if rows else bot["risk"])
+    return {
+        **bot,
+        "capital": number(capital),
+        "expected_20d_pct": number(expected),
+        "paper_pnl_20d": number(capital * expected / 100),
+        "avg_risk_score": risk,
+        "picks": rows,
+        "warnings": bot_warnings(bot, rows),
+    }
+
+
+def score_bot_candidate(bot: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
+    score = row["quality_score"] * 0.38 + (100 - row["risk_score"]) * 0.18 + row["change_pct"] * 1.4 + row.get("ret20_pct", 0) * 0.65
+    reasons = list(row.get("reasons", []))[:2]
+    bot_id = bot["id"]
+    if bot_id == "steady_turtle":
+        score += row["long_score"] * 0.35 - max(0, row["risk_score"] - 42) * 0.9
+        reasons.append("trend with low-risk filter")
+    elif bot_id == "value_guard":
+        score += math.log10(max(10_000_000, row["market_cap_usd"])) * 3 - max(0, row["risk_score"] - 50) * 0.55
+        reasons.append("large-cap quality bias")
+    elif bot_id == "balanced_compass":
+        score += row["short_score"] * 0.18 + row["long_score"] * 0.20
+        reasons.append("balanced short/long suitability")
+    elif bot_id == "rocket_breakout":
+        score += max(0, row["change_pct"]) * 6 + max(0, row.get("ret20_pct", 0)) * 1.2 - max(0, 55 - row["volume"] / 1_000_000)
+        reasons.append("momentum/breakout bias")
+    elif bot_id == "dip_reversal":
+        pullback_bonus = 14 if -8 <= row.get("ret20_pct", 0) <= 3 and row["trend"] != "bearish" else 0
+        score += pullback_bonus + row["short_score"] * 0.22
+        reasons.append("pullback recovery setup")
+    elif bot_id == "chip_hunter":
+        score += 18 if row["industry"] in {"Semiconductors", "Technology"} else -10
+        score += max(0, row.get("ret20_pct", 0)) * 1.1
+        reasons.append("AI/semiconductor concentration")
+    return {**row, "bot_score": bounded(score), "bot_reasons": reasons[:4]}
+
+
+def diversify_bot_picks(rows: list[dict[str, Any]], bot: dict[str, Any], limit: int) -> list[dict[str, Any]]:
+    picks: list[dict[str, Any]] = []
+    industry_limit = 3 if bot["id"] in {"chip_hunter", "rocket_breakout"} else 2
+    industry_counts: dict[str, int] = {}
+    for row in rows:
+        if industry_counts.get(row["industry"], 0) >= industry_limit:
+            continue
+        picks.append(row)
+        industry_counts[row["industry"]] = industry_counts.get(row["industry"], 0) + 1
+        if len(picks) >= limit:
+            break
+    return picks or rows[:limit]
+
+
+def bot_weights(picks: list[dict[str, Any]], bot: dict[str, Any]) -> list[float]:
+    if not picks:
+        return []
+    cap = 0.34 if bot["style"] == "aggressive" else 0.26 if bot["style"] == "balanced" else 0.2
+    raw = [max(8, row["bot_score"]) for row in picks]
+    total = sum(raw) or 1
+    weights = [min(cap, score / total) for score in raw]
+    leftover = max(0, 1 - sum(weights))
+    if leftover:
+        room = [max(0, cap - weight) for weight in weights]
+        room_total = sum(room)
+        if room_total:
+            weights = [weight + leftover * room[i] / room_total for i, weight in enumerate(weights)]
+    total = sum(weights) or 1
+    return [weight / total for weight in weights]
+
+
+def bot_warnings(bot: dict[str, Any], rows: list[dict[str, Any]]) -> list[str]:
+    warnings: list[str] = []
+    if bot["style"] == "aggressive":
+        warnings.append("Aggressive bot: momentum can reverse quickly; use smaller capital or tighter review cadence.")
+    industry_weights: dict[str, float] = {}
+    for row in rows:
+        industry_weights[row["industry"]] = industry_weights.get(row["industry"], 0) + row["weight_pct"]
+    for industry, weight in industry_weights.items():
+        if weight >= 48:
+            warnings.append(f"Concentration warning: {industry} is {number(weight)}% of this bot basket.")
+            break
+    if not warnings:
+        warnings.append("No severe concentration warning in this bot basket, but this remains paper simulation.")
+    return warnings[:3]
+
+
+def hindsight_best_path(rows: list[dict[str, Any]], capital: float) -> dict[str, Any]:
+    value = capital
+    trades: list[dict[str, Any]] = []
+    best_single = {"profit": -10**18, "buy": None, "sell": None}
+    min_price = rows[0]["close"]
+    min_date = rows[0]["date_label"]
+    for i in range(1, len(rows)):
+        prev, cur = rows[i - 1], rows[i]
+        if prev["close"] and cur["close"] > prev["close"]:
+            shares = int(value // prev["close"])
+            if shares > 0:
+                profit = shares * (cur["close"] - prev["close"])
+                value += profit
+                trades.append({
+                    "buy_date": prev["date_label"],
+                    "sell_date": cur["date_label"],
+                    "buy": number(prev["close"]),
+                    "sell": number(cur["close"]),
+                    "shares": shares,
+                    "profit": number(profit),
+                    "return_pct": number((cur["close"] / prev["close"] - 1) * 100),
+                })
+        if cur["close"] - min_price > best_single["profit"]:
+            best_single = {"profit": cur["close"] - min_price, "buy": min_date, "sell": cur["date_label"], "buy_price": min_price, "sell_price": cur["close"]}
+        if cur["close"] < min_price:
+            min_price = cur["close"]
+            min_date = cur["date_label"]
+    top_trades = sorted(trades, key=lambda item: item["profit"], reverse=True)[:8]
+    return {
+        "start_price": number(rows[0]["close"]),
+        "end_price": number(rows[-1]["close"]),
+        "final_value": number(value),
+        "max_profit": number(value - capital),
+        "max_return_pct": number((value / capital - 1) * 100),
+        "trade_count": len(trades),
+        "top_trades": top_trades,
+        "best_single_trade": {
+            "buy_date": best_single.get("buy"),
+            "sell_date": best_single.get("sell"),
+            "buy": number(best_single.get("buy_price")),
+            "sell": number(best_single.get("sell_price")),
+            "profit_per_share": number(best_single.get("profit")),
+        },
+    }
 
 
 def parse_symbol_list(symbols: str) -> list[str]:
