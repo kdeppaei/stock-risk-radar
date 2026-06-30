@@ -26,6 +26,7 @@ app = FastAPI(title="Stock Risk Radar", version="4.5.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["GET"], allow_headers=["*"])
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+MOVERS_CACHE: dict[tuple[str, int, str], tuple[float, dict[str, Any]]] = {}
 
 POSITIVE_WORDS = [
     "beat", "upgrade", "growth", "profit", "record", "surge", "rally", "bullish", "strong demand",
@@ -312,8 +313,16 @@ def recommendations(
 def movers(
     markets: str = Query("US,TW", max_length=16),
     limit: int = Query(8, ge=3, le=12),
+    mode: str = Query("recent", pattern="^(recent|live)$"),
 ) -> dict[str, Any]:
     selected_markets = {part.strip().upper() for part in markets.split(",") if part.strip()}
+    cache_key = (",".join(sorted(selected_markets)), limit, mode)
+    now_ts = datetime.now(timezone.utc).timestamp()
+    ttl = 8 if mode == "live" else 60
+    cached = MOVERS_CACHE.get(cache_key)
+    if cached and now_ts - cached[0] < ttl:
+        return cached[1]
+
     pool: list[dict[str, Any]] = []
     for market in sorted(selected_markets):
         rows = [item for item in STOCK_UNIVERSE if item["market"] == market]
@@ -321,19 +330,23 @@ def movers(
 
     rows: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=8) as executor:
-        future_map = {executor.submit(mover_quote, item): item for item in pool}
+        future_map = {executor.submit(mover_quote, item, mode): item for item in pool}
         for future in as_completed(future_map):
             result = future.result()
             if result:
                 rows.append(result)
     rows.sort(key=lambda item: item["change_pct"], reverse=True)
-    return {
+    payload = {
         "ok": True,
         "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "mode": mode,
+        "refresh_seconds": ttl,
         "scanned": len(pool),
         "gainers": rows[:limit],
         "losers": sorted(rows, key=lambda item: item["change_pct"])[:limit],
     }
+    MOVERS_CACHE[cache_key] = (now_ts, payload)
+    return payload
 
 
 @app.get("/api/portfolio")
@@ -344,12 +357,18 @@ def portfolio(
     profile: str = Query("balanced", pattern="^(conservative|balanced|aggressive)$"),
     horizon: str = Query("long", pattern="^(short|long)$"),
     markets: str = Query("US,TW", max_length=16),
+    symbols: str = Query("", max_length=256),
+    target_pct: float = Query(8, ge=-50, le=300),
 ) -> dict[str, Any]:
     selected_markets = {part.strip().upper() for part in markets.split(",") if part.strip()}
-    pool = []
-    for market in sorted(selected_markets):
-        rows = [item for item in STOCK_UNIVERSE if item["market"] == market]
-        pool.extend(sorted(rows, key=lambda item: item["market_cap_usd"], reverse=True)[:18])
+    selected_symbols = parse_symbol_list(symbols)
+    if selected_symbols:
+        pool = portfolio_items_from_symbols(selected_symbols, selected_markets)
+    else:
+        pool = []
+        for market in sorted(selected_markets):
+            rows = [item for item in STOCK_UNIVERSE if item["market"] == market]
+            pool.extend(sorted(rows, key=lambda item: item["market_cap_usd"], reverse=True)[:18])
 
     candidates: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=8) as executor:
@@ -358,20 +377,24 @@ def portfolio(
             result = future.result()
             if result:
                 candidates.append(result)
-    if len(candidates) < 3:
+    min_candidates = 1 if selected_symbols else 3
+    if len(candidates) < min_candidates:
         raise HTTPException(status_code=422, detail="Not enough portfolio candidates.")
 
     scored = [score_portfolio_candidate(row, risk_pct, profile, horizon) for row in candidates]
+    if selected_symbols:
+        scored = [score_target_candidate(row, target_pct, risk_pct, horizon) for row in scored]
     scored.sort(key=lambda item: item["portfolio_score"], reverse=True)
-    chosen = diversify_candidates(scored, 6 if risk_pct >= 45 else 5)
-    allocations = allocate_portfolio(chosen, amount, currency, risk_pct, profile)
+    chosen = scored if selected_symbols else diversify_candidates(scored, 6 if risk_pct >= 45 else 5)
+    allocations = allocate_portfolio(chosen, amount, currency, risk_pct, profile, target_mode=bool(selected_symbols))
     stats = portfolio_statistics(allocations, horizon)
     usd_twd = quote_last("TWD=X").get("price") or 31.8
     rows = build_allocation_rows(allocations, amount, currency, usd_twd)
+    warnings = portfolio_warnings(allocations, target_pct, horizon)
     return {
         "ok": True,
         "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "input": {"amount": number(amount), "currency": currency, "risk_pct": number(risk_pct), "profile": profile, "horizon": horizon, "markets": sorted(selected_markets)},
+        "input": {"amount": number(amount), "currency": currency, "risk_pct": number(risk_pct), "profile": profile, "horizon": horizon, "markets": sorted(selected_markets), "symbols": selected_symbols, "target_pct": number(target_pct)},
         "summary": {
             "cash_weight_pct": number(sum(item["weight"] for item in allocations if item["symbol"] == "CASH") * 100),
             "equity_weight_pct": number(sum(item["weight"] for item in allocations if item["symbol"] != "CASH") * 100),
@@ -382,8 +405,9 @@ def portfolio(
         },
         "intervals": stats["intervals"],
         "allocations": rows,
+        "warnings": warnings,
         "report": build_portfolio_report(risk_pct, profile, horizon, stats),
-        "methodology": "Uses 1-year daily returns, OLS/momentum stock scores, volatility targeting, max-position caps, cash reserve, and historical-normal confidence intervals. This is research output, not investment advice.",
+        "methodology": "Uses 1-year daily returns, OLS/momentum stock scores, user target return, volatility targeting, max-position caps, cash reserve, concentration checks, and historical-normal confidence intervals. This is research output, not investment advice.",
     }
 
 
@@ -522,11 +546,21 @@ def quote_last(symbol: str) -> dict[str, Any]:
     return {"symbol": symbol, "price": number(last, 4), "change_pct": number((last / prev - 1) * 100) if prev else None}
 
 
-def mover_quote(item: dict[str, Any]) -> dict[str, Any] | None:
-    rows = fetch_price_history(item["symbol"], "1d", "5m") or fetch_price_history(item["symbol"], "5d", "1d")
+def mover_quote(item: dict[str, Any], mode: str = "recent") -> dict[str, Any] | None:
+    if mode == "live":
+        rows = fetch_price_history(item["symbol"], "1d", "5m")
+        source = "1d/5m"
+    else:
+        rows = fetch_price_history(item["symbol"], "5d", "1d")
+        source = "5d/1d"
+    if not rows:
+        rows = fetch_price_history(item["symbol"], "5d", "1d")
+        source = "5d/1d"
     if len(rows) < 2:
         return None
-    latest, previous = rows[-1], rows[-2]
+    latest = rows[-1]
+    previous = rows[-2] if mode == "live" else rows[0]
+    pattern = detect_price_pattern([row["close"] for row in rows[-12:]])
     return {
         "symbol": item["symbol"],
         "name": item["name"],
@@ -535,8 +569,37 @@ def mover_quote(item: dict[str, Any]) -> dict[str, Any] | None:
         "price": number(latest["close"]),
         "change_pct": number((latest["close"] / previous["close"] - 1) * 100) if previous["close"] else 0,
         "volume": int(latest["volume"] or 0),
-        "source": "1d/5m" if len(rows) > 10 else "5d/1d",
+        "source": source,
+        "mode": mode,
+        "pattern": pattern["pattern"],
+        "pattern_score": pattern["score"],
+        "basis": "last bar" if mode == "live" and source == "1d/5m" else "5d",
     }
+
+
+def detect_price_pattern(closes: list[float]) -> dict[str, Any]:
+    values = [float(value) for value in closes if value]
+    if len(values) < 6:
+        return {"pattern": "steady", "score": 0}
+    first, last = values[0], values[-1]
+    low = min(values)
+    high = max(values)
+    low_index = values.index(low)
+    high_index = values.index(high)
+    total_range = high - low
+    if total_range <= 0:
+        return {"pattern": "steady", "score": 0}
+    recovery = (last - low) / total_range
+    giveback = (high - last) / total_range
+    if 1 < low_index < len(values) - 2 and recovery >= 0.62 and last >= first * 0.995:
+        return {"pattern": "v_rebound", "score": number(recovery * 100)}
+    if 1 < high_index < len(values) - 2 and giveback >= 0.62 and last <= first * 1.005:
+        return {"pattern": "inverse_v", "score": number(giveback * 100)}
+    if last == high and last > first:
+        return {"pattern": "breakout", "score": number((last / first - 1) * 100) if first else 0}
+    if last == low and last < first:
+        return {"pattern": "selloff", "score": number((last / first - 1) * 100) if first else 0}
+    return {"pattern": "steady", "score": 0}
 
 
 def related_assets(symbol: str, market: str) -> list[dict[str, Any]]:
@@ -749,6 +812,43 @@ def screener_quality_score(
     return {"score": score, "reasons": reasons[:3]}
 
 
+def parse_symbol_list(symbols: str) -> list[str]:
+    cleaned: list[str] = []
+    for part in symbols.replace(";", ",").replace(" ", ",").split(","):
+        raw = part.strip().upper()
+        if not raw or raw in cleaned:
+            continue
+        cleaned.append(raw)
+        if len(cleaned) >= 12:
+            break
+    return cleaned
+
+
+def portfolio_items_from_symbols(symbols: list[str], selected_markets: set[str]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for raw in symbols:
+        normalized, market = normalize_symbol(raw)
+        if selected_markets and market not in selected_markets:
+            continue
+        found = find_universe_item(normalized) or find_universe_item(raw)
+        if found:
+            rows.append(found)
+            continue
+        resolved = normalized
+        for candidate in candidate_symbols(normalized, raw):
+            if fetch_price_history(candidate, "5d", "1d"):
+                resolved = candidate
+                break
+        rows.append({
+            "symbol": resolved,
+            "name": resolved,
+            "market": market,
+            "industry": "Custom",
+            "market_cap_usd": 1_000_000_000,
+        })
+    return rows
+
+
 def portfolio_candidate(item: dict[str, Any]) -> dict[str, Any] | None:
     rows = fetch_price_history(item["symbol"], "1y", "1d")
     if len(rows) < 80:
@@ -815,6 +915,22 @@ def score_portfolio_candidate(row: dict[str, Any], risk_pct: float, profile: str
     return {**row, "portfolio_score": bounded(score)}
 
 
+def score_target_candidate(row: dict[str, Any], target_pct: float, risk_pct: float, horizon: str) -> dict[str, Any]:
+    expected_pct = row["forecast_20d_pct"] if horizon == "short" else row["annual_return"] * 100
+    vol_pct = max(1.0, row["annual_volatility"] * 100)
+    target_gap = abs(expected_pct - target_pct)
+    reward = expected_pct * 1.25 + max(0, target_pct - target_gap) * 0.55
+    risk_penalty = vol_pct * (0.42 - min(0.26, risk_pct / 400))
+    concentration_bonus = 5 if row["industry"] not in {"Semiconductors", "Technology"} else 0
+    score = row["portfolio_score"] * 0.45 + reward - risk_penalty + concentration_bonus
+    return {
+        **row,
+        "portfolio_score": bounded(score),
+        "target_expected_pct": number(expected_pct),
+        "target_gap_pct": number(target_gap),
+    }
+
+
 def diversify_candidates(rows: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
     chosen: list[dict[str, Any]] = []
     industry_counts: dict[str, int] = {}
@@ -850,11 +966,16 @@ def allocate_portfolio(
     currency: str,
     risk_pct: float,
     profile: str,
+    target_mode: bool = False,
 ) -> list[dict[str, Any]]:
     if not chosen:
         return [{"symbol": "CASH", "name": "Cash reserve", "market": currency, "industry": "Cash", "weight": 1.0}]
     cash = cash_weight(risk_pct, profile)
-    cap = 0.22 if profile == "conservative" else 0.28 if profile == "balanced" else 0.35
+    cap = 0.30 if target_mode else 0.22 if profile == "conservative" else 0.28 if profile == "balanced" else 0.35
+    if target_mode and profile == "aggressive":
+        cap = 0.38
+    elif target_mode and profile == "conservative":
+        cap = 0.24
     equity_budget = 1 - cash
     raw_scores = [max(5, row["portfolio_score"]) for row in chosen]
     total_score = sum(raw_scores) or 1
@@ -919,6 +1040,41 @@ def interval_payload(annual_return: float, annual_volatility: float, days: int) 
     }
 
 
+def portfolio_warnings(allocations: list[dict[str, Any]], target_pct: float, horizon: str) -> list[str]:
+    assets = [item for item in allocations if item.get("symbol") != "CASH"]
+    warnings: list[str] = []
+    if not assets:
+        return warnings
+    industry_weights: dict[str, float] = {}
+    market_weights: dict[str, float] = {}
+    memory_symbols = {"MU", "MUU", "WDC", "STX", "6488.TW", "6488.TWO", "2408.TW"}
+    memory_weight = 0.0
+    for item in assets:
+        weight = item.get("weight", 0)
+        industry_weights[item.get("industry", "Unknown")] = industry_weights.get(item.get("industry", "Unknown"), 0) + weight
+        market_weights[item.get("market", "Unknown")] = market_weights.get(item.get("market", "Unknown"), 0) + weight
+        if item.get("symbol") in memory_symbols:
+            memory_weight += weight
+    top_asset = max(assets, key=lambda item: item.get("weight", 0))
+    if top_asset.get("weight", 0) >= 0.34:
+        warnings.append(f"Single-position concentration: {top_asset['symbol']} is {number(top_asset['weight'] * 100)}% of capital. A gap move can dominate results.")
+    for industry, weight in sorted(industry_weights.items(), key=lambda pair: pair[1], reverse=True):
+        if weight >= 0.5:
+            warnings.append(f"Industry concentration: {industry} is {number(weight * 100)}%. Consider adding non-correlated sectors or keeping more cash.")
+            break
+    if memory_weight >= 0.4:
+        warnings.append(f"Memory/semiconductor cycle warning: memory-linked names are {number(memory_weight * 100)}%. Earnings, DRAM/NAND pricing and AI capex news can move them together.")
+    if len(market_weights) == 1 and len(assets) >= 3:
+        market = next(iter(market_weights))
+        warnings.append(f"Market concentration: all selected equities are {market}. FX, index and local liquidity shocks are not hedged.")
+    if target_pct >= (18 if horizon == "short" else 35):
+        warnings.append("Return target is aggressive for the selected horizon. The optimizer will tilt toward volatile names, so downside confidence intervals matter more than the headline expected return.")
+    if not warnings:
+        warnings.append("No severe concentration warning detected. Still review earnings dates, liquidity, FX and overnight gap risk before acting.")
+    warnings.append("Hedge idea: if the basket is semiconductor-heavy, compare SMH/SOXX for sector confirmation and consider cash or inverse/low-beta hedges instead of adding more correlated chip names.")
+    return warnings[:5]
+
+
 def build_allocation_rows(
     allocations: list[dict[str, Any]],
     amount: float,
@@ -967,6 +1123,8 @@ def build_allocation_rows(
             "risk_score": item["risk_score"],
             "confidence": item["confidence"],
             "forecast_20d_pct": item["forecast_20d_pct"],
+            "target_expected_pct": item.get("target_expected_pct"),
+            "target_gap_pct": item.get("target_gap_pct"),
             "reasons": item.get("reasons", [])[:3],
         })
     return rows
