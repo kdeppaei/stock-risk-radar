@@ -83,6 +83,18 @@
     .story-dot { width: 18px; height: 5px; padding: 0; border: 0; border-radius: 999px; background: rgba(255,255,255,.38); }
     .story-dot.active { background: white; }
     .headline-thumb { height: 118px; border-radius: 6px; margin-bottom: 8px; display: grid; place-items: center; color: white; font-weight: 900; letter-spacing: 0; background: linear-gradient(135deg, #1d4ed8, #0f766e); background-size: cover; background-position: top center; }
+    .event-alerts { display: grid; gap: 10px; margin-top: 12px; }
+    .event-alert-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .event-alert-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+    .event-card { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; text-decoration: none; color: var(--text); }
+    .event-card:hover { border-color: var(--blue); }
+    .event-card.high { box-shadow: inset 4px 0 0 #f97316; }
+    .event-card.medium { box-shadow: inset 4px 0 0 #facc15; }
+    .event-date { min-width: 76px; text-align: center; border: 1px solid var(--line); border-radius: 7px; padding: 6px; background: #0f172f; }
+    .event-date b, .event-card strong, .event-card small { display: block; }
+    .event-date b { font-size: 16px; }
+    .event-date span, .event-card small { color: var(--muted); font-size: 12px; }
+    .event-card p { margin: 6px 0 0; color: #dbeafe; font-size: 13px; line-height: 1.4; }
     .mover-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
     .mover-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: end; margin: 12px 0; }
     .mover-tools label { min-width: 180px; }
@@ -207,7 +219,7 @@
       .wrap { width: min(100% - 18px, 1440px); }
       .search, .langbar, .quickbar, .chart-actions, .refreshbar { display: grid; grid-template-columns: 1fr 1fr; }
       input, select, button, a.button { width: 100%; }
-      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form, .portfolio-form, .portfolio-summary, .interval-grid, .allocation-row, .mover-board, .mover-tools, .bot-controls, .bot-grid, .hindsight-grid, .syncbar, .watch-detail-grid, .watch-detail-kv { grid-template-columns: 1fr; }
+      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form, .portfolio-form, .portfolio-summary, .interval-grid, .allocation-row, .mover-board, .mover-tools, .bot-controls, .bot-grid, .hindsight-grid, .syncbar, .watch-detail-grid, .watch-detail-kv, .event-alert-grid { grid-template-columns: 1fr; }
       .portfolio-form .wide-field { grid-column: auto; }
       .forum-shell { height: min(520px, calc(100vh - 160px)); }
       .forum-post { max-width: 88%; }
@@ -317,6 +329,7 @@
         </section>
         <section class="workspace-pane" id="pane-news">
           <h2 data-reco-i18n="headlines">財經要聞 / 直播入口</h2>
+          <div id="eventAlerts" class="event-alerts"></div>
           <div id="featuredStory" class="story-stage"></div>
           <div class="mover-tools">
             <div>
@@ -543,6 +556,7 @@
     let screenerOptionsData = null;
     let screenerData = null;
     let moversData = null;
+    let eventAlertsData = null;
     let moverTimer = null;
     let moverLastPrices = {};
     let portfolioData = null;
@@ -644,6 +658,8 @@
       moversTitle: "即時漲跌報牌", gainers: "正在漲", losers: "正在跌", moversHint: "以 1d/5m 或近 5 日資料估算，依 Yahoo chart 更新。",
       moverMode: "報牌模式", moverRecent: "近期 5 日", moverLive: "即時動態", moverRefresh: "刷新報牌", moverLiveHint: "即時模式約 8 秒刷新；Yahoo 有新 5 分鐘 bar 才會變動。", moverRecentHint: "預設比較近 5 日漲跌，較適合看最近資金方向。",
       relatedType: "關係", relatedStrength: "相關性", relatedStructure: "結構", noRelated: "暫無關聯標的",
+      eventTitle: "重大日期提醒", eventHint: "總經/央行抓未來 45 日；目前股票財報盡量抓未來 90 日。來源抓不到時會標註為新聞線索。",
+      eventEmpty: "近期沒有找到重大事件或財報日期", eventLoading: "讀取事件提醒中", eventMacro: "總經/央行", eventEarnings: "財報", eventNewsWatch: "新聞線索", eventDaysLeft: "天後", eventToday: "今天",
       portfolioTitle: "投資組合推薦", portfolioHint: "填入資金、幣別與風險承受度，系統會用技術面、回歸動能、波動與分散規則產生長短期配置報告。",
       portfolioAmount: "投入金額", portfolioCurrency: "幣別", portfolioRisk: "風險承受度", portfolioProfile: "型態",
       portfolioSymbols: "自選股票", portfolioSymbolsHint: "輸入股票代號，用逗號分隔，例如 MU, NVDA, 2330.TW", portfolioTarget: "預期漲幅 %", portfolioWarnings: "風險警告",
@@ -676,6 +692,8 @@
       moversTitle: "即时涨跌报价", gainers: "正在涨", losers: "正在跌", moversHint: "以 1d/5m 或近 5 日资料估算，按 Yahoo chart 更新。",
       moverMode: "报价模式", moverRecent: "近期 5 日", moverLive: "即时动态", moverRefresh: "刷新报价", moverLiveHint: "即时模式约 8 秒刷新；Yahoo 有新 5 分钟 bar 才会变动。", moverRecentHint: "默认比较近 5 日涨跌，较适合看最近资金方向。",
       relatedType: "关系", relatedStrength: "相关性", relatedStructure: "结构", noRelated: "暂无关联标的",
+      eventTitle: "重大日期提醒", eventHint: "总经/央行抓未来 45 日；目前股票财报尽量抓未来 90 日。来源抓不到时会标注为新闻线索。",
+      eventEmpty: "近期没有找到重大事件或财报日期", eventLoading: "读取事件提醒中", eventMacro: "总经/央行", eventEarnings: "财报", eventNewsWatch: "新闻线索", eventDaysLeft: "天后", eventToday: "今天",
       portfolioTitle: "投资组合推荐", portfolioHint: "填入资金、币别与风险承受度，系统会用技术面、回归动能、波动与分散规则产生长短期配置报告。",
       portfolioAmount: "投入金额", portfolioCurrency: "币别", portfolioRisk: "风险承受度", portfolioProfile: "类型",
       portfolioSymbols: "自选股票", portfolioSymbolsHint: "输入股票代码，用逗号分隔，例如 MU, NVDA, 2330.TW", portfolioTarget: "预期涨幅 %", portfolioWarnings: "风险警告",
@@ -701,6 +719,8 @@
       moversTitle: "Live Movers", gainers: "Rising", losers: "Falling", moversHint: "Uses 1d/5m or recent 5-day Yahoo chart data.",
       moverMode: "Mover mode", moverRecent: "Recent 5D", moverLive: "Live pulse", moverRefresh: "Refresh movers", moverLiveHint: "Live pulse refreshes about every 8 seconds; values change when Yahoo has a new 5-minute bar.", moverRecentHint: "Default view compares recent 5-day moves to show short-term capital direction.",
       relatedType: "Type", relatedStrength: "Correlation", relatedStructure: "Structure", noRelated: "No related assets yet",
+      eventTitle: "Major Date Alerts", eventHint: "Macro/central-bank events cover the next 45 days; current-stock earnings are checked up to 90 days. If structured data is unavailable, items are marked as news leads.",
+      eventEmpty: "No major event or earnings date found nearby", eventLoading: "Loading event alerts", eventMacro: "Macro/Central Bank", eventEarnings: "Earnings", eventNewsWatch: "News lead", eventDaysLeft: "days", eventToday: "Today",
       portfolioTitle: "Portfolio Recommendation", portfolioHint: "Enter capital, currency and risk tolerance. The model blends technicals, regression momentum, volatility and diversification rules.",
       portfolioAmount: "Capital", portfolioCurrency: "Currency", portfolioRisk: "Risk tolerance", portfolioProfile: "Profile",
       portfolioSymbols: "Selected stocks", portfolioSymbolsHint: "Comma-separated symbols, e.g. MU, NVDA, 2330.TW", portfolioTarget: "Target upside %", portfolioWarnings: "Risk Warnings",
@@ -876,6 +896,7 @@
       renderWatchlist();
       if (recommendationData) renderRecommendations(recommendationData);
       if (moversData) renderMovers(moversData);
+      if (eventAlertsData) renderEventAlerts(eventAlertsData);
       if (screenerOptionsData) renderScreenerOptions(screenerOptionsData);
       if (screenerData) renderScreener(screenerData);
       if (botData) renderBots(botData);
@@ -928,6 +949,7 @@
       renderStickers();
       renderShortcuts();
       renderWatchDetailPanel();
+      if (eventAlertsData) renderEventAlerts(eventAlertsData);
       renderForum();
     }
 
@@ -1518,6 +1540,56 @@
       moverTimer = setInterval(loadMovers, mode === "live" ? 8000 : 60000);
     }
 
+    async function loadEventAlerts(symbol = "") {
+      const activeSymbol = symbol || lastData?.symbol || $("symbol").value || "";
+      if ($("eventAlerts") && !eventAlertsData) {
+        $("eventAlerts").innerHTML = `<div class="plainbox muted">${rt("eventLoading")}...</div>`;
+      }
+      try {
+        const qs = new URLSearchParams({ symbol: activeSymbol, days: "45" });
+        const res = await fetch(`/api/event-alerts?${qs}`);
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "events failed");
+        eventAlertsData = data;
+        renderEventAlerts(data);
+      } catch (error) {
+        if ($("eventAlerts")) $("eventAlerts").innerHTML = `<div class="plainbox muted">${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    function renderEventAlerts(data) {
+      const events = data.events || [];
+      const meta = `${rt("updated")} ${new Date(data.updated_at || Date.now()).toLocaleTimeString()} · ${data.symbol || "Market"} · ${data.days || 45}d / EPS ${data.earnings_days || 90}d`;
+      const cards = events.slice(0, 9).map((item) => {
+        const dateText = eventDateText(item.date);
+        const category = eventCategoryLabel(item.category);
+        const days = Number(item.days_left || 0);
+        const tag = days <= 0 ? rt("eventToday") : `${days} ${rt("eventDaysLeft")}`;
+        const body = `<div class="event-date"><b>${escapeHtml(dateText.md)}</b><span>${escapeHtml(dateText.year)}</span><span>${escapeHtml(tag)}</span></div>
+          <div><small>${escapeHtml(category)} · ${escapeHtml(item.source || "")} · ${escapeHtml(item.importance || "")}</small><strong>${escapeHtml(item.title || "")}</strong><p>${escapeHtml(item.note || "")}</p></div>`;
+        if (item.link) return `<a class="event-card ${escapeHtml(item.importance || "medium")}" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">${body}</a>`;
+        return `<div class="event-card ${escapeHtml(item.importance || "medium")}">${body}</div>`;
+      }).join("");
+      $("eventAlerts").innerHTML = `
+        <div class="event-alert-head">
+          <div><h3>${rt("eventTitle")}</h3><p class="explain">${rt("eventHint")}</p></div>
+          <span class="tag">${escapeHtml(meta)}</span>
+        </div>
+        ${cards ? `<div class="event-alert-grid">${cards}</div>` : `<div class="plainbox muted">${rt("eventEmpty")}</div>`}`;
+    }
+
+    function eventDateText(value) {
+      const parts = String(value || "").split("-");
+      if (parts.length !== 3) return { md: "-", year: "" };
+      return { md: `${parts[1]}/${parts[2]}`, year: parts[0] };
+    }
+
+    function eventCategoryLabel(value) {
+      if (value === "earnings") return rt("eventEarnings");
+      if (value === "news_watch") return rt("eventNewsWatch");
+      return rt("eventMacro");
+    }
+
     async function loadRecommendations() {
       const button = $("recoRefreshBtn");
       button.disabled = true;
@@ -1827,6 +1899,7 @@
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.detail || "Analyze failed");
         render(data);
+        if (!silent || eventAlertsData?.symbol !== data.symbol) loadEventAlerts(data.symbol);
       } catch (error) {
         if (!silent) $("summaryText").textContent = error.message;
       } finally {

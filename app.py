@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import secrets
 import sqlite3
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from statistics import mean
 from typing import Any
@@ -28,6 +31,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False,
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 MOVERS_CACHE: dict[tuple[str, int, str], tuple[float, dict[str, Any]]] = {}
+EVENT_ALERTS_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 
 BOT_DEFS: list[dict[str, Any]] = [
     {"id": "steady_turtle", "name": "Steady Turtle", "style": "conservative", "risk": 26, "idea": "Trend + low drawdown filter. Good for users who hate big swings."},
@@ -222,6 +226,43 @@ def market_context() -> dict[str, Any]:
         "usd_twd": usd_twd,
         "macro": macro,
     }
+
+
+@app.get("/api/event-alerts")
+def event_alerts(
+    symbol: str = Query("", max_length=32),
+    days: int = Query(45, ge=1, le=120),
+) -> dict[str, Any]:
+    raw = symbol.strip().upper()
+    normalized = ""
+    market = "US"
+    if raw:
+        normalized, market = normalize_symbol(raw)
+    key = (normalized or "MARKET", days)
+    now = time.time()
+    cached = EVENT_ALERTS_CACHE.get(key)
+    if cached and now - cached[0] < 900:
+        return cached[1]
+
+    earnings_days = max(days, 90)
+    macro_events = fetch_macro_event_alerts(days)
+    earnings = fetch_earnings_alerts(normalized, market, earnings_days) if normalized else []
+    news_watch = fetch_event_news_watch(normalized, market, days)
+    events = sorted(macro_events + earnings + news_watch, key=lambda item: (item.get("date") or "9999-12-31", -int(item.get("score", 0))))
+    payload = {
+        "ok": True,
+        "symbol": normalized,
+        "market": market,
+        "days": days,
+        "earnings_days": earnings_days,
+        "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "macro_events": macro_events,
+        "earnings": earnings,
+        "news_watch": news_watch,
+        "events": events[:18],
+    }
+    EVENT_ALERTS_CACHE[key] = (now, payload)
+    return payload
 
 
 @app.get("/api/quote")
@@ -954,6 +995,306 @@ def finance_video_links() -> list[dict[str, str]]:
         {"title": "YouTube 美股財經直播搜尋", "source": "YouTube", "link": "https://www.youtube.com/results?search_query=%E7%BE%8E%E8%82%A1+%E8%B2%A1%E7%B6%93+%E7%9B%B4%E6%92%AD"},
         {"title": "YouTube Stock Market Live", "source": "YouTube", "link": "https://www.youtube.com/results?search_query=stock+market+live"},
     ]
+
+
+MONTHS = {
+    "january": 1,
+    "february": 2,
+    "march": 3,
+    "april": 4,
+    "may": 5,
+    "june": 6,
+    "july": 7,
+    "august": 8,
+    "september": 9,
+    "october": 10,
+    "november": 11,
+    "december": 12,
+}
+
+
+def fetch_macro_event_alerts(days: int) -> list[dict[str, Any]]:
+    today = datetime.now(ZoneInfo("Asia/Taipei")).date()
+    horizon = today + timedelta(days=days)
+    events: list[dict[str, Any]] = []
+    events.extend(fetch_fomc_events(today, horizon))
+    events.extend(fetch_bea_events(today, horizon))
+    return dedupe_events(events)
+
+
+def fetch_fomc_events(today: date, horizon: date) -> list[dict[str, Any]]:
+    url = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+    try:
+        text = requests.get(url, headers={"User-Agent": "Mozilla/5.0 StockRiskRadar/4.5"}, timeout=10).text
+    except Exception:
+        return []
+    events: list[dict[str, Any]] = []
+    for year in {today.year, horizon.year, today.year + 1}:
+        marker = re.search(rf'<a id="[^"]+">{year} FOMC Meetings</a>', text)
+        if not marker:
+            continue
+        next_panel = text.find('<div class="panel panel-default"><div class="panel-heading"><h4><a id=', marker.end())
+        section = text[marker.end() : next_panel if next_panel != -1 else len(text)]
+        row_pattern = re.compile(
+            r'<strong>(January|February|March|April|May|June|July|August|September|October|November|December)</strong>.*?'
+            r'fomc-meeting__date[^>]*>([^<]+)</div>',
+            re.S | re.I,
+        )
+        for match in row_pattern.finditer(section):
+            month_name = match.group(1)
+            date_text = re.sub(r"<.*?>", "", match.group(2)).strip()
+            day_match = re.search(r"\d{1,2}", date_text)
+            if not day_match:
+                continue
+            event_date = date(year, MONTHS[month_name.lower()], int(day_match.group(0)))
+            if today <= event_date <= horizon:
+                has_sep = "*" in date_text
+                events.append(
+                    event_payload(
+                        event_date,
+                        "macro",
+                        "Fed FOMC meeting / rate decision",
+                        "Federal Reserve",
+                        url,
+                        "high",
+                        95,
+                        f"{month_name} {date_text}, {year}" + ("; includes Summary of Economic Projections" if has_sep else ""),
+                    )
+                )
+    return events
+
+
+def fetch_bea_events(today: date, horizon: date) -> list[dict[str, Any]]:
+    url = "https://www.bea.gov/news/schedule"
+    try:
+        text = requests.get(url, headers={"User-Agent": "Mozilla/5.0 StockRiskRadar/4.5"}, timeout=10).text
+    except Exception:
+        return []
+    rows = re.findall(
+        r'<td class="scheduled-date[^"]*"[^>]*><div class="release-date">([^<]+)</div>\s*<small[^>]*>([^<]+)</small>.*?'
+        r'<td class="release-title[^"]*"[^>]*>(.*?)</td>',
+        text,
+        re.S | re.I,
+    )
+    events: list[dict[str, Any]] = []
+    important_terms = ("gross domestic product", "personal income and outlays", "pce", "corporate profits", "international trade")
+    for date_text, time_text, title_html in rows:
+        title = clean_html(title_html)
+        title_l = title.lower()
+        if not any(term in title_l for term in important_terms):
+            continue
+        for year in {today.year, horizon.year}:
+            event_date = parse_month_day(date_text, year)
+            if event_date and today <= event_date <= horizon:
+                score = 88 if "gross domestic product" in title_l or "personal income" in title_l else 76
+                events.append(event_payload(event_date, "macro", title, "BEA", url, "high" if score >= 85 else "medium", score, f"{date_text} {time_text} ET"))
+                break
+    return events[:8]
+
+
+def fetch_earnings_alerts(symbol: str, market: str, days: int) -> list[dict[str, Any]]:
+    if not symbol:
+        return []
+    today = datetime.now(ZoneInfo("Asia/Taipei")).date()
+    horizon = today + timedelta(days=days)
+    events: list[dict[str, Any]] = []
+    for candidate in candidate_symbols(symbol, symbol):
+        data = yahoo_quote_summary(candidate, "calendarEvents")
+        earnings = (((data.get("calendarEvents") or {}).get("earnings") or {}) if data else {})
+        dates = earnings.get("earningsDate") or []
+        if not isinstance(dates, list):
+            dates = [dates]
+        for item in dates:
+            event_date = yahoo_raw_date(item)
+            if event_date and today <= event_date <= horizon:
+                estimate = bool(earnings.get("isEarningsDateEstimate"))
+                eps = (earnings.get("earningsAverage") or {}).get("fmt")
+                revenue = (earnings.get("revenueAverage") or {}).get("fmt")
+                note_bits = ["estimated date" if estimate else "confirmed/official calendar date"]
+                if eps:
+                    note_bits.append(f"EPS avg {eps}")
+                if revenue:
+                    note_bits.append(f"Revenue avg {revenue}")
+                events.append(
+                    event_payload(
+                        event_date,
+                        "earnings",
+                        f"{candidate} earnings / financial report",
+                        "Yahoo Finance calendarEvents",
+                        f"https://finance.yahoo.com/quote/{candidate}/analysis",
+                        "high",
+                        90 if not estimate else 82,
+                        "; ".join(note_bits),
+                        symbol=candidate,
+                        market=market,
+                    )
+                )
+        if events:
+            break
+    if events:
+        return events[:3]
+    return earnings_news_fallback(symbol, market, today, horizon)
+
+
+def yahoo_quote_summary(symbol: str, modules: str) -> dict[str, Any]:
+    session = requests.Session()
+    session.headers.update({"User-Agent": "Mozilla/5.0 StockRiskRadar/4.5"})
+    try:
+        session.get("https://fc.yahoo.com", timeout=8)
+        crumb = session.get("https://query1.finance.yahoo.com/v1/test/getcrumb", timeout=8).text.strip()
+        resp = session.get(
+            f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}",
+            params={"modules": modules, "crumb": crumb},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return ((resp.json().get("quoteSummary") or {}).get("result") or [{}])[0] or {}
+    except Exception:
+        return {}
+
+
+def fetch_event_news_watch(symbol: str, market: str, days: int) -> list[dict[str, Any]]:
+    queries = [
+        ("Macro Watch", "Fed rate decision FOMC PCE GDP central bank announcement market date"),
+        ("TW Central Bank", "台灣 央行 理監事會 利率 決議 日期 股市 匯率"),
+    ]
+    if symbol:
+        plain = symbol.replace(".TW", "").replace(".TWO", "")
+        if market == "TW":
+            queries.append(("Earnings Watch", f"{plain} 財報 法說會 除息 日期 公布"))
+        else:
+            queries.append(("Earnings Watch", f"{symbol} earnings date guidance report"))
+    today = datetime.now(ZoneInfo("Asia/Taipei")).date()
+    cutoff = today - timedelta(days=5)
+    events: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for source, query in queries:
+        is_tw = source == "TW Central Bank" or market == "TW" and source == "Earnings Watch"
+        url = f"https://news.google.com/rss/search?q={quote_plus(query)}&hl={'zh-TW' if is_tw else 'en-US'}&gl={'TW' if is_tw else 'US'}&ceid={'TW:zh-Hant' if is_tw else 'US:en'}"
+        for item in fetch_feed(url, source)[:5]:
+            if "News fetch failed" in item["title"]:
+                continue
+            published = parse_feed_date(item.get("published", ""))
+            if published and published < cutoff:
+                continue
+            key = item["title"].lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            events.append(
+                event_payload(
+                    published or today,
+                    "news_watch",
+                    item["title"],
+                    item["source"],
+                    item.get("link", ""),
+                    "medium",
+                    58 + min(12, abs(int(item.get("sentiment", 0))) * 3),
+                    "News-based reminder; open the source to confirm exact announcement date.",
+                    symbol=symbol if source == "Earnings Watch" else "",
+                    market=market if source == "Earnings Watch" else "",
+                )
+            )
+    return dedupe_events(events)[:6]
+
+
+def earnings_news_fallback(symbol: str, market: str, today: date, horizon: date) -> list[dict[str, Any]]:
+    plain = symbol.replace(".TW", "").replace(".TWO", "")
+    query = f"{plain} 財報 法說會 日期" if market == "TW" else f"{symbol} earnings date"
+    url = f"https://news.google.com/rss/search?q={quote_plus(query)}&hl={'zh-TW' if market == 'TW' else 'en-US'}&gl={'TW' if market == 'TW' else 'US'}&ceid={'TW:zh-Hant' if market == 'TW' else 'US:en'}"
+    rows = []
+    for item in fetch_feed(url, "Google News")[:3]:
+        if "News fetch failed" in item["title"]:
+            continue
+        published = parse_feed_date(item.get("published", "")) or today
+        if today - timedelta(days=10) <= published <= horizon:
+            rows.append(event_payload(published, "earnings", item["title"], item["source"], item.get("link", ""), "medium", 62, "No structured earnings date found; this is a news fallback.", symbol=symbol, market=market))
+    return rows[:2]
+
+
+def event_payload(
+    event_date: date,
+    category: str,
+    title: str,
+    source: str,
+    link: str,
+    importance: str,
+    score: int,
+    note: str,
+    symbol: str = "",
+    market: str = "",
+) -> dict[str, Any]:
+    today = datetime.now(ZoneInfo("Asia/Taipei")).date()
+    return {
+        "date": event_date.isoformat(),
+        "days_left": (event_date - today).days,
+        "category": category,
+        "title": title.strip(),
+        "source": source,
+        "link": link,
+        "importance": importance,
+        "score": int(score),
+        "note": note,
+        "symbol": symbol,
+        "market": market,
+    }
+
+
+def dedupe_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[tuple[str, str, str]] = set()
+    rows: list[dict[str, Any]] = []
+    for item in sorted(events, key=lambda row: (row.get("date") or "9999-12-31", -int(row.get("score", 0)))):
+        key = (item.get("date", ""), item.get("category", ""), item.get("title", "").lower()[:90])
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(item)
+    return rows
+
+
+def parse_month_day(value: str, year: int) -> date | None:
+    parts = value.strip().split()
+    if len(parts) < 2:
+        return None
+    month = MONTHS.get(parts[0].lower())
+    day_match = re.search(r"\d{1,2}", parts[1])
+    if not month or not day_match:
+        return None
+    try:
+        return date(year, month, int(day_match.group(0)))
+    except ValueError:
+        return None
+
+
+def yahoo_raw_date(item: Any) -> date | None:
+    if not isinstance(item, dict):
+        return None
+    raw = item.get("raw")
+    if raw:
+        try:
+            return datetime.fromtimestamp(int(raw), timezone.utc).date()
+        except (TypeError, ValueError, OSError):
+            pass
+    fmt = item.get("fmt")
+    if fmt:
+        try:
+            return datetime.strptime(fmt, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+    return None
+
+
+def parse_feed_date(value: str) -> date | None:
+    if not value:
+        return None
+    try:
+        return parsedate_to_datetime(value).astimezone(ZoneInfo("Asia/Taipei")).date()
+    except Exception:
+        return None
+
+
+def clean_html(value: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"<.*?>", "", value or "")).strip()
 
 
 def screener_quality_score(
