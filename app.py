@@ -428,7 +428,7 @@ def get_forum(room_date: str = Query("", max_length=16)) -> dict[str, Any]:
 async def post_forum(request: Request) -> dict[str, Any]:
     payload = await safe_json(request)
     user_id = str(payload.get("user") or "ANON").strip()[:24]
-    text = str(payload.get("text") or "").strip()[:280]
+    text = str(payload.get("text") or "").strip()[:1000]
     room_date = str(payload.get("room_date") or datetime.now(ZoneInfo("Asia/Taipei")).strftime("%Y-%m-%d"))[:16]
     if not text:
         raise HTTPException(status_code=422, detail="Empty message.")

@@ -104,7 +104,7 @@
     .video-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
     .shortcut-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-top: 10px; }
     .shortcut-key { display: inline-flex; min-width: 64px; justify-content: center; padding: 4px 7px; border: 1px solid var(--line); border-radius: 6px; background: #0f172f; color: #bfdbfe; font-weight: 700; }
-    .forum-shell { height: min(540px, calc(100vh - 220px)); min-height: 360px; display: grid; grid-template-rows: auto 1fr auto auto; gap: 8px; margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; background: #0d1530; padding: 10px; }
+    .forum-shell { height: min(540px, calc(100vh - 220px)); min-height: 360px; display: grid; grid-template-rows: auto auto auto 1fr auto auto; gap: 8px; margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; background: #0d1530; padding: 10px; }
     .forum-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 0; }
     textarea { min-height: 70px; resize: vertical; border-radius: 7px; border: 1px solid var(--line); background: #0f172f; color: var(--text); padding: 10px 12px; font: inherit; }
     .forum-meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
@@ -182,18 +182,36 @@
     .watch-item.flash-down { border-color: var(--red); box-shadow: 0 0 0 2px rgba(239,68,68,.22); animation: blinkDown 1s ease-in-out 3; }
     .arrow { font-size: 20px; font-weight: 800; }
     .remove { width: 32px; height: 32px; padding: 0; background: transparent; border-color: var(--line); color: var(--muted); }
+    .watch-strip { margin: 12px 0 16px; display: none; }
+    .watch-strip-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .watch-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .watch-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    .watch-detail-grid.collapsed { display: none; }
+    .watch-detail-card, .watch-share-card { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 12px; }
+    .watch-detail-card.flash-up { border-color: var(--green); box-shadow: inset 4px 0 0 rgba(34,197,94,.8); }
+    .watch-detail-card.flash-down { border-color: var(--red); box-shadow: inset 4px 0 0 rgba(239,68,68,.8); }
+    .watch-detail-top { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+    .watch-detail-top strong, .watch-detail-top small { display: block; }
+    .watch-detail-kv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+    .mini-kv { min-height: 64px; background: #0f172f; border: 1px solid var(--line); border-radius: 7px; padding: 8px; }
+    .mini-kv span, .watch-share-card small { display: block; color: var(--muted); font-size: 12px; }
+    .mini-kv b { display: block; margin-top: 4px; }
+    .forum-post.bundle { max-width: min(92%, 760px); border-style: dashed; }
+    .bundle-symbols { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+    .bundle-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
     .explain { margin-top: 10px; font-size: 13px; }
     @keyframes blinkUp { 50% { background: rgba(34,197,94,.18); } }
     @keyframes blinkDown { 50% { background: rgba(239,68,68,.18); } }
-    @media (max-width: 1120px) { header, .main, .grid, .statusbar { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards, .screener-results { grid-template-columns: repeat(2, 1fr); } .screener-controls, .portfolio-form { grid-template-columns: repeat(3, 1fr); } .screener-row, .recommend-row, .allocation-row { grid-template-columns: 1fr 1fr; } .portfolio-summary, .interval-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .metric, .score-chip { text-align: left; } .shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 1120px) { header, .main, .grid, .statusbar { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards, .screener-results, .watch-detail-grid { grid-template-columns: repeat(2, 1fr); } .screener-controls, .portfolio-form { grid-template-columns: repeat(3, 1fr); } .screener-row, .recommend-row, .allocation-row { grid-template-columns: 1fr 1fr; } .portfolio-summary, .interval-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .metric, .score-chip { text-align: left; } .shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 640px) {
       .wrap { width: min(100% - 18px, 1440px); }
       .search, .langbar, .quickbar, .chart-actions, .refreshbar { display: grid; grid-template-columns: 1fr 1fr; }
       input, select, button, a.button { width: 100%; }
-      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form, .portfolio-form, .portfolio-summary, .interval-grid, .allocation-row, .mover-board, .mover-tools, .bot-controls, .bot-grid, .hindsight-grid, .syncbar { grid-template-columns: 1fr; }
+      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form, .portfolio-form, .portfolio-summary, .interval-grid, .allocation-row, .mover-board, .mover-tools, .bot-controls, .bot-grid, .hindsight-grid, .syncbar, .watch-detail-grid, .watch-detail-kv { grid-template-columns: 1fr; }
       .portfolio-form .wide-field { grid-column: auto; }
       .forum-shell { height: min(520px, calc(100vh - 160px)); }
       .forum-post { max-width: 88%; }
+      .watch-strip-head, .watch-actions { display: grid; grid-template-columns: 1fr; }
       .chat-drawer { right: 9px; left: 9px; bottom: 78px; width: auto; height: min(620px, calc(100vh - 96px)); }
       .chat-fab { right: 14px; bottom: 14px; }
       .story-hero { min-height: 238px; }
@@ -259,6 +277,20 @@
       <article class="card"><span data-i18n="trend">趨勢</span><strong id="trend">-</strong></article>
     </section>
 
+    <section class="panel watch-strip" id="watchPanel">
+      <div class="watch-strip-head">
+        <div>
+          <h2 data-i18n="watchlist">關注清單</h2>
+          <p class="explain" data-reco-i18n="watchPanelHint">已關注股票可在下方展開成摘要陣列；可刪除、查詢，或分享到討論讓其他裝置匯入。</p>
+        </div>
+        <div class="watch-actions">
+          <button id="watchToggleBtn" class="secondary" type="button" data-reco-i18n="watchExpand">展開關注</button>
+          <button id="watchShareBtn" class="secondary" type="button" data-reco-i18n="watchShare">分享到討論</button>
+        </div>
+      </div>
+      <div id="watchDetailPanel" class="watch-detail-grid collapsed"></div>
+    </section>
+
     <section class="panel workspace-panel">
       <div class="workspace-tabs">
         <button class="workspace-tab active" type="button" data-workspace-tab="recommend" data-reco-i18n="tabRecommend">推薦</button>
@@ -313,6 +345,7 @@
               <button id="syncLoadBtn" class="secondary" type="button" data-reco-i18n="syncLoad">載入同步</button>
               <button id="syncSaveBtn" class="secondary" type="button" data-reco-i18n="syncSave">儲存同步</button>
             </div>
+            <p class="explain" data-reco-i18n="watchSyncGuide">裝置 A 先按「儲存同步」並「分享到討論」；裝置 B 輸入同步碼載入，或在關注組合卡點覆蓋/添加。</p>
             <div id="forumList" class="forum-list"></div>
             <div id="stickerBar" class="sticker-bar"></div>
             <div class="forum-form">
@@ -334,12 +367,15 @@
             <label class="wide-field"><span class="muted" data-reco-i18n="portfolioSymbols">自選股票</span><input id="pfSymbols" type="text" data-reco-placeholder="portfolioSymbolsHint" placeholder="MU, NVDA, 2330.TW" /></label>
             <label><span class="muted" data-reco-i18n="portfolioTarget">預期漲幅</span><input id="pfTargetPct" type="number" min="-50" max="300" step="0.5" value="8" /></label>
             <button id="pfRunBtn" type="submit" data-reco-i18n="portfolioRun">產生組合</button>
+            <button id="pfUseWatchBtn" class="secondary" type="button" data-reco-i18n="portfolioUseWatch">套用關注並試算</button>
           </form>
           <div id="portfolioReport" class="portfolio-results"></div>
         </section>
         <section class="workspace-pane" id="pane-help">
           <h2 data-reco-i18n="shortcutTitle">快捷鍵</h2>
           <div id="shortcutGrid" class="shortcut-grid"></div>
+          <h2 data-reco-i18n="featureGuideTitle">功能說明</h2>
+          <div id="featureGuide" class="report-list"></div>
         </section>
       </div>
     </section>
@@ -498,6 +534,9 @@
     let lang = localStorage.getItem("srr.lang") || "zh-tw";
     let watch = JSON.parse(localStorage.getItem("srr.watch") || "[]");
     let watchState = JSON.parse(localStorage.getItem("srr.watchState") || "{}");
+    let watchExpanded = localStorage.getItem("srr.watchExpanded") === "1";
+    let watchDetailData = {};
+    let watchDetailLoading = false;
     let autoRefresh = true;
     let lastQuotePrice = null;
     let recommendationData = null;
@@ -515,6 +554,7 @@
     let forumPosts = [];
     let chatOpen = false;
     const STICKERS = ["👍", "🔥", "🚀", "📈", "📉", "⚠️", "💡", "✅", "🤔", "💎"];
+    const WATCH_BUNDLE_PREFIX = "__SRR_WATCH__";
 
     const recoCopy = {
       "zh-tw": {
@@ -615,7 +655,12 @@
       botTitle: "選股機器人訓練場", botHint: "紙上模擬，不下真單；可選保守、均衡或激進機器人，用本金跑候選股。",
       botCapital: "模擬本金", botStyle: "機器人風格", botAll: "全部", botConservative: "保守", botBalanced: "均衡", botAggressive: "激進", botPickCount: "持股數", botRun: "訓練模擬",
       botFollow: "跟隨", botFollowing: "已跟隨", botPaperPnl: "紙上損益", botExpected: "20日預估", hindsightTitle: "馬後炮天道復盤", hindsightHint: "用歷史走勢演算事後最大獲利解，適合復盤，不代表未來能做到。", hindsightRun: "開始復盤",
-      syncLoad: "載入同步", syncSave: "儲存同步", syncPlaceholder: "輸入同步碼", syncNote: "匿名同步碼可跨裝置同步關注清單與跟隨機器人；免費 Render SQLite 可能因重部署重置。"
+      syncLoad: "載入同步", syncSave: "儲存同步", syncPlaceholder: "輸入同步碼", syncNote: "匿名同步碼可跨裝置同步關注清單與跟隨機器人；免費 Render SQLite 可能因重部署重置。",
+      watchPanelHint: "已關注股票可在下方展開成摘要陣列；可刪除、查詢，或分享到討論讓其他裝置匯入。",
+      watchExpand: "展開關注", watchCollapse: "收起關注", watchShare: "分享到討論", watchShared: "關注組合已分享到討論", watchBundleTitle: "關注組合分享",
+      watchBundleHint: "點選覆蓋或添加，即可把這組股票帶到本裝置。", watchImportReplace: "全抄覆蓋", watchImportMerge: "只添加缺少", watchImported: "已匯入關注組合",
+      watchSyncGuide: "同步方式：裝置 A 先按「儲存同步」並「分享到討論」；裝置 B 打開同頁討論，輸入同步碼載入，或直接在組合分享卡點覆蓋/添加。",
+      portfolioUseWatch: "套用關注並試算", portfolioUseWatchEmpty: "尚未有關注股票可套用", shareUnit: "股", lotUnit: "張", featureGuideTitle: "功能說明"
     });
     Object.assign(recoCopy["zh-cn"], {
       tabRecommend: "常用", tabScreener: "筛选", tabNews: "要闻", tabForum: "讨论", tabPortfolio: "组合", tabHelp: "说明",
@@ -642,7 +687,12 @@
       botTitle: "选股机器人训练场", botHint: "纸上模拟，不下真单；可选保守、均衡或激进机器人，用本金跑候选股。",
       botCapital: "模拟本金", botStyle: "机器人风格", botAll: "全部", botConservative: "保守", botBalanced: "均衡", botAggressive: "激进", botPickCount: "持股数", botRun: "训练模拟",
       botFollow: "跟随", botFollowing: "已跟随", botPaperPnl: "纸上损益", botExpected: "20日预估", hindsightTitle: "马后炮天道复盘", hindsightHint: "用历史走势演算事后最大获利解，适合复盘，不代表未来能做到。", hindsightRun: "开始复盘",
-      syncLoad: "载入同步", syncSave: "储存同步", syncPlaceholder: "输入同步码", syncNote: "匿名同步码可跨装置同步关注清单与跟随机器人；免费 Render SQLite 可能因重部署重置。"
+      syncLoad: "载入同步", syncSave: "储存同步", syncPlaceholder: "输入同步码", syncNote: "匿名同步码可跨装置同步关注清单与跟随机器人；免费 Render SQLite 可能因重部署重置。",
+      watchPanelHint: "已关注股票可在下方展开成摘要阵列；可删除、查询，或分享到讨论让其他装置汇入。",
+      watchExpand: "展开关注", watchCollapse: "收起关注", watchShare: "分享到讨论", watchShared: "关注组合已分享到讨论", watchBundleTitle: "关注组合分享",
+      watchBundleHint: "点选覆盖或添加，即可把这组股票带到本装置。", watchImportReplace: "全抄覆盖", watchImportMerge: "只添加缺少", watchImported: "已汇入关注组合",
+      watchSyncGuide: "同步方式：装置 A 先按“储存同步”并“分享到讨论”；装置 B 打开同页讨论，输入同步码载入，或直接在组合分享卡点覆盖/添加。",
+      portfolioUseWatch: "套用关注并试算", portfolioUseWatchEmpty: "尚未有关注股票可套用", shareUnit: "股", lotUnit: "张", featureGuideTitle: "功能说明"
     });
     Object.assign(recoCopy.en, {
       tabRecommend: "Home", tabScreener: "Screener", tabNews: "News", tabForum: "Forum", tabPortfolio: "Portfolio", tabHelp: "Help",
@@ -662,7 +712,12 @@
       botTitle: "Stock Bot Training Lab", botHint: "Paper simulation only. Pick conservative, balanced or aggressive bots and let them rank stocks with your capital.",
       botCapital: "Paper capital", botStyle: "Bot style", botAll: "All", botConservative: "Conservative", botBalanced: "Balanced", botAggressive: "Aggressive", botPickCount: "Positions", botRun: "Run bots",
       botFollow: "Follow", botFollowing: "Following", botPaperPnl: "Paper P/L", botExpected: "20D estimate", hindsightTitle: "Hindsight Oracle Replay", hindsightHint: "Computes the best after-the-fact path from history. For replay only, not a future forecast.", hindsightRun: "Run replay",
-      syncLoad: "Load sync", syncSave: "Save sync", syncPlaceholder: "Enter sync code", syncNote: "Anonymous sync code shares watchlist and followed bots across devices. Free Render SQLite can reset after redeploy."
+      syncLoad: "Load sync", syncSave: "Save sync", syncPlaceholder: "Enter sync code", syncNote: "Anonymous sync code shares watchlist and followed bots across devices. Free Render SQLite can reset after redeploy.",
+      watchPanelHint: "Watched symbols can expand into summary cards. You can delete, analyze, or share the set to the forum for another device to import.",
+      watchExpand: "Expand watchlist", watchCollapse: "Collapse watchlist", watchShare: "Share to forum", watchShared: "Watchlist shared to forum", watchBundleTitle: "Watchlist bundle",
+      watchBundleHint: "Use replace or merge to bring this set into this device.", watchImportReplace: "Replace all", watchImportMerge: "Add missing only", watchImported: "Watchlist imported",
+      watchSyncGuide: "Sync flow: Device A clicks Save sync and Share to forum. Device B opens the same discussion, loads the sync code, or imports from the watchlist bundle card.",
+      portfolioUseWatch: "Use watchlist & run", portfolioUseWatchEmpty: "No watched stocks to use yet", shareUnit: "shares", lotUnit: "lots", featureGuideTitle: "Feature Guide"
     });
 
     Object.assign(screenerCopy["zh-tw"], {
@@ -829,6 +884,8 @@
     }));
     $("form").addEventListener("submit", (event) => { event.preventDefault(); analyze($("symbol").value.trim() || "2330"); });
     $("addWatchBtn").addEventListener("click", () => addWatch(lastData?.symbol || $("symbol").value.trim()));
+    $("watchToggleBtn").addEventListener("click", () => toggleWatchPanel());
+    $("watchShareBtn").addEventListener("click", () => shareWatchPortfolio());
     $("autoBtn").addEventListener("click", () => { autoRefresh = !autoRefresh; $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff"); });
     $("scRunBtn").addEventListener("click", () => runScreener());
     $("botRunBtn").addEventListener("click", () => runBots());
@@ -845,6 +902,7 @@
     $("chatFab").addEventListener("click", () => toggleChatDrawer());
     $("chatClose").addEventListener("click", () => toggleChatDrawer(false));
     $("portfolioForm").addEventListener("submit", (event) => { event.preventDefault(); runPortfolio(); });
+    $("pfUseWatchBtn").addEventListener("click", () => applyWatchToPortfolio());
     $("pfRisk").addEventListener("input", updatePortfolioRiskLabel);
     document.querySelectorAll("[data-workspace-tab]").forEach((btn) => btn.addEventListener("click", () => switchWorkspaceTab(btn.dataset.workspaceTab)));
     document.addEventListener("keydown", handleShortcuts);
@@ -869,6 +927,7 @@
       updatePortfolioRiskLabel();
       renderStickers();
       renderShortcuts();
+      renderWatchDetailPanel();
       renderForum();
     }
 
@@ -922,6 +981,40 @@
         ["Alt+W", rt("shortcutWatch")],
       ];
       $("shortcutGrid").innerHTML = rows.map(([key, label]) => `<div class="plainbox"><span class="shortcut-key">${key}</span><div class="muted" style="margin-top:8px">${escapeHtml(label)}</div></div>`).join("");
+      if ($("featureGuide")) {
+        $("featureGuide").innerHTML = featureGuideItems().map((item) => `<div class="plainbox"><strong>${escapeHtml(item.title)}</strong><p class="explain">${escapeHtml(item.text)}</p></div>`).join("");
+      }
+    }
+
+    function featureGuideItems() {
+      if (lang === "en") {
+        return [
+          { title: "Analyze", text: "Enter a US or Taiwan ticker, choose Today/Day/Week, then run analysis. The main cards show price, move, risk and trend; the chart can open Google Finance in a new tab." },
+          { title: "Watchlist", text: "Click Watch to save the current ticker. Use the expand button under the summary cards to show watched-stock mini reports, query one ticker, or remove it." },
+          { title: "Cross-device sync", text: "Device A: click Save sync and Share to forum. Device B: enter the same sync code, or click Replace all/Add missing on the watchlist bundle in the discussion." },
+          { title: "Screener and bots", text: "The screener filters by market, price and industry. Bot lab is paper simulation only; followed bots are saved with your sync profile." },
+          { title: "Portfolio", text: "Set capital, currency, risk tolerance and target upside. Use watchlist to fill symbols, then Build portfolio to see weights, local amount, shares/lots, confidence intervals and warnings." },
+          { title: "Forum", text: "The chat is anonymous and daily. Enter sends a message, Shift+Enter starts a new line, stickers insert quick reactions, and your own messages can be deleted." }
+        ];
+      }
+      if (lang === "zh-cn") {
+        return [
+          { title: "股票分析", text: "输入美股或台股代码，选择 Today/Day/Week 后分析。上方卡片显示价格、涨跌、风险与趋势；点 K 线图会另开 Google Finance。" },
+          { title: "关注清单", text: "按加入关注可保存目前股票。摘要卡下方的展开按钮会显示已关注股票的小报告，也能单独查询或删除。" },
+          { title: "跨装置同步", text: "装置 A：按储存同步并分享到讨论。装置 B：输入同一组同步码载入，或在讨论里的关注组合卡点全抄覆盖/只添加缺少。" },
+          { title: "筛选与机器人", text: "筛选页可按市场、价格与产业找股票；机器人训练场只是纸上模拟，跟随的机器人会跟同步资料一起保存。" },
+          { title: "投资组合", text: "填本金、币别、风险承受度与预期涨幅。可套用关注组合，再产生权重、本币金额、股数/张数、置信区间与风险警告。" },
+          { title: "匿名讨论", text: "讨论区不用登入，按台湾日期每日更新。Enter 发送、Shift+Enter 换行，可插入表情，自己的留言可删除。" }
+        ];
+      }
+      return [
+        { title: "股票分析", text: "輸入美股或台股代號，選 Today/Day/Week 後分析。上方卡片顯示價格、漲跌、風險與趨勢；點 K 線圖會另開 Google Finance。" },
+        { title: "關注清單", text: "按加入關注可保存目前股票。摘要卡下方的展開按鈕會顯示已關注股票的小報告，也能單獨查詢或刪除。" },
+        { title: "跨裝置同步", text: "裝置 A：按儲存同步並分享到討論。裝置 B：輸入同一組同步碼載入，或在討論裡的關注組合卡點全抄覆蓋/只添加缺少。" },
+        { title: "篩選與機器人", text: "篩選頁可按市場、價格與產業找股票；機器人訓練場只是紙上模擬，跟隨的機器人會跟同步資料一起保存。" },
+        { title: "投資組合", text: "填本金、幣別、風險承受度與預期漲幅。可套用關注組合，再產生權重、本幣金額、股數/張數、信賴區間與風險警告。" },
+        { title: "匿名討論", text: "討論區不用登入，按台灣日期每日更新。Enter 送出、Shift+Enter 換行，可插入表情，自己的留言可刪除。" }
+      ];
     }
 
     function forumDateKey() {
@@ -990,6 +1083,36 @@
       renderForum();
     }
 
+    function parseWatchBundle(text) {
+      if (!String(text || "").startsWith(WATCH_BUNDLE_PREFIX)) return null;
+      try {
+        const payload = JSON.parse(String(text).slice(WATCH_BUNDLE_PREFIX.length));
+        const symbols = [...new Set((payload.symbols || []).map((item) => String(item).trim().toUpperCase()).filter(Boolean))].slice(0, 30);
+        return { code: payload.code || "", symbols, ts: payload.ts || Date.now() };
+      } catch {
+        return null;
+      }
+    }
+
+    function renderWatchBundlePost(post, time, mine) {
+      const payload = parseWatchBundle(post.text);
+      if (!payload) return "";
+      const encoded = encodeURIComponent(JSON.stringify(payload.symbols));
+      const chips = payload.symbols.map((symbol) => `<span class="tag">${escapeHtml(symbol)}</span>`).join("");
+      return `<div class="forum-post bundle ${mine}">
+        <div class="forum-post-head"><span>${escapeHtml(post.user)} · ${time}</span><button class="forum-delete" type="button" onclick="deleteForumPost('${post.id}')">x</button></div>
+        <div class="watch-share-card">
+          <strong>${rt("watchBundleTitle")}</strong>
+          <small>${escapeHtml(rt("watchBundleHint"))}</small>
+          <div class="bundle-symbols">${chips || `<span class="muted">${t("noWatch")}</span>`}</div>
+          <div class="bundle-actions">
+            <button class="secondary" type="button" onclick="importWatchBundle('${encoded}', 'replace')">${rt("watchImportReplace")}</button>
+            <button type="button" onclick="importWatchBundle('${encoded}', 'merge')">${rt("watchImportMerge")}</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
     function renderForum() {
       const userId = forumUserId();
       const roomText = `${rt("todayRoom")} ${forumDateKey()}`;
@@ -1005,6 +1128,8 @@
       const html = forumPosts.map((post) => {
         const time = new Date(post.time).toLocaleTimeString(lang === "en" ? "en-US" : "zh-TW", { hour: "2-digit", minute: "2-digit" });
         const mine = post.user === userId ? "mine" : "";
+        const bundle = renderWatchBundlePost(post, time, mine);
+        if (bundle) return bundle;
         return `<div class="forum-post ${mine}"><div class="forum-post-head"><span>${escapeHtml(post.user)} · ${time}</span><button class="forum-delete" type="button" onclick="deleteForumPost('${post.id}')">x</button></div><div>${escapeHtml(post.text)}</div></div>`;
       }).join("");
       targets.forEach((target) => {
@@ -1042,6 +1167,7 @@
         watch = [...new Set(state.watch.map((item) => String(item).toUpperCase()))];
         localStorage.setItem("srr.watch", JSON.stringify(watch));
         renderWatchlist();
+        renderWatchDetailPanel();
       }
       if (Array.isArray(state.bots)) {
         followedBots = state.bots;
@@ -1601,7 +1727,7 @@
       const allocationRows = (data.allocations || []).map((row) => {
         const clickable = row.symbol !== "CASH";
         const reasons = (row.reasons || []).map((item) => escapeHtml(reasonLabel(item))).join(", ");
-        const local = row.local_currency ? `${money(row.local_amount, row.local_currency)} / ${row.shares} sh` : money(row.amount, row.currency);
+        const local = row.local_currency ? `${money(row.local_amount, row.local_currency)} / ${holdingUnits(row)}` : money(row.amount, row.currency);
         const targetNote = row.target_expected_pct == null ? "" : `<small>${rt("portfolioTarget")}: ${signed(row.target_expected_pct, "%")} · gap ${fmt(row.target_gap_pct)}%</small>`;
         return `<div class="allocation-row" ${clickable ? `onclick="analyze('${row.symbol}')"` : ""}>
           <div><strong>${escapeHtml(row.symbol)} · ${escapeHtml(row.name)}</strong><small>${escapeHtml(row.market)} · ${escapeHtml(industryLabel(row.industry))}</small><small>${reasons}</small>${targetNote}</div>
@@ -1678,6 +1804,13 @@
 
     function money(value, currency) {
       return `${currency || ""} ${Number(value || 0).toLocaleString(lang === "en" ? "en-US" : "zh-TW", { maximumFractionDigits: 2 })}`;
+    }
+
+    function holdingUnits(row) {
+      const shares = Number(row.shares || 0);
+      const shareText = `${shares.toLocaleString(lang === "en" ? "en-US" : "zh-TW", { maximumFractionDigits: 0 })} ${rt("shareUnit")}`;
+      if ((row.local_currency || row.currency) === "TWD") return `${shareText} / ${fmt(shares / 1000)} ${rt("lotUnit")}`;
+      return shareText;
     }
 
     function capitalize(value) {
@@ -1823,27 +1956,130 @@
       window.open(href, "_blank", "noopener,noreferrer");
     }
 
+    function toggleWatchPanel(force = null) {
+      watchExpanded = force === null ? !watchExpanded : Boolean(force);
+      localStorage.setItem("srr.watchExpanded", watchExpanded ? "1" : "0");
+      renderWatchDetailPanel();
+      if (watchExpanded) refreshWatchlist();
+    }
+
+    function renderWatchDetailPanel() {
+      const panel = $("watchPanel");
+      const box = $("watchDetailPanel");
+      const toggle = $("watchToggleBtn");
+      if (!panel || !box || !toggle) return;
+      panel.style.display = watch.length ? "block" : "none";
+      toggle.textContent = watchExpanded ? rt("watchCollapse") : rt("watchExpand");
+      box.classList.toggle("collapsed", !watchExpanded);
+      if (!watch.length || !watchExpanded) {
+        box.innerHTML = "";
+        return;
+      }
+      box.innerHTML = watch.slice(0, 12).map((symbol) => {
+        const data = watchDetailData[symbol] || {};
+        const state = watchState[symbol] || watchState[data.symbol] || {};
+        const pct = data.change?.pct ?? state.pct ?? 0;
+        const price = data.latest?.close ?? state.price;
+        const direction = pct >= 0 ? "up" : "down";
+        const cls = state.flash ? `flash-${direction}` : "";
+        const riskText = data.risk?.score == null ? "-" : `${data.risk.score}/100`;
+        const trendText = data.risk?.trend ? label(data.risk.trend) : "-";
+        const shortScore = data.suitability?.short_term ? explainScore(data.suitability.short_term) : "-";
+        const longScore = data.suitability?.long_term ? explainScore(data.suitability.long_term) : "-";
+        return `<article class="watch-detail-card ${cls}">
+          <div class="watch-detail-top">
+            <div><strong>${escapeHtml(data.symbol || symbol)}</strong><small>${price == null ? "..." : `${fmt(price)} · ${signed(pct, "%")}`}</small></div>
+            <button class="secondary" type="button" onclick="quick('${symbol}')">${rt("open")}</button>
+            <button class="remove" type="button" onclick="removeWatch('${symbol}', event)">x</button>
+          </div>
+          <div class="watch-detail-kv">
+            <div class="mini-kv"><span>${t("risk")}</span><b>${escapeHtml(riskText)}</b></div>
+            <div class="mini-kv"><span>${t("trend")}</span><b>${escapeHtml(trendText)}</b></div>
+            <div class="mini-kv"><span>${t("short")}</span><b>${escapeHtml(shortScore)}</b></div>
+            <div class="mini-kv"><span>${t("long")}</span><b>${escapeHtml(longScore)}</b></div>
+            <div class="mini-kv"><span>RSI</span><b>${data.technical?.rsi14 == null ? "-" : fmt(data.technical.rsi14)}</b></div>
+            <div class="mini-kv"><span>MA20</span><b>${data.technical?.ma20 == null ? "-" : fmt(data.technical.ma20)}</b></div>
+            <div class="mini-kv"><span>${t("pressure")}</span><b>${data.levels?.resistance_60d == null ? "-" : fmt(data.levels.resistance_60d)}</b></div>
+            <div class="mini-kv"><span>${t("stop")}</span><b>${data.levels?.stop_loss_reference == null ? "-" : fmt(data.levels.stop_loss_reference)}</b></div>
+          </div>
+        </article>`;
+      }).join("");
+    }
+
+    async function shareWatchPortfolio() {
+      if (!watch.length) {
+        if ($("forumResetMeta")) $("forumResetMeta").textContent = rt("portfolioUseWatchEmpty");
+        return;
+      }
+      await saveProfile();
+      const text = `${WATCH_BUNDLE_PREFIX}${JSON.stringify({ code: profileCode, symbols: watch, ts: Date.now() })}`;
+      try {
+        const res = await fetch("/api/forum", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user: forumUserId(), text, room_date: forumDateKey() })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "post failed");
+        forumPosts.push(data.post);
+      } catch {
+        forumPosts.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, user: forumUserId(), text, time: Date.now() });
+      }
+      saveForum();
+      renderForum();
+      switchWorkspaceTab("forum");
+      if ($("forumResetMeta")) $("forumResetMeta").textContent = `${rt("watchShared")} · ${profileCode || "LOCAL"}`;
+    }
+
+    function importWatchBundle(encoded, mode = "merge") {
+      let symbols = [];
+      try { symbols = JSON.parse(decodeURIComponent(encoded)); } catch { symbols = []; }
+      symbols = [...new Set(symbols.map((item) => String(item).trim().toUpperCase()).filter(Boolean))];
+      if (!symbols.length) return;
+      watch = mode === "replace" ? symbols : [...new Set([...watch, ...symbols])];
+      localStorage.setItem("srr.watch", JSON.stringify(watch));
+      renderWatchlist();
+      toggleWatchPanel(true);
+      saveProfile();
+      if ($("forumResetMeta")) $("forumResetMeta").textContent = `${rt("watchImported")} · ${watch.join(", ")}`;
+    }
+
+    function applyWatchToPortfolio() {
+      if (!watch.length) {
+        $("portfolioReport").innerHTML = `<div class="plainbox muted">${rt("portfolioUseWatchEmpty")}</div>`;
+        return;
+      }
+      $("pfSymbols").value = watch.join(", ");
+      switchWorkspaceTab("portfolio");
+      $("pfSymbols").focus();
+      runPortfolio();
+    }
+
     function addWatch(symbol) {
       const clean = (symbol || "").trim().toUpperCase();
       if (!clean) return;
       if (!watch.includes(clean)) watch.push(clean);
       localStorage.setItem("srr.watch", JSON.stringify(watch));
-      renderWatchlist(); refreshWatchlist();
+      renderWatchlist(); renderWatchDetailPanel(); refreshWatchlist();
       saveProfile();
     }
-    function removeWatch(symbol, event) {
-      event.stopPropagation(); watch = watch.filter((item) => item !== symbol); delete watchState[symbol];
-      localStorage.setItem("srr.watch", JSON.stringify(watch)); localStorage.setItem("srr.watchState", JSON.stringify(watchState)); renderWatchlist();
+    function removeWatch(symbol, event = null) {
+      if (event) event.stopPropagation();
+      watch = watch.filter((item) => item !== symbol);
+      delete watchState[symbol];
+      delete watchDetailData[symbol];
+      localStorage.setItem("srr.watch", JSON.stringify(watch)); localStorage.setItem("srr.watchState", JSON.stringify(watchState)); renderWatchlist(); renderWatchDetailPanel();
       saveProfile();
     }
     function renderWatchlist(rows = null) {
       const box = $("watchlist");
       const list = rows || watch.map((symbol) => ({ symbol, state: watchState[symbol] || null }));
-      if (!list.length) { box.innerHTML = `<div class="muted">${t("noWatch")}</div>`; return; }
+      if (!list.length) { box.innerHTML = `<div class="muted">${t("noWatch")}</div>`; renderWatchDetailPanel(); return; }
       box.innerHTML = list.map(({ symbol, state }) => {
         const pct = state?.pct ?? 0; const direction = pct >= 0 ? "up" : "down"; const cls = state?.flash ? `flash-${direction}` : "";
         return `<div class="watch-item ${cls}" onclick="quick('${symbol}')"><div><strong>${symbol}</strong><small>${state ? `${fmt(state.price)} · ${signed(pct, "%")}` : "..."}</small></div><span class="arrow ${direction === "up" ? "up" : "down"}">${arrow(pct)}</span><button class="remove" type="button" onclick="removeWatch('${symbol}', event)">x</button></div>`;
       }).join("");
+      renderWatchDetailPanel();
     }
     async function refreshWatchlist() {
       if (!watch.length) return renderWatchlist();
@@ -1852,9 +2088,9 @@
         try {
           const qs = new URLSearchParams({ symbol, period: "1d", interval: "5m" });
           const res = await fetch(`/api/analyze?${qs}`); const data = await res.json(); if (!res.ok || !data.ok) throw new Error("fetch failed");
-          const previous = watchState[data.symbol]?.price;
+          const previous = (watchState[symbol] || watchState[data.symbol] || {}).price;
           const state = { price: data.latest.close, pct: data.change.pct, flash: previous !== undefined && Math.abs(data.latest.close - previous) > 0.0001 };
-          watchState[data.symbol] = state; rows.push({ symbol: data.symbol, state });
+          watchState[symbol] = state; watchState[data.symbol] = state; watchDetailData[symbol] = data; watchDetailData[data.symbol] = data; rows.push({ symbol, state });
         } catch { rows.push({ symbol, state: watchState[symbol] || null }); }
       }
       localStorage.setItem("srr.watchState", JSON.stringify(watchState)); renderWatchlist(rows);
