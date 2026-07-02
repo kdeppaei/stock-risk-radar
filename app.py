@@ -6,6 +6,7 @@ import re
 import secrets
 import sqlite3
 import time
+import html as html_lib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -32,6 +33,7 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 MOVERS_CACHE: dict[tuple[str, int, str], tuple[float, dict[str, Any]]] = {}
 EVENT_ALERTS_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
+SERENITY_CACHE: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
 
 BOT_DEFS: list[dict[str, Any]] = [
     {"id": "steady_turtle", "name": "Steady Turtle", "style": "conservative", "risk": 26, "idea": "Trend + low drawdown filter. Good for users who hate big swings."},
@@ -159,6 +161,72 @@ RELATED_ASSETS: dict[str, list[dict[str, Any]]] = {
     ],
 }
 
+SERENITY_LINKS = {
+    "x_profile": "https://x.com/aleabitoreddit",
+    "github": "https://github.com/haskaomni/serenity",
+    "capafy": "https://capafy.ai/conversations?id=preview-2521387714",
+}
+
+SERENITY_TOPICS: dict[str, dict[str, Any]] = {
+    "ai_infra_neocloud": {
+        "label": "AI infrastructure / neocloud",
+        "keywords": ["ai", "gpu", "accelerator", "datacenter", "data center", "server", "compute", "inference", "training", "hyperscaler", "cloud"],
+    },
+    "memory_storage": {
+        "label": "Memory / storage cycle",
+        "keywords": ["memory", "dram", "hbm", "nand", "ssd", "storage", "micron", "hynix", "samsung"],
+    },
+    "optical_networking": {
+        "label": "Optical / networking bottleneck",
+        "keywords": ["optical", "photonics", "transceiver", "800g", "1.6t", "ethernet", "infiniband", "networking", "switch"],
+    },
+    "semi_supply_chain": {
+        "label": "Semiconductor supply chain",
+        "keywords": ["semiconductor", "foundry", "wafer", "packaging", "substrate", "euv", "lithography", "asic", "fabless", "chip"],
+    },
+    "power_grid_energy": {
+        "label": "Power grid / energy constraint",
+        "keywords": ["power", "grid", "electricity", "energy", "nuclear", "gas", "transformer", "utility"],
+    },
+    "robotics_space_industrial": {
+        "label": "Robotics / space / industrial",
+        "keywords": ["robot", "robotics", "space", "rocket", "defense", "aerospace", "industrial", "automation"],
+    },
+    "platform_consumer_fintech": {
+        "label": "Platform / consumer / fintech",
+        "keywords": ["ads", "advertising", "marketplace", "consumer", "fintech", "payment", "brokerage", "stablecoin", "social"],
+    },
+}
+
+SERENITY_MARKERS: dict[str, list[str]] = {
+    "conviction": ["upgrade", "outperform", "buy rating", "long", "position", "strong demand", "record", "beat"],
+    "asymmetry": ["mispriced", "undervalued", "cheap", "rerate", "underappreciated", "overlooked", "hidden"],
+    "supply_chain": ["supply chain", "bottleneck", "shortage", "capacity", "lead time", "constraint", "duopoly", "monopoly"],
+    "catalyst": ["earnings", "guidance", "order", "contract", "launch", "ramp", "mass production", "approval"],
+    "risk": ["risk", "dilution", "debt", "lawsuit", "probe", "tariff", "restriction", "competition", "weak demand"],
+    "caution": ["downgrade", "underperform", "sell rating", "trim", "too hot", "overvalued", "bubble", "crowded"],
+}
+
+SERENITY_SYMBOL_THEMES: dict[str, list[str]] = {
+    "NVDA": ["ai_infra_neocloud", "semi_supply_chain"],
+    "AMD": ["ai_infra_neocloud", "semi_supply_chain"],
+    "AVGO": ["ai_infra_neocloud", "optical_networking", "semi_supply_chain"],
+    "MU": ["memory_storage", "ai_infra_neocloud"],
+    "MUU": ["memory_storage", "ai_infra_neocloud"],
+    "SMCI": ["ai_infra_neocloud"],
+    "TSM": ["semi_supply_chain", "ai_infra_neocloud"],
+    "2330.TW": ["semi_supply_chain", "ai_infra_neocloud"],
+    "2454.TW": ["semi_supply_chain"],
+    "2303.TW": ["semi_supply_chain"],
+    "6488.TWO": ["semi_supply_chain"],
+    "6669.TW": ["ai_infra_neocloud"],
+    "2382.TW": ["ai_infra_neocloud"],
+    "TSLA": ["robotics_space_industrial", "power_grid_energy"],
+    "PLTR": ["ai_infra_neocloud", "platform_consumer_fintech"],
+    "COIN": ["platform_consumer_fintech"],
+    "MSTR": ["platform_consumer_fintech"],
+}
+
 
 def init_db() -> None:
     with sqlite3.connect(DB_PATH) as conn:
@@ -262,6 +330,62 @@ def event_alerts(
         "events": events[:18],
     }
     EVENT_ALERTS_CACHE[key] = (now, payload)
+    return payload
+
+
+@app.get("/api/serenity")
+def serenity_signal(
+    symbol: str = Query(..., min_length=1, max_length=32),
+    period: str = Query("6mo", pattern="^(3mo|6mo|1y|2y)$"),
+) -> dict[str, Any]:
+    raw = symbol.strip().upper()
+    normalized, market = normalize_symbol(raw)
+    cache_key = (normalized, period)
+    now = time.time()
+    cached = SERENITY_CACHE.get(cache_key)
+    if cached and now - cached[0] < 600:
+        return cached[1]
+
+    rows: list[dict[str, Any]] = []
+    resolved = normalized
+    for candidate in candidate_symbols(normalized, raw):
+        rows = fetch_price_history(candidate, period, "1d")
+        if rows:
+            resolved = candidate
+            break
+    if len(rows) < 40:
+        raise HTTPException(status_code=422, detail="Not enough data for Serenity tracker.")
+
+    rows = calculate_indicators(rows)
+    latest, previous = rows[-1], rows[-2]
+    levels = support_resistance(rows)
+    news = fetch_news(resolved, market)
+    risk = build_risk(latest, levels, news)
+    prediction = build_prediction(rows, latest, risk, news)
+    score = build_serenity_signal(resolved, market, rows, latest, previous, risk, prediction, news)
+    payload = {
+        "ok": True,
+        "symbol": resolved,
+        "input_symbol": raw,
+        "market": market,
+        "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "links": SERENITY_LINKS,
+        "source_mode": "public-safe proxy",
+        "integration_note": "This panel does not scrape private X sessions or bundle Serenity repo code. It uses public price/news data and a Serenity-style signal framework.",
+        "license_note": "GitHub API currently returns no root license metadata for haskaomni/serenity, so this project links to it instead of copying its code.",
+        "latest": {
+            "date": latest["date_label"],
+            "close": number(latest["close"]),
+            "change_pct": number((latest["close"] / previous["close"] - 1) * 100) if previous["close"] else 0,
+            "volume_ratio": number(latest["VOLUME_RATIO"]),
+            "ret20_pct": number(latest["RET20"] * 100),
+        },
+        "risk": risk,
+        "prediction": prediction,
+        "news": {"label": news["label"], "score": news["score"], "positive": news["positive"], "negative": news["negative"], "items": news["items"][:5]},
+        **score,
+    }
+    SERENITY_CACHE[cache_key] = (now, payload)
     return payload
 
 
@@ -966,6 +1090,182 @@ def enrich_recommendation(row: dict[str, Any]) -> dict[str, Any] | None:
         }
     except Exception:
         return None
+
+
+def build_serenity_signal(
+    symbol: str,
+    market: str,
+    rows: list[dict[str, Any]],
+    latest: dict[str, Any],
+    previous: dict[str, Any],
+    risk: dict[str, Any],
+    prediction: dict[str, Any],
+    news: dict[str, Any],
+) -> dict[str, Any]:
+    universe = find_universe_item(symbol) or {"name": symbol, "industry": "Unknown", "market_cap_usd": 0}
+    text_blob = serenity_text_blob(symbol, universe, news)
+    topics = serenity_topic_hits(symbol, universe, text_blob)
+    markers = serenity_marker_hits(text_blob)
+
+    positive_markers = markers["conviction"] + markers["asymmetry"] + markers["supply_chain"] + markers["catalyst"]
+    negative_markers = markers["risk"] + markers["caution"]
+    theme_score = bounded(34 + len(topics) * 14 + sum(item["hits"] for item in topics) * 4)
+    corpus_score = bounded(48 + positive_markers * 7 - negative_markers * 8 + news["score"] * 6 + news["positive"] * 2 - news["negative"] * 3)
+    setup_score = serenity_setup_score(latest, previous, risk, prediction)
+    risk_score = bounded(int(risk["score"]) + negative_markers * 4 - max(0, markers["asymmetry"] - markers["caution"]) * 2)
+    composite = bounded(theme_score * 0.26 + corpus_score * 0.29 + setup_score * 0.28 + (100 - risk_score) * 0.17)
+    confidence = serenity_confidence(rows, news, topics, markers, prediction)
+    posture = "track" if composite >= 72 and risk_score < 68 else "watch" if composite >= 52 else "avoid"
+    drivers, cautions = serenity_driver_lists(topics, markers, latest, risk, prediction, news)
+
+    return {
+        "serenity_score": composite,
+        "posture": posture,
+        "confidence": confidence,
+        "scores": {
+            "theme": theme_score,
+            "corpus": corpus_score,
+            "setup": setup_score,
+            "risk_adjusted": bounded(100 - risk_score),
+        },
+        "markers": markers,
+        "themes": topics[:5],
+        "drivers": drivers[:6],
+        "cautions": cautions[:5],
+        "tracker_summary": serenity_summary(symbol, composite, posture, risk_score, confidence, topics),
+        "methodology": [
+            "Map the ticker to Serenity-style supply-chain themes.",
+            "Read public RSS headlines for catalyst, asymmetry, conviction, risk and caution markers.",
+            "Blend trend, volume, regression momentum and risk score.",
+            "Keep X tracking as an external link unless the owner provides a legal public feed or a user imports their own local snapshot.",
+        ],
+    }
+
+
+def serenity_text_blob(symbol: str, universe: dict[str, Any], news: dict[str, Any]) -> str:
+    parts = [symbol, universe.get("name", ""), universe.get("industry", "")]
+    parts.extend(item.get("title", "") for item in news.get("items", []))
+    return " ".join(parts).lower()
+
+
+def serenity_topic_hits(symbol: str, universe: dict[str, Any], text_blob: str) -> list[dict[str, Any]]:
+    explicit = set(SERENITY_SYMBOL_THEMES.get(symbol.upper(), []))
+    plain = symbol.upper().replace(".TW", "").replace(".TWO", "")
+    explicit.update(SERENITY_SYMBOL_THEMES.get(plain, []))
+    industry = str(universe.get("industry") or "").lower()
+    if "semi" in industry:
+        explicit.add("semi_supply_chain")
+    if "technology" in industry:
+        explicit.add("ai_infra_neocloud")
+    if "energy" in industry:
+        explicit.add("power_grid_energy")
+    if "financial" in industry or "communication" in industry or "consumer" in industry:
+        explicit.add("platform_consumer_fintech")
+
+    hits: list[dict[str, Any]] = []
+    for key, info in SERENITY_TOPICS.items():
+        keyword_hits = sum(1 for word in info["keywords"] if word in text_blob)
+        if key in explicit:
+            keyword_hits += 2
+        if keyword_hits:
+            hits.append({"key": key, "label": info["label"], "hits": int(keyword_hits)})
+    hits.sort(key=lambda item: item["hits"], reverse=True)
+    return hits
+
+
+def serenity_marker_hits(text_blob: str) -> dict[str, int]:
+    return {key: int(sum(1 for word in words if word in text_blob)) for key, words in SERENITY_MARKERS.items()}
+
+
+def serenity_setup_score(
+    latest: dict[str, Any],
+    previous: dict[str, Any],
+    risk: dict[str, Any],
+    prediction: dict[str, Any],
+) -> int:
+    change_pct = (latest["close"] / previous["close"] - 1) * 100 if previous["close"] else 0
+    trend_bonus = 14 if risk["trend"] == "bullish" else -12 if risk["trend"] == "bearish" else 0
+    bias_bonus = 12 if prediction["bias"] == "bullish" else -10 if prediction["bias"] == "bearish" else 0
+    ma_bonus = 8 if latest["close"] > latest["MA20"] > latest["MA60"] else -8 if latest["close"] < latest["MA20"] < latest["MA60"] else 0
+    volume_bonus = min(12, max(-4, (latest["VOLUME_RATIO"] - 1) * 8))
+    momentum = latest["RET20"] * 100 * 0.55 + latest["RET5"] * 100 * 0.35 + change_pct * 0.25
+    return bounded(50 + trend_bonus + bias_bonus + ma_bonus + volume_bonus + momentum - int(risk["score"]) * 0.18)
+
+
+def serenity_confidence(
+    rows: list[dict[str, Any]],
+    news: dict[str, Any],
+    topics: list[dict[str, Any]],
+    markers: dict[str, int],
+    prediction: dict[str, Any],
+) -> int:
+    data_depth = min(24, len(rows) / 8)
+    news_depth = min(20, len(news.get("items", [])) * 3)
+    topic_depth = min(18, len(topics) * 5)
+    marker_depth = min(16, sum(markers.values()) * 3)
+    model_depth = min(14, int(prediction.get("confidence") or 0) * 0.18)
+    return bounded(26 + data_depth + news_depth + topic_depth + marker_depth + model_depth)
+
+
+def serenity_driver_lists(
+    topics: list[dict[str, Any]],
+    markers: dict[str, int],
+    latest: dict[str, Any],
+    risk: dict[str, Any],
+    prediction: dict[str, Any],
+    news: dict[str, Any],
+) -> tuple[list[str], list[str]]:
+    drivers: list[str] = []
+    cautions: list[str] = []
+    if topics:
+        drivers.append(f"Theme fit: {', '.join(item['label'] for item in topics[:2])}.")
+    if markers["conviction"]:
+        drivers.append("Public headlines contain conviction/upside markers.")
+    if markers["asymmetry"]:
+        drivers.append("Asymmetry or rerating language appears in the public corpus.")
+    if markers["supply_chain"]:
+        drivers.append("Supply-chain or bottleneck language is present.")
+    if markers["catalyst"]:
+        drivers.append("Catalyst markers such as earnings, guidance, orders or launches appear.")
+    if risk["trend"] == "bullish":
+        drivers.append("Price trend is above key moving-average support.")
+    if prediction["bias"] == "bullish":
+        drivers.append("OLS/momentum model leans bullish.")
+    if news["label"] == "positive":
+        drivers.append("RSS sentiment leans positive.")
+
+    if markers["risk"]:
+        cautions.append("Risk keywords appear in the public corpus.")
+    if markers["caution"]:
+        cautions.append("Caution/overheated language appears in the public corpus.")
+    if int(risk["score"]) >= 70:
+        cautions.append("Technical risk score is high.")
+    elif int(risk["score"]) >= 55:
+        cautions.append("Technical risk is medium; avoid over-sizing.")
+    if latest["RSI14"] >= 75:
+        cautions.append("RSI is overheated; pullback risk is elevated.")
+    if latest["VOLUME_RATIO"] >= 1.8:
+        cautions.append("Volume is unusually high; move may be event-driven.")
+    if news["label"] == "negative":
+        cautions.append("RSS sentiment leans negative.")
+    if not drivers:
+        drivers.append("No strong Serenity-style theme found; treat as a neutral watch.")
+    if not cautions:
+        cautions.append("No severe public-data warning found, but this is not a trading signal.")
+    return drivers, cautions
+
+
+def serenity_summary(
+    symbol: str,
+    score: int,
+    posture: str,
+    risk_score: int,
+    confidence: int,
+    topics: list[dict[str, Any]],
+) -> str:
+    top_theme = topics[0]["label"] if topics else "no dominant theme"
+    posture_text = {"track": "track actively", "watch": "watch with conditions", "avoid": "avoid or wait"}[posture]
+    return f"{symbol}: Serenity-style score {score}/100, {posture_text}. Top theme: {top_theme}. Risk {risk_score}/100, confidence {confidence}/100."
 
 
 def fetch_market_headlines() -> list[dict[str, Any]]:
@@ -1967,13 +2267,31 @@ def fetch_feed(url: str, source: str) -> list[dict[str, Any]]:
         feed = feedparser.parse(resp.content)
         rows = []
         for entry in feed.entries[:8]:
-            title = getattr(entry, "title", "") or ""
-            summary = getattr(entry, "summary", "") or ""
+            title = clean_feed_text(getattr(entry, "title", "") or "")
+            summary = clean_feed_text(getattr(entry, "summary", "") or "")
             if title:
                 rows.append({"source": source, "title": title, "link": getattr(entry, "link", "") or "", "published": getattr(entry, "published", "") or getattr(entry, "updated", "") or "", "sentiment": score_sentiment(f"{title} {summary}")})
         return rows
     except Exception as exc:
         return [{"source": source, "title": f"News fetch failed: {exc}", "link": "", "published": "", "sentiment": 0}]
+
+
+def clean_feed_text(value: str) -> str:
+    text = html_lib.unescape(re.sub(r"<.*?>", "", value or ""))
+    replacements = {
+        "â": "'",
+        "â": "'",
+        "â": '"',
+        "â": '"',
+        "â": "-",
+        "â": "-",
+        "â¦": "...",
+        "Â ": " ",
+        "Â": "",
+    }
+    for bad, good in replacements.items():
+        text = text.replace(bad, good)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def score_sentiment(text: str) -> int:

@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Stock Risk Radar</title>
+  <link rel="icon" href="data:," />
   <style>
     :root {
       --bg: #0b1020; --panel: #111936; --card: #151f42; --text: #ecf2ff; --muted: #97a4c2;
@@ -110,6 +111,24 @@
     .relation-card strong, .relation-card small { display: block; }
     .relation-card p { margin-top: 6px; color: #dbeafe; font-size: 13px; line-height: 1.45; }
     .relation-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+    .serenity-shell { display: grid; gap: 14px; }
+    .serenity-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center; background: #0f172f; border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+    .serenity-avatar { width: 58px; height: 58px; border-radius: 16px; display: grid; place-items: center; background: linear-gradient(135deg, #f8fafc, #7c3aed 58%, #111936); color: #0b1020; font-weight: 900; box-shadow: inset 0 0 0 2px rgba(255,255,255,.34); }
+    .serenity-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .serenity-controls { display: grid; grid-template-columns: minmax(180px, 280px) auto auto; gap: 10px; align-items: end; }
+    .serenity-controls input { width: 100%; }
+    .serenity-grid { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 12px; }
+    .serenity-score { min-height: 224px; display: grid; align-content: center; gap: 8px; text-align: center; background: radial-gradient(circle at 50% 20%, rgba(124,58,237,.28), rgba(21,31,66,.55) 48%, var(--card)); border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
+    .serenity-score b { font-size: 52px; line-height: 1; }
+    .serenity-score small { color: var(--muted); }
+    .serenity-breakdown, .serenity-lists, .serenity-news { display: grid; gap: 8px; }
+    .serenity-breakdown { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .serenity-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .serenity-list { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
+    .serenity-list ul { margin: 8px 0 0 18px; padding: 0; color: #dbeafe; line-height: 1.5; }
+    .serenity-list a { color: #dbeafe; text-decoration: none; }
+    .serenity-list a:hover { color: var(--blue); }
+    .theme-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
     .score-chip { color: #bfdbfe; text-align: right; font-size: 12px; }
     .score-chip b { display: block; color: var(--text); font-size: 16px; margin-top: 2px; }
@@ -233,12 +252,13 @@
     .explain { margin-top: 10px; font-size: 13px; }
     @keyframes blinkUp { 50% { background: rgba(34,197,94,.18); } }
     @keyframes blinkDown { 50% { background: rgba(239,68,68,.18); } }
-    @media (max-width: 1120px) { header, .main, .grid, .statusbar { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards, .screener-results, .watch-detail-grid { grid-template-columns: repeat(2, 1fr); } .watch-summary-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .watch-row-tools { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); } .screener-controls, .portfolio-form { grid-template-columns: repeat(3, 1fr); } .screener-row, .recommend-row, .allocation-row { grid-template-columns: 1fr 1fr; } .portfolio-summary, .interval-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .metric, .score-chip { text-align: left; } .shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 1120px) { header, .main, .grid, .statusbar, .serenity-grid { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards, .screener-results, .watch-detail-grid { grid-template-columns: repeat(2, 1fr); } .watch-summary-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .watch-row-tools { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); } .screener-controls, .portfolio-form { grid-template-columns: repeat(3, 1fr); } .screener-row, .recommend-row, .allocation-row { grid-template-columns: 1fr 1fr; } .portfolio-summary, .interval-grid, .serenity-breakdown, .serenity-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); } .metric, .score-chip { text-align: left; } .shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 640px) {
       .wrap { width: min(100% - 18px, 1440px); }
       .search, .langbar, .quickbar, .chart-actions, .refreshbar { display: grid; grid-template-columns: 1fr 1fr; }
       input, select, button, a.button { width: 100%; }
-      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form, .portfolio-form, .portfolio-summary, .interval-grid, .allocation-row, .mover-board, .mover-tools, .bot-controls, .bot-grid, .hindsight-grid, .syncbar, .watch-detail-grid, .watch-detail-kv, .event-alert-grid, .watch-summary-row, .watch-row-tools { grid-template-columns: 1fr; }
+      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form, .portfolio-form, .portfolio-summary, .interval-grid, .allocation-row, .mover-board, .mover-tools, .bot-controls, .bot-grid, .hindsight-grid, .syncbar, .watch-detail-grid, .watch-detail-kv, .event-alert-grid, .watch-summary-row, .watch-row-tools, .serenity-hero, .serenity-controls, .serenity-breakdown, .serenity-lists { grid-template-columns: 1fr; }
+      .serenity-actions { justify-content: stretch; }
       .portfolio-form .wide-field { grid-column: auto; }
       .forum-shell { height: min(520px, calc(100vh - 160px)); }
       .forum-post { max-width: 88%; }
@@ -328,6 +348,7 @@
         <button class="workspace-tab active" type="button" data-workspace-tab="recommend" data-reco-i18n="tabRecommend">推薦</button>
         <button class="workspace-tab" type="button" data-workspace-tab="screener" data-reco-i18n="tabScreener">篩選</button>
         <button class="workspace-tab" type="button" data-workspace-tab="news" data-reco-i18n="tabNews">要聞</button>
+        <button class="workspace-tab" type="button" data-workspace-tab="serenity" data-reco-i18n="tabSerenity">Serenity</button>
         <button class="workspace-tab" type="button" data-workspace-tab="forum" data-reco-i18n="tabForum">討論</button>
         <button class="workspace-tab" type="button" data-workspace-tab="portfolio" data-reco-i18n="tabPortfolio">組合</button>
         <button class="workspace-tab" type="button" data-workspace-tab="help" data-reco-i18n="tabHelp">說明</button>
@@ -363,6 +384,30 @@
           <div class="ticker"><div id="marketTicker" class="ticker-track">Loading...</div></div>
           <div id="headlineBoard" class="headline-board"></div>
           <div id="videoLinks" class="video-links"></div>
+        </section>
+        <section class="workspace-pane" id="pane-serenity">
+          <div class="serenity-shell">
+            <div class="serenity-hero">
+              <div class="serenity-avatar">S</div>
+              <div>
+                <h2 data-reco-i18n="serenityTitle">Serenity Stock Tracker</h2>
+                <p class="explain" data-reco-i18n="serenityHint">用公開價格與新聞資料做 Serenity-style 主題/語料/技術追蹤；不抓私人 X 登入資料。</p>
+              </div>
+              <div class="serenity-actions">
+                <a class="button secondary" href="https://x.com/aleabitoreddit" target="_blank" rel="noreferrer" data-reco-i18n="serenityOpenX">X</a>
+                <a class="button secondary" href="https://github.com/haskaomni/serenity" target="_blank" rel="noreferrer" data-reco-i18n="serenityOpenGithub">GitHub</a>
+                <a class="button secondary" href="https://capafy.ai/conversations?id=preview-2521387714" target="_blank" rel="noreferrer" data-reco-i18n="serenityOpenCapafy">Capafy</a>
+              </div>
+            </div>
+            <div class="serenity-controls">
+              <label><span class="muted" data-reco-i18n="serenitySymbol">股票代號</span><input id="serenitySymbol" type="text" placeholder="MU, NVDA, 2330.TW" /></label>
+              <button id="serenityRunBtn" type="button" data-reco-i18n="serenityRun">評分目前股票</button>
+              <button class="secondary" type="button" onclick="if(lastData){addWatch(lastData.symbol)}" data-reco-i18n="shortcutWatch">加入關注</button>
+            </div>
+            <div id="serenityOutput" class="serenity-output plainbox">
+              <span class="muted" data-reco-i18n="serenityEmpty">輸入股票或先完成主查詢，即可產生 Serenity-style 分數。</span>
+            </div>
+          </div>
         </section>
         <section class="workspace-pane" id="pane-forum">
           <h2 data-reco-i18n="forumTitle">匿名即時討論</h2>
@@ -581,6 +626,7 @@
     let screenerData = null;
     let moversData = null;
     let eventAlertsData = null;
+    let serenityData = null;
     let moverTimer = null;
     let moverLastPrices = {};
     let portfolioData = null;
@@ -669,7 +715,7 @@
     const st = (key) => (screenerCopy[lang] && screenerCopy[lang][key]) || screenerCopy.en[key] || key;
 
     Object.assign(recoCopy["zh-tw"], {
-      tabRecommend: "常用", tabScreener: "篩選", tabNews: "要聞", tabForum: "討論", tabPortfolio: "組合", tabHelp: "說明",
+      tabRecommend: "常用", tabScreener: "篩選", tabNews: "要聞", tabSerenity: "Serenity", tabForum: "討論", tabPortfolio: "組合", tabHelp: "說明",
       title: "近期股票推薦", hint: "依回歸動能、技術面、消息面、基本面與流動性綜合評分排序。",
       refresh: "刷新推薦", loading: "讀取推薦中", ranking: "綜合排名", headlines: "財經要聞 / 直播入口",
       updated: "更新", scanned: "掃描", ranked: "排名", score: "總分", stats: "統計", tech: "技術", news: "消息", base: "基本面",
@@ -677,7 +723,7 @@
       forumTitle: "匿名即時討論", forumHint: "本機匿名留言，不需登入；依台灣日期每日自動重置。",
       forumPlaceholder: "輸入盤中觀察、新聞連結或提醒，Enter 送出，Shift+Enter 換行", post: "送出", todayRoom: "今日討論室", emptyForum: "目前沒有留言",
       shortcutTitle: "快捷鍵", shortcutFocus: "聚焦股票輸入", shortcutAnalyze: "查詢目前股票", shortcutRecommend: "開啟推薦",
-      shortcutScreenerTab: "開啟篩選", shortcutNews: "開啟要聞", shortcutForum: "開啟討論", shortcutPortfolio: "開啟組合", shortcutHelp: "開啟說明",
+      shortcutScreenerTab: "開啟篩選", shortcutNews: "開啟要聞", shortcutSerenity: "開啟 Serenity", shortcutForum: "開啟討論", shortcutPortfolio: "開啟組合", shortcutHelp: "開啟說明",
       shortcutRefresh: "刷新推薦", shortcutScreener: "執行股票篩選", shortcutWatch: "加入關注",
       moversTitle: "即時漲跌報牌", gainers: "正在漲", losers: "正在跌", moversHint: "以 1d/5m 或近 5 日資料估算，依 Yahoo chart 更新。",
       moverMode: "報牌模式", moverRecent: "近期 5 日", moverLive: "即時動態", moverRefresh: "刷新報牌", moverLiveHint: "即時模式約 8 秒刷新；Yahoo 有新 5 分鐘 bar 才會變動。", moverRecentHint: "預設比較近 5 日漲跌，較適合看最近資金方向。",
@@ -701,10 +747,15 @@
       watchBundleHint: "點選覆蓋或添加，即可把這組股票帶到本裝置。", watchImportReplace: "全抄覆蓋", watchImportMerge: "只添加缺少", watchImported: "已匯入關注組合",
       watchSyncGuide: "同步方式：裝置 A 先按「儲存同步」並「分享到討論」；裝置 B 打開同頁討論，輸入同步碼載入，或直接在組合分享卡點覆蓋/添加。",
       watchHolding: "持有", watchObserving: "觀望", watchAlertTitle: "關注急轉提醒", watchAlertRisk: "風險快速升高", watchAlertTrend: "趨勢轉弱", watchAlertPrice: "短線價格急跌", watchAlertRecover: "短線轉強提醒",
-      portfolioUseWatch: "套用關注並試算", portfolioUseWatchEmpty: "尚未有關注股票可套用", shareUnit: "股", lotUnit: "張", featureGuideTitle: "功能說明"
+      portfolioUseWatch: "套用關注並試算", portfolioUseWatchEmpty: "尚未有關注股票可套用", shareUnit: "股", lotUnit: "張", featureGuideTitle: "功能說明",
+      serenityTitle: "Serenity Stock Tracker", serenityHint: "整合 Serenity 的研究方向：用公開價格、RSS 新聞、供應鏈主題與技術面產生追蹤分數；不抓私人 X 登入資料。",
+      serenitySymbol: "股票代號", serenityRun: "評分目前股票", serenityLoading: "Serenity 追蹤中", serenityEmpty: "輸入股票或先完成主查詢，即可產生 Serenity-style 分數。",
+      serenityOpenX: "開啟 X", serenityOpenGithub: "開源 Repo", serenityOpenCapafy: "Capafy 預覽", serenityScore: "Serenity 分數", serenityPosture: "追蹤姿態", serenityConfidence: "信心水準",
+      serenityTheme: "主題", serenityCorpus: "語料", serenitySetup: "量價", serenityRiskAdjusted: "風險調整", serenityDrivers: "支持訊號", serenityCautions: "風險提醒", serenityNews: "公開新聞線索", serenityLimits: "資料限制",
+      serenityTrack: "積極追蹤", serenityWatch: "條件觀察", serenityAvoid: "先等訊號", serenityNoPrivate: "本區不爬 X 私人登入態，也不內嵌未確認授權的第三方程式碼；外部來源請從按鈕開啟。"
     });
     Object.assign(recoCopy["zh-cn"], {
-      tabRecommend: "常用", tabScreener: "筛选", tabNews: "要闻", tabForum: "讨论", tabPortfolio: "组合", tabHelp: "说明",
+      tabRecommend: "常用", tabScreener: "筛选", tabNews: "要闻", tabSerenity: "Serenity", tabForum: "讨论", tabPortfolio: "组合", tabHelp: "说明",
       title: "近期股票推荐", hint: "按回归动能、技术面、消息面、基本面与流动性综合评分排序。",
       refresh: "刷新推荐", loading: "读取推荐中", ranking: "综合排名", headlines: "财经要闻 / 直播入口",
       updated: "更新", scanned: "扫描", ranked: "排名", score: "总分", stats: "统计", tech: "技术", news: "消息", base: "基本面",
@@ -712,7 +763,7 @@
       forumTitle: "匿名即时讨论", forumHint: "本机匿名留言，不需登入；按台湾日期每日自动重置。",
       forumPlaceholder: "输入盘中观察、新闻链接或提醒，Enter 发送，Shift+Enter 换行", post: "发送", todayRoom: "今日讨论室", emptyForum: "目前没有留言",
       shortcutTitle: "快捷键", shortcutFocus: "聚焦股票输入", shortcutAnalyze: "查询目前股票", shortcutRecommend: "开启推荐",
-      shortcutScreenerTab: "开启筛选", shortcutNews: "开启要闻", shortcutForum: "开启讨论", shortcutPortfolio: "开启组合", shortcutHelp: "开启说明",
+      shortcutScreenerTab: "开启筛选", shortcutNews: "开启要闻", shortcutSerenity: "开启 Serenity", shortcutForum: "开启讨论", shortcutPortfolio: "开启组合", shortcutHelp: "开启说明",
       shortcutRefresh: "刷新推荐", shortcutScreener: "执行股票筛选", shortcutWatch: "加入关注",
       moversTitle: "即时涨跌报价", gainers: "正在涨", losers: "正在跌", moversHint: "以 1d/5m 或近 5 日资料估算，按 Yahoo chart 更新。",
       moverMode: "报价模式", moverRecent: "近期 5 日", moverLive: "即时动态", moverRefresh: "刷新报价", moverLiveHint: "即时模式约 8 秒刷新；Yahoo 有新 5 分钟 bar 才会变动。", moverRecentHint: "默认比较近 5 日涨跌，较适合看最近资金方向。",
@@ -736,12 +787,17 @@
       watchBundleHint: "点选覆盖或添加，即可把这组股票带到本装置。", watchImportReplace: "全抄覆盖", watchImportMerge: "只添加缺少", watchImported: "已汇入关注组合",
       watchSyncGuide: "同步方式：装置 A 先按“储存同步”并“分享到讨论”；装置 B 打开同页讨论，输入同步码载入，或直接在组合分享卡点覆盖/添加。",
       watchHolding: "持有", watchObserving: "观望", watchAlertTitle: "关注急转提醒", watchAlertRisk: "风险快速升高", watchAlertTrend: "趋势转弱", watchAlertPrice: "短线价格急跌", watchAlertRecover: "短线转强提醒",
-      portfolioUseWatch: "套用关注并试算", portfolioUseWatchEmpty: "尚未有关注股票可套用", shareUnit: "股", lotUnit: "张", featureGuideTitle: "功能说明"
+      portfolioUseWatch: "套用关注并试算", portfolioUseWatchEmpty: "尚未有关注股票可套用", shareUnit: "股", lotUnit: "张", featureGuideTitle: "功能说明",
+      serenityTitle: "Serenity Stock Tracker", serenityHint: "整合 Serenity 的研究方向：用公开价格、RSS 新闻、供应链主题与技术面产生追踪分数；不抓私人 X 登录资料。",
+      serenitySymbol: "股票代码", serenityRun: "评分目前股票", serenityLoading: "Serenity 追踪中", serenityEmpty: "输入股票或先完成主查询，即可产生 Serenity-style 分数。",
+      serenityOpenX: "开启 X", serenityOpenGithub: "开源 Repo", serenityOpenCapafy: "Capafy 预览", serenityScore: "Serenity 分数", serenityPosture: "追踪姿态", serenityConfidence: "置信水平",
+      serenityTheme: "主题", serenityCorpus: "语料", serenitySetup: "量价", serenityRiskAdjusted: "风险调整", serenityDrivers: "支持信号", serenityCautions: "风险提醒", serenityNews: "公开新闻线索", serenityLimits: "资料限制",
+      serenityTrack: "积极追踪", serenityWatch: "条件观察", serenityAvoid: "先等信号", serenityNoPrivate: "本区不爬 X 私人登录态，也不内嵌未确认授权的第三方程序码；外部来源请从按钮开启。"
     });
     Object.assign(recoCopy.en, {
-      tabRecommend: "Home", tabScreener: "Screener", tabNews: "News", tabForum: "Forum", tabPortfolio: "Portfolio", tabHelp: "Help",
+      tabRecommend: "Home", tabScreener: "Screener", tabNews: "News", tabSerenity: "Serenity", tabForum: "Forum", tabPortfolio: "Portfolio", tabHelp: "Help",
       forumPlaceholder: "Add intraday notes, links, or reminders. Enter posts, Shift+Enter adds a line.",
-      shortcutScreenerTab: "Open screener", shortcutPortfolio: "Open portfolio",
+      shortcutScreenerTab: "Open screener", shortcutSerenity: "Open Serenity", shortcutPortfolio: "Open portfolio",
       moversTitle: "Live Movers", gainers: "Rising", losers: "Falling", moversHint: "Uses 1d/5m or recent 5-day Yahoo chart data.",
       moverMode: "Mover mode", moverRecent: "Recent 5D", moverLive: "Live pulse", moverRefresh: "Refresh movers", moverLiveHint: "Live pulse refreshes about every 8 seconds; values change when Yahoo has a new 5-minute bar.", moverRecentHint: "Default view compares recent 5-day moves to show short-term capital direction.",
       relatedType: "Type", relatedStrength: "Correlation", relatedStructure: "Structure", noRelated: "No related assets yet",
@@ -764,7 +820,12 @@
       watchBundleHint: "Use replace or merge to bring this set into this device.", watchImportReplace: "Replace all", watchImportMerge: "Add missing only", watchImported: "Watchlist imported",
       watchSyncGuide: "Sync flow: Device A clicks Save sync and Share to forum. Device B opens the same discussion, loads the sync code, or imports from the watchlist bundle card.",
       watchHolding: "Holding", watchObserving: "Watching", watchAlertTitle: "Watchlist turn alert", watchAlertRisk: "Risk rising fast", watchAlertTrend: "Trend weakening", watchAlertPrice: "Short-term price drop", watchAlertRecover: "Short-term strength alert",
-      portfolioUseWatch: "Use watchlist & run", portfolioUseWatchEmpty: "No watched stocks to use yet", shareUnit: "shares", lotUnit: "lots", featureGuideTitle: "Feature Guide"
+      portfolioUseWatch: "Use watchlist & run", portfolioUseWatchEmpty: "No watched stocks to use yet", shareUnit: "shares", lotUnit: "lots", featureGuideTitle: "Feature Guide",
+      serenityTitle: "Serenity Stock Tracker", serenityHint: "A public-safe Serenity-style tracker using price, RSS news, supply-chain themes and technical setup. It does not scrape private X sessions.",
+      serenitySymbol: "Ticker", serenityRun: "Score ticker", serenityLoading: "Tracking with Serenity", serenityEmpty: "Enter a ticker or analyze one first to generate a Serenity-style score.",
+      serenityOpenX: "Open X", serenityOpenGithub: "Open repo", serenityOpenCapafy: "Capafy preview", serenityScore: "Serenity Score", serenityPosture: "Posture", serenityConfidence: "Confidence",
+      serenityTheme: "Theme", serenityCorpus: "Corpus", serenitySetup: "Setup", serenityRiskAdjusted: "Risk adjusted", serenityDrivers: "Support Signals", serenityCautions: "Risk Notes", serenityNews: "Public News Leads", serenityLimits: "Data Limits",
+      serenityTrack: "Track actively", serenityWatch: "Watch conditionally", serenityAvoid: "Wait for signal", serenityNoPrivate: "This panel does not scrape private X login sessions or embed third-party code with unclear license metadata. Use the external buttons for original sources."
     });
 
     Object.assign(screenerCopy["zh-tw"], {
@@ -943,6 +1004,7 @@
     $("recoRefreshBtn").addEventListener("click", () => loadRecommendations());
     $("moverRefreshBtn").addEventListener("click", () => loadMovers());
     $("moverMode").addEventListener("change", () => { moverLastPrices = {}; loadMovers(); scheduleMoverRefresh(); });
+    $("serenityRunBtn").addEventListener("click", () => runSerenity());
     $("forumPostBtn").addEventListener("click", () => postForumMessage("main"));
     $("forumText").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); postForumMessage("main"); } });
     $("floatForumPostBtn").addEventListener("click", () => postForumMessage("float"));
@@ -977,6 +1039,7 @@
       renderShortcuts();
       renderWatchDetailPanel();
       if (eventAlertsData) renderEventAlerts(eventAlertsData);
+      if (serenityData) renderSerenity(serenityData);
       renderForum();
     }
 
@@ -984,6 +1047,7 @@
       document.querySelectorAll("[data-workspace-tab]").forEach((btn) => btn.classList.toggle("active", btn.dataset.workspaceTab === name));
       document.querySelectorAll(".workspace-pane").forEach((pane) => pane.classList.toggle("active", pane.id === `pane-${name}`));
       if (name === "screener" && !botData) runBots();
+      if (name === "serenity" && !serenityData) runSerenity();
     }
 
     function handleShortcuts(event) {
@@ -1002,9 +1066,10 @@
         "1": () => switchWorkspaceTab("recommend"),
         "2": () => switchWorkspaceTab("screener"),
         "3": () => switchWorkspaceTab("news"),
-        "4": () => switchWorkspaceTab("forum"),
-        "5": () => switchWorkspaceTab("portfolio"),
-        "6": () => switchWorkspaceTab("help"),
+        "4": () => switchWorkspaceTab("serenity"),
+        "5": () => switchWorkspaceTab("forum"),
+        "6": () => switchWorkspaceTab("portfolio"),
+        "7": () => switchWorkspaceTab("help"),
         r: () => loadRecommendations(),
         f: () => runScreener(),
         w: () => addWatch(lastData?.symbol || $("symbol").value.trim()),
@@ -1022,9 +1087,10 @@
         ["Alt+1", rt("shortcutRecommend")],
         ["Alt+2", rt("shortcutScreenerTab")],
         ["Alt+3", rt("shortcutNews")],
-        ["Alt+4", rt("shortcutForum")],
-        ["Alt+5", rt("shortcutPortfolio")],
-        ["Alt+6", rt("shortcutHelp")],
+        ["Alt+4", rt("shortcutSerenity")],
+        ["Alt+5", rt("shortcutForum")],
+        ["Alt+6", rt("shortcutPortfolio")],
+        ["Alt+7", rt("shortcutHelp")],
         ["Alt+R", rt("shortcutRefresh")],
         ["Alt+F", rt("shortcutScreener")],
         ["Alt+W", rt("shortcutWatch")],
@@ -1039,6 +1105,7 @@
       if (lang === "en") {
         return [
           { title: "Analyze", text: "Enter a US or Taiwan ticker, choose Today/Day/Week, then run analysis. The main cards show price, move, risk and trend; the chart can open Google Finance in a new tab." },
+          { title: "Serenity Tracker", text: "Open the Serenity tab to score the current ticker with public price/news data and supply-chain themes. Original X, GitHub and Capafy sources stay as external links." },
           { title: "Watchlist", text: "Click Watch to save the current ticker. Use the expand button under the summary cards to show watched-stock mini reports, query one ticker, or remove it." },
           { title: "Cross-device sync", text: "Device A: click Save sync and Share to forum. Device B: enter the same sync code, or click Replace all/Add missing on the watchlist bundle in the discussion." },
           { title: "Screener and bots", text: "The screener filters by market, price and industry. Bot lab is paper simulation only; followed bots are saved with your sync profile." },
@@ -1049,6 +1116,7 @@
       if (lang === "zh-cn") {
         return [
           { title: "股票分析", text: "输入美股或台股代码，选择 Today/Day/Week 后分析。上方卡片显示价格、涨跌、风险与趋势；点 K 线图会另开 Google Finance。" },
+          { title: "Serenity 追踪", text: "打开 Serenity 分页，可用公开价格/新闻资料与供应链主题替目前股票评分；原始 X、GitHub、Capafy 来源保留为外部链接。" },
           { title: "关注清单", text: "按加入关注可保存目前股票。摘要卡下方的展开按钮会显示已关注股票的小报告，也能单独查询或删除。" },
           { title: "跨装置同步", text: "装置 A：按储存同步并分享到讨论。装置 B：输入同一组同步码载入，或在讨论里的关注组合卡点全抄覆盖/只添加缺少。" },
           { title: "筛选与机器人", text: "筛选页可按市场、价格与产业找股票；机器人训练场只是纸上模拟，跟随的机器人会跟同步资料一起保存。" },
@@ -1058,6 +1126,7 @@
       }
       return [
         { title: "股票分析", text: "輸入美股或台股代號，選 Today/Day/Week 後分析。上方卡片顯示價格、漲跌、風險與趨勢；點 K 線圖會另開 Google Finance。" },
+        { title: "Serenity 追蹤", text: "打開 Serenity 分頁，可用公開價格/新聞資料與供應鏈主題替目前股票評分；原始 X、GitHub、Capafy 來源保留為外部連結。" },
         { title: "關注清單", text: "按加入關注可保存目前股票。摘要卡下方的展開按鈕會顯示已關注股票的小報告，也能單獨查詢或刪除。" },
         { title: "跨裝置同步", text: "裝置 A：按儲存同步並分享到討論。裝置 B：輸入同一組同步碼載入，或在討論裡的關注組合卡點全抄覆蓋/只添加缺少。" },
         { title: "篩選與機器人", text: "篩選頁可按市場、價格與產業找股票；機器人訓練場只是紙上模擬，跟隨的機器人會跟同步資料一起保存。" },
@@ -1622,6 +1691,73 @@
       return rt("eventMacro");
     }
 
+    async function runSerenity(symbol = "") {
+      const activeSymbol = (symbol || $("serenitySymbol").value || lastData?.symbol || $("symbol").value || "MU").trim().toUpperCase();
+      $("serenitySymbol").value = activeSymbol;
+      const box = $("serenityOutput");
+      box.className = "serenity-output plainbox";
+      box.innerHTML = `<span class="muted">${rt("serenityLoading")}...</span>`;
+      try {
+        const qs = new URLSearchParams({ symbol: activeSymbol, period: "6mo" });
+        const res = await fetch(`/api/serenity?${qs}`);
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "Serenity tracker failed");
+        serenityData = data;
+        renderSerenity(data);
+      } catch (error) {
+        box.innerHTML = `<span class="muted">${escapeHtml(error.message)}</span>`;
+      }
+    }
+
+    function renderSerenity(data) {
+      const postureClass = data.posture === "track" ? "good" : data.posture === "avoid" ? "bad" : "warn";
+      const scores = data.scores || {};
+      const scoreCards = [
+        [rt("serenityTheme"), scores.theme],
+        [rt("serenityCorpus"), scores.corpus],
+        [rt("serenitySetup"), scores.setup],
+        [rt("serenityRiskAdjusted"), scores.risk_adjusted],
+      ].map(([name, value]) => `<div class="mini-kv"><span>${escapeHtml(name)}</span><b>${value ?? "-"}/100</b></div>`).join("");
+      const themeTags = (data.themes || []).map((item) => `<span class="tag">${escapeHtml(item.label)} · ${escapeHtml(item.hits)}</span>`).join("") || `<span class="tag">${rt("noData")}</span>`;
+      const drivers = listItems(data.drivers);
+      const cautions = listItems(data.cautions);
+      const news = (data.news?.items || []).map((item) => `<li><a href="${escapeHtml(item.link || "#")}" target="_blank" rel="noreferrer">${escapeHtml(item.title || "")}</a><small class="muted"> · ${escapeHtml(item.source || "")}</small></li>`).join("") || `<li>${escapeHtml(rt("noData"))}</li>`;
+      $("serenityOutput").className = "serenity-output";
+      $("serenityOutput").innerHTML = `
+        <div class="serenity-grid">
+          <section class="serenity-score">
+            <small>${escapeHtml(data.symbol || "")} · ${escapeHtml(data.source_mode || "")}</small>
+            <b>${escapeHtml(data.serenity_score ?? "-")}</b>
+            <span class="tag ${postureClass}">${escapeHtml(serenityPosture(data.posture))}</span>
+            <small>${rt("serenityConfidence")}: ${escapeHtml(data.confidence ?? "-")}/100</small>
+          </section>
+          <section class="serenity-lists">
+            <div class="serenity-list"><strong>${rt("serenityDrivers")}</strong><ul>${drivers}</ul></div>
+            <div class="serenity-list"><strong>${rt("serenityCautions")}</strong><ul>${cautions}</ul></div>
+          </section>
+        </div>
+        <div class="serenity-breakdown">${scoreCards}</div>
+        <div class="serenity-list">
+          <strong>${rt("serenityPosture")}</strong>
+          <p class="explain">${escapeHtml(data.tracker_summary || "")}</p>
+          <div class="theme-tags">${themeTags}</div>
+        </div>
+        <div class="serenity-lists">
+          <div class="serenity-list"><strong>${rt("serenityNews")}</strong><ul>${news}</ul></div>
+          <div class="serenity-list"><strong>${rt("serenityLimits")}</strong><ul><li>${escapeHtml(rt("serenityNoPrivate"))}</li><li>${escapeHtml(data.license_note || "")}</li><li>${escapeHtml(data.integration_note || "")}</li></ul></div>
+        </div>`;
+    }
+
+    function listItems(rows = []) {
+      return rows.length ? rows.map((item) => `<li>${escapeHtml(item)}</li>`).join("") : `<li>${escapeHtml(rt("noData"))}</li>`;
+    }
+
+    function serenityPosture(value) {
+      if (value === "track") return rt("serenityTrack");
+      if (value === "avoid") return rt("serenityAvoid");
+      return rt("serenityWatch");
+    }
+
     async function loadRecommendations() {
       const button = $("recoRefreshBtn");
       button.disabled = true;
@@ -1952,6 +2088,8 @@
 
     function render(data) {
       lastData = data;
+      if ($("serenitySymbol")) $("serenitySymbol").value = data.symbol;
+      if (serenityData && serenityData.symbol !== data.symbol) serenityData = null;
       const isTW = data.market === "TW";
       $("ticker").textContent = data.symbol;
       $("price").textContent = fmt(data.latest.close);
