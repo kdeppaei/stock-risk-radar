@@ -35,6 +35,7 @@ MOVERS_CACHE: dict[tuple[str, int, str], tuple[float, dict[str, Any]]] = {}
 EVENT_ALERTS_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 SERENITY_CACHE: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
 SERENITY_RECENT_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
+SERENITY_INTEL_CACHE: dict[tuple[int], tuple[float, dict[str, Any]]] = {}
 
 BOT_DEFS: list[dict[str, Any]] = [
     {"id": "steady_turtle", "name": "Steady Turtle", "style": "conservative", "risk": 26, "idea": "Trend + low drawdown filter. Good for users who hate big swings."},
@@ -425,6 +426,66 @@ def serenity_recent(
         "links": SERENITY_LINKS,
     }
     SERENITY_RECENT_CACHE[cache_key] = (now, payload)
+    return payload
+
+
+@app.get("/api/serenity/intel")
+def serenity_intel(limit: int = Query(8, ge=3, le=16)) -> dict[str, Any]:
+    cache_key = (limit,)
+    now = time.time()
+    cached = SERENITY_INTEL_CACHE.get(cache_key)
+    if cached and now - cached[0] < 600:
+        return cached[1]
+
+    sources = fetch_serenity_public_intel_sources()
+    symbol_counts: dict[str, dict[str, Any]] = {}
+    for source in sources:
+        for hit in source.get("symbols", []):
+            symbol = hit["symbol"]
+            bucket = symbol_counts.setdefault(
+                symbol,
+                {"symbol": symbol, "mentions": 0, "sources": set(), "aliases": set(), "source_names": []},
+            )
+            bucket["mentions"] += int(hit.get("count", 1))
+            bucket["sources"].add(source["name"])
+            bucket["aliases"].update(hit.get("aliases", []))
+            if source["name"] not in bucket["source_names"]:
+                bucket["source_names"].append(source["name"])
+
+    symbols: list[dict[str, Any]] = []
+    for item in symbol_counts.values():
+        quote = quote_last(item["symbol"])
+        sources_count = len(item["sources"])
+        symbols.append(
+            {
+                "symbol": item["symbol"],
+                "mentions": int(item["mentions"]),
+                "source_count": sources_count,
+                "aliases": sorted(item["aliases"])[:5],
+                "source_names": item["source_names"][:4],
+                "price": quote.get("price"),
+                "change_pct": quote.get("change_pct"),
+                "intel_score": bounded(35 + int(item["mentions"]) * 9 + sources_count * 14),
+            }
+        )
+    symbols.sort(key=lambda row: (row["intel_score"], row["source_count"], row["mentions"]), reverse=True)
+    payload = {
+        "ok": True,
+        "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "refresh_seconds": 600,
+        "source_mode": "public intel collector",
+        "note": "Collects public static pages and RSS headlines only. It does not bypass X or Capafy authentication.",
+        "symbols": symbols[:limit],
+        "sources": sources,
+        "pipeline": [
+            "OS: time-bounded cache avoids repeated network calls and keeps Render memory predictable.",
+            "Data structures: hash maps dedupe aliases and count mentions in O(n) over source text.",
+            "Algorithms: bounded candidate set + stable sort acts like a small priority queue for latest signals.",
+            "Linear algebra: final score is a weighted feature vector of mentions, source count, theme fit and market data.",
+            "Discrete math: symbols, aliases and source memberships are treated as sets/graph edges.",
+        ],
+    }
+    SERENITY_INTEL_CACHE[cache_key] = (now, payload)
     return payload
 
 
@@ -1236,6 +1297,120 @@ def score_serenity_recent_item(item: dict[str, Any]) -> dict[str, Any] | None:
         }
     except Exception:
         return None
+
+
+def fetch_serenity_public_intel_sources() -> list[dict[str, Any]]:
+    sources: list[dict[str, Any]] = []
+    pages = [
+        ("Serenity GitHub README", "https://raw.githubusercontent.com/haskaomni/serenity/main/README.md"),
+        ("Serenity GitHub README fallback", "https://raw.githubusercontent.com/haskaomni/serenity/master/README.md"),
+        ("Capafy preview shell", SERENITY_LINKS["capafy"]),
+    ]
+    seen_url: set[str] = set()
+    for name, url in pages:
+        if url in seen_url:
+            continue
+        seen_url.add(url)
+        source = fetch_public_intel_page(name, url)
+        if source["status"] == "ok" or "Capafy" in name:
+            sources.append(source)
+        if name == "Serenity GitHub README" and source["status"] == "ok":
+            seen_url.add(pages[1][1])
+
+    rss_queries = [
+        ("Serenity public news", '"Serenity Stock Tracker" stock'),
+        ("Alea public news", 'aleabitoreddit stock OR "Serenity" stocks'),
+        ("AI infra topic news", "AI infrastructure semiconductor memory HBM stocks"),
+    ]
+    for name, query in rss_queries:
+        url = f"https://news.google.com/rss/search?q={quote_plus(query)}&hl=en-US&gl=US&ceid=US:en"
+        items = [item for item in fetch_feed(url, name) if "News fetch failed" not in item["title"]]
+        text = " ".join(item["title"] for item in items[:8])
+        sources.append(
+            {
+                "name": name,
+                "url": url,
+                "status": "ok" if items else "empty",
+                "chars": len(text),
+                "summary": public_intel_summary(text, items[0]["title"] if items else "No public RSS headlines found."),
+                "symbols": extract_serenity_stock_mentions(text),
+            }
+        )
+    return sources[:8]
+
+
+def fetch_public_intel_page(name: str, url: str) -> dict[str, Any]:
+    try:
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0 StockRiskRadar/4.6"}, timeout=10)
+        status = "ok" if resp.ok else f"http_{resp.status_code}"
+        text = resp.text[:120000] if resp.text else ""
+        cleaned = clean_html(clean_feed_text(text))
+        capafy_shell = "Capafy" in name and "id=\"root\"" in text and len(cleaned) < 2000
+        summary = public_intel_summary(
+            cleaned,
+            "Static SPA shell found; public transcript content is not embedded." if capafy_shell else "",
+        )
+        return {
+            "name": name,
+            "url": url,
+            "status": "static_shell" if capafy_shell else status,
+            "chars": len(text),
+            "summary": summary,
+            "symbols": extract_serenity_stock_mentions(cleaned),
+        }
+    except Exception as exc:
+        return {"name": name, "url": url, "status": "error", "chars": 0, "summary": str(exc), "symbols": []}
+
+
+def public_intel_summary(text: str, fallback: str = "") -> str:
+    clean = re.sub(r"\s+", " ", clean_html(text or "")).strip()
+    if not clean:
+        return fallback or "No public text extracted."
+    return clean[:260] + ("..." if len(clean) > 260 else "")
+
+
+def extract_serenity_stock_mentions(text: str) -> list[dict[str, Any]]:
+    if not text:
+        return []
+    normalized = f" {text.upper()} "
+    lower = text.lower()
+    alias_map: dict[str, str] = {}
+    name_map: dict[str, str] = {}
+    for item in STOCK_UNIVERSE:
+        symbol = item["symbol"].upper()
+        plain = symbol.replace(".TW", "").replace(".TWO", "")
+        if len(plain) >= 2 and plain not in {"US", "TW"}:
+            alias_map[plain] = symbol
+        alias_map[symbol] = symbol
+        name = item["name"].lower()
+        if len(name) >= 5:
+            name_map[name] = symbol
+
+    counts: dict[str, dict[str, Any]] = {}
+    for alias, symbol in alias_map.items():
+        if len(alias) <= 2:
+            pattern = rf"(?<![A-Z0-9])(?:\$|\(|\s){re.escape(alias)}(?:\)|\s|:|,|\.|$)"
+        else:
+            pattern = rf"(?<![A-Z0-9]){re.escape(alias)}(?![A-Z0-9])"
+        matches = re.findall(pattern, normalized)
+        if not matches:
+            continue
+        bucket = counts.setdefault(symbol, {"symbol": symbol, "count": 0, "aliases": set()})
+        bucket["count"] += len(matches)
+        bucket["aliases"].add(alias)
+
+    for name, symbol in name_map.items():
+        if name in lower:
+            bucket = counts.setdefault(symbol, {"symbol": symbol, "count": 0, "aliases": set()})
+            bucket["count"] += 1
+            bucket["aliases"].add(name.title())
+
+    rows = [
+        {"symbol": symbol, "count": int(info["count"]), "aliases": sorted(info["aliases"])[:5]}
+        for symbol, info in counts.items()
+    ]
+    rows.sort(key=lambda item: item["count"], reverse=True)
+    return rows[:12]
 
 
 def serenity_text_blob(symbol: str, universe: dict[str, Any], news: dict[str, Any]) -> str:
