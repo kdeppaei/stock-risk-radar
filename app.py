@@ -34,6 +34,7 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 MOVERS_CACHE: dict[tuple[str, int, str], tuple[float, dict[str, Any]]] = {}
 EVENT_ALERTS_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 SERENITY_CACHE: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
+SERENITY_RECENT_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 
 BOT_DEFS: list[dict[str, Any]] = [
     {"id": "steady_turtle", "name": "Steady Turtle", "style": "conservative", "risk": 26, "idea": "Trend + low drawdown filter. Good for users who hate big swings."},
@@ -386,6 +387,44 @@ def serenity_signal(
         **score,
     }
     SERENITY_CACHE[cache_key] = (now, payload)
+    return payload
+
+
+@app.get("/api/serenity/recent")
+def serenity_recent(
+    markets: str = Query("US,TW", max_length=16),
+    limit: int = Query(10, ge=3, le=16),
+) -> dict[str, Any]:
+    selected_markets = {part.strip().upper() for part in markets.split(",") if part.strip()}
+    if not selected_markets:
+        selected_markets = {"US", "TW"}
+    cache_key = (",".join(sorted(selected_markets)), limit)
+    now = time.time()
+    cached = SERENITY_RECENT_CACHE.get(cache_key)
+    if cached and now - cached[0] < 180:
+        return cached[1]
+
+    pool = serenity_recent_pool(selected_markets)
+    rows: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        future_map = {executor.submit(score_serenity_recent_item, item): item for item in pool}
+        for future in as_completed(future_map):
+            result = future.result()
+            if result:
+                rows.append(result)
+    rows.sort(key=lambda item: (item["serenity_score"], item["confidence"], -item["risk_score"]), reverse=True)
+    payload = {
+        "ok": True,
+        "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "markets": sorted(selected_markets),
+        "scanned": len(pool),
+        "refresh_seconds": 180,
+        "source_mode": "public-safe proxy",
+        "note": "Ranks public-data Serenity-style candidates. It does not read private X posts or Capafy chat messages without a user-provided token.",
+        "rows": rows[:limit],
+        "links": SERENITY_LINKS,
+    }
+    SERENITY_RECENT_CACHE[cache_key] = (now, payload)
     return payload
 
 
@@ -1140,6 +1179,63 @@ def build_serenity_signal(
             "Keep X tracking as an external link unless the owner provides a legal public feed or a user imports their own local snapshot.",
         ],
     }
+
+
+def serenity_recent_pool(selected_markets: set[str]) -> list[dict[str, Any]]:
+    explicit = {symbol.upper() for symbol in SERENITY_SYMBOL_THEMES}
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in STOCK_UNIVERSE:
+        symbol = item["symbol"].upper()
+        plain = symbol.replace(".TW", "").replace(".TWO", "")
+        thematic = (
+            symbol in explicit
+            or plain in explicit
+            or item["industry"] in {"Semiconductors", "Technology", "Communication", "Energy"}
+        )
+        if item["market"] in selected_markets and thematic and symbol not in seen:
+            rows.append(item)
+            seen.add(symbol)
+    rows.sort(key=lambda item: (item["symbol"].upper() not in explicit, -int(item["market_cap_usd"])))
+    return rows[:32]
+
+
+def score_serenity_recent_item(item: dict[str, Any]) -> dict[str, Any] | None:
+    try:
+        symbol = item["symbol"]
+        rows = fetch_price_history(symbol, "6mo", "1d")
+        if len(rows) < 40:
+            return None
+        rows = calculate_indicators(rows)
+        latest, previous = rows[-1], rows[-2]
+        levels = support_resistance(rows)
+        news = fetch_news(symbol, item["market"])
+        risk = build_risk(latest, levels, news)
+        prediction = build_prediction(rows, latest, risk, news)
+        signal = build_serenity_signal(symbol, item["market"], rows, latest, previous, risk, prediction, news)
+        top_news = next((row for row in news["items"] if row.get("link") and "News fetch failed" not in row.get("title", "")), None)
+        return {
+            "symbol": symbol,
+            "name": item["name"],
+            "market": item["market"],
+            "industry": item["industry"],
+            "price": number(latest["close"]),
+            "change_pct": number((latest["close"] / previous["close"] - 1) * 100) if previous["close"] else 0,
+            "ret20_pct": number(latest["RET20"] * 100),
+            "volume_ratio": number(latest["VOLUME_RATIO"]),
+            "risk_score": int(risk["score"]),
+            "bias": prediction["bias"],
+            "serenity_score": signal["serenity_score"],
+            "posture": signal["posture"],
+            "confidence": signal["confidence"],
+            "themes": signal["themes"][:2],
+            "drivers": signal["drivers"][:3],
+            "cautions": signal["cautions"][:2],
+            "news_label": news["label"],
+            "top_news": top_news,
+        }
+    except Exception:
+        return None
 
 
 def serenity_text_blob(symbol: str, universe: dict[str, Any], news: dict[str, Any]) -> str:

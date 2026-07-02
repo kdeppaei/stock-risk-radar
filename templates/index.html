@@ -128,6 +128,13 @@
     .serenity-list ul { margin: 8px 0 0 18px; padding: 0; color: #dbeafe; line-height: 1.5; }
     .serenity-list a { color: #dbeafe; text-decoration: none; }
     .serenity-list a:hover { color: var(--blue); }
+    .serenity-recent { display: grid; gap: 10px; }
+    .serenity-recent-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .serenity-recent-list { display: grid; gap: 8px; }
+    .serenity-pick { display: grid; grid-template-columns: auto minmax(0, 1fr) repeat(3, minmax(72px, auto)); gap: 10px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; cursor: pointer; }
+    .serenity-pick:hover { border-color: var(--blue); }
+    .serenity-pick strong, .serenity-pick small { display: block; }
+    .serenity-pick small { color: var(--muted); margin-top: 3px; }
     .theme-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
     .score-chip { color: #bfdbfe; text-align: right; font-size: 12px; }
@@ -252,12 +259,12 @@
     .explain { margin-top: 10px; font-size: 13px; }
     @keyframes blinkUp { 50% { background: rgba(34,197,94,.18); } }
     @keyframes blinkDown { 50% { background: rgba(239,68,68,.18); } }
-    @media (max-width: 1120px) { header, .main, .grid, .statusbar, .serenity-grid { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards, .screener-results, .watch-detail-grid { grid-template-columns: repeat(2, 1fr); } .watch-summary-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .watch-row-tools { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); } .screener-controls, .portfolio-form { grid-template-columns: repeat(3, 1fr); } .screener-row, .recommend-row, .allocation-row { grid-template-columns: 1fr 1fr; } .portfolio-summary, .interval-grid, .serenity-breakdown, .serenity-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); } .metric, .score-chip { text-align: left; } .shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 1120px) { header, .main, .grid, .statusbar, .serenity-grid { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards, .screener-results, .watch-detail-grid { grid-template-columns: repeat(2, 1fr); } .watch-summary-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .watch-row-tools { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); } .screener-controls, .portfolio-form { grid-template-columns: repeat(3, 1fr); } .screener-row, .recommend-row, .allocation-row, .serenity-pick { grid-template-columns: 1fr 1fr; } .portfolio-summary, .interval-grid, .serenity-breakdown, .serenity-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); } .metric, .score-chip { text-align: left; } .shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 640px) {
       .wrap { width: min(100% - 18px, 1440px); }
       .search, .langbar, .quickbar, .chart-actions, .refreshbar { display: grid; grid-template-columns: 1fr 1fr; }
       input, select, button, a.button { width: 100%; }
-      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form, .portfolio-form, .portfolio-summary, .interval-grid, .allocation-row, .mover-board, .mover-tools, .bot-controls, .bot-grid, .hindsight-grid, .syncbar, .watch-detail-grid, .watch-detail-kv, .event-alert-grid, .watch-summary-row, .watch-row-tools, .serenity-hero, .serenity-controls, .serenity-breakdown, .serenity-lists { grid-template-columns: 1fr; }
+      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form, .portfolio-form, .portfolio-summary, .interval-grid, .allocation-row, .mover-board, .mover-tools, .bot-controls, .bot-grid, .hindsight-grid, .syncbar, .watch-detail-grid, .watch-detail-kv, .event-alert-grid, .watch-summary-row, .watch-row-tools, .serenity-hero, .serenity-controls, .serenity-breakdown, .serenity-lists, .serenity-pick { grid-template-columns: 1fr; }
       .serenity-actions { justify-content: stretch; }
       .portfolio-form .wide-field { grid-column: auto; }
       .forum-shell { height: min(520px, calc(100vh - 160px)); }
@@ -402,8 +409,19 @@
             <div class="serenity-controls">
               <label><span class="muted" data-reco-i18n="serenitySymbol">股票代號</span><input id="serenitySymbol" type="text" placeholder="MU, NVDA, 2330.TW" /></label>
               <button id="serenityRunBtn" type="button" data-reco-i18n="serenityRun">評分目前股票</button>
+              <button id="serenityRecentBtn" class="secondary" type="button" data-reco-i18n="serenityRefreshRecent">刷新近期清單</button>
               <button class="secondary" type="button" onclick="if(lastData){addWatch(lastData.symbol)}" data-reco-i18n="shortcutWatch">加入關注</button>
             </div>
+            <section class="serenity-list serenity-recent">
+              <div class="serenity-recent-head">
+                <div>
+                  <h3 data-reco-i18n="serenityRecentTitle">Serenity 近期推演股票</h3>
+                  <p class="explain" data-reco-i18n="serenityRecentHint">以公開資料即時掃描高相關題材；非私人 X/Capafy 對話內容。</p>
+                </div>
+                <span class="tag" id="serenityRecentMeta">-</span>
+              </div>
+              <div id="serenityRecentList" class="serenity-recent-list"></div>
+            </section>
             <div id="serenityOutput" class="serenity-output plainbox">
               <span class="muted" data-reco-i18n="serenityEmpty">輸入股票或先完成主查詢，即可產生 Serenity-style 分數。</span>
             </div>
@@ -627,7 +645,9 @@
     let moversData = null;
     let eventAlertsData = null;
     let serenityData = null;
+    let serenityRecentData = null;
     let moverTimer = null;
+    let serenityRecentTimer = null;
     let moverLastPrices = {};
     let portfolioData = null;
     let botData = null;
@@ -752,7 +772,9 @@
       serenitySymbol: "股票代號", serenityRun: "評分目前股票", serenityLoading: "Serenity 追蹤中", serenityEmpty: "輸入股票或先完成主查詢，即可產生 Serenity-style 分數。",
       serenityOpenX: "開啟 X", serenityOpenGithub: "開源 Repo", serenityOpenCapafy: "Capafy 預覽", serenityScore: "Serenity 分數", serenityPosture: "追蹤姿態", serenityConfidence: "信心水準",
       serenityTheme: "主題", serenityCorpus: "語料", serenitySetup: "量價", serenityRiskAdjusted: "風險調整", serenityDrivers: "支持訊號", serenityCautions: "風險提醒", serenityNews: "公開新聞線索", serenityLimits: "資料限制",
-      serenityTrack: "積極追蹤", serenityWatch: "條件觀察", serenityAvoid: "先等訊號", serenityNoPrivate: "本區不爬 X 私人登入態，也不內嵌未確認授權的第三方程式碼；外部來源請從按鈕開啟。"
+      serenityTrack: "積極追蹤", serenityWatch: "條件觀察", serenityAvoid: "先等訊號", serenityNoPrivate: "本區不爬 X 私人登入態，也不內嵌未確認授權的第三方程式碼；外部來源請從按鈕開啟。",
+      serenityRecentTitle: "Serenity 近期推演股票", serenityRecentHint: "以公開價格、RSS 與題材框架即時掃描高相關股票；不是私人 X/Capafy 對話內容。", serenityRefreshRecent: "刷新近期清單",
+      serenityRecentLoading: "讀取 Serenity 近期清單中", serenityRecentEmpty: "暫無近期候選", serenityRecentMeta: "公開代理刷新", serenityRank: "排名", serenityPublicProxy: "公開代理"
     });
     Object.assign(recoCopy["zh-cn"], {
       tabRecommend: "常用", tabScreener: "筛选", tabNews: "要闻", tabSerenity: "Serenity", tabForum: "讨论", tabPortfolio: "组合", tabHelp: "说明",
@@ -792,7 +814,9 @@
       serenitySymbol: "股票代码", serenityRun: "评分目前股票", serenityLoading: "Serenity 追踪中", serenityEmpty: "输入股票或先完成主查询，即可产生 Serenity-style 分数。",
       serenityOpenX: "开启 X", serenityOpenGithub: "开源 Repo", serenityOpenCapafy: "Capafy 预览", serenityScore: "Serenity 分数", serenityPosture: "追踪姿态", serenityConfidence: "置信水平",
       serenityTheme: "主题", serenityCorpus: "语料", serenitySetup: "量价", serenityRiskAdjusted: "风险调整", serenityDrivers: "支持信号", serenityCautions: "风险提醒", serenityNews: "公开新闻线索", serenityLimits: "资料限制",
-      serenityTrack: "积极追踪", serenityWatch: "条件观察", serenityAvoid: "先等信号", serenityNoPrivate: "本区不爬 X 私人登录态，也不内嵌未确认授权的第三方程序码；外部来源请从按钮开启。"
+      serenityTrack: "积极追踪", serenityWatch: "条件观察", serenityAvoid: "先等信号", serenityNoPrivate: "本区不爬 X 私人登录态，也不内嵌未确认授权的第三方程序码；外部来源请从按钮开启。",
+      serenityRecentTitle: "Serenity 近期推演股票", serenityRecentHint: "以公开价格、RSS 与题材框架即时扫描高相关股票；不是私人 X/Capafy 对话内容。", serenityRefreshRecent: "刷新近期清单",
+      serenityRecentLoading: "读取 Serenity 近期清单中", serenityRecentEmpty: "暂无近期候选", serenityRecentMeta: "公开代理刷新", serenityRank: "排名", serenityPublicProxy: "公开代理"
     });
     Object.assign(recoCopy.en, {
       tabRecommend: "Home", tabScreener: "Screener", tabNews: "News", tabSerenity: "Serenity", tabForum: "Forum", tabPortfolio: "Portfolio", tabHelp: "Help",
@@ -825,7 +849,9 @@
       serenitySymbol: "Ticker", serenityRun: "Score ticker", serenityLoading: "Tracking with Serenity", serenityEmpty: "Enter a ticker or analyze one first to generate a Serenity-style score.",
       serenityOpenX: "Open X", serenityOpenGithub: "Open repo", serenityOpenCapafy: "Capafy preview", serenityScore: "Serenity Score", serenityPosture: "Posture", serenityConfidence: "Confidence",
       serenityTheme: "Theme", serenityCorpus: "Corpus", serenitySetup: "Setup", serenityRiskAdjusted: "Risk adjusted", serenityDrivers: "Support Signals", serenityCautions: "Risk Notes", serenityNews: "Public News Leads", serenityLimits: "Data Limits",
-      serenityTrack: "Track actively", serenityWatch: "Watch conditionally", serenityAvoid: "Wait for signal", serenityNoPrivate: "This panel does not scrape private X login sessions or embed third-party code with unclear license metadata. Use the external buttons for original sources."
+      serenityTrack: "Track actively", serenityWatch: "Watch conditionally", serenityAvoid: "Wait for signal", serenityNoPrivate: "This panel does not scrape private X login sessions or embed third-party code with unclear license metadata. Use the external buttons for original sources.",
+      serenityRecentTitle: "Recent Serenity-style Picks", serenityRecentHint: "Live public-data scan for Serenity-adjacent themes. This is not private X or Capafy conversation content.", serenityRefreshRecent: "Refresh recent list",
+      serenityRecentLoading: "Loading recent Serenity list", serenityRecentEmpty: "No recent candidates yet", serenityRecentMeta: "Public proxy refresh", serenityRank: "Rank", serenityPublicProxy: "Public proxy"
     });
 
     Object.assign(screenerCopy["zh-tw"], {
@@ -1005,6 +1031,7 @@
     $("moverRefreshBtn").addEventListener("click", () => loadMovers());
     $("moverMode").addEventListener("change", () => { moverLastPrices = {}; loadMovers(); scheduleMoverRefresh(); });
     $("serenityRunBtn").addEventListener("click", () => runSerenity());
+    $("serenityRecentBtn").addEventListener("click", () => loadSerenityRecent(true));
     $("forumPostBtn").addEventListener("click", () => postForumMessage("main"));
     $("forumText").addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); postForumMessage("main"); } });
     $("floatForumPostBtn").addEventListener("click", () => postForumMessage("float"));
@@ -1040,6 +1067,7 @@
       renderWatchDetailPanel();
       if (eventAlertsData) renderEventAlerts(eventAlertsData);
       if (serenityData) renderSerenity(serenityData);
+      if (serenityRecentData) renderSerenityRecent(serenityRecentData);
       renderForum();
     }
 
@@ -1047,7 +1075,10 @@
       document.querySelectorAll("[data-workspace-tab]").forEach((btn) => btn.classList.toggle("active", btn.dataset.workspaceTab === name));
       document.querySelectorAll(".workspace-pane").forEach((pane) => pane.classList.toggle("active", pane.id === `pane-${name}`));
       if (name === "screener" && !botData) runBots();
-      if (name === "serenity" && !serenityData) runSerenity();
+      if (name === "serenity") {
+        if (!serenityRecentData) loadSerenityRecent();
+        if (!serenityData) runSerenity();
+      }
     }
 
     function handleShortcuts(event) {
@@ -1689,6 +1720,60 @@
       if (value === "earnings") return rt("eventEarnings");
       if (value === "news_watch") return rt("eventNewsWatch");
       return rt("eventMacro");
+    }
+
+    async function loadSerenityRecent(force = false) {
+      const list = $("serenityRecentList");
+      const button = $("serenityRecentBtn");
+      if (!force && serenityRecentData && Date.now() - new Date(serenityRecentData.loaded_at || 0).getTime() < 120000) return;
+      if (button) button.disabled = true;
+      if (list && !serenityRecentData) list.innerHTML = `<div class="muted">${rt("serenityRecentLoading")}...</div>`;
+      try {
+        const res = await fetch("/api/serenity/recent?markets=US,TW&limit=10");
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "Serenity recent failed");
+        data.loaded_at = new Date().toISOString();
+        serenityRecentData = data;
+        renderSerenityRecent(data);
+      } catch (error) {
+        if (list) list.innerHTML = `<div class="muted">${escapeHtml(error.message)}</div>`;
+      } finally {
+        if (button) button.disabled = false;
+      }
+    }
+
+    function renderSerenityRecent(data) {
+      const rows = data.rows || [];
+      const meta = `${rt("serenityRecentMeta")} · ${new Date(data.updated_at || Date.now()).toLocaleTimeString()} · ${data.scanned || 0} scanned · ${data.refresh_seconds || 180}s`;
+      if ($("serenityRecentMeta")) $("serenityRecentMeta").textContent = meta;
+      if (!$("serenityRecentList")) return;
+      if (!rows.length) {
+        $("serenityRecentList").innerHTML = `<div class="muted">${rt("serenityRecentEmpty")}</div>`;
+        return;
+      }
+      $("serenityRecentList").innerHTML = rows.map((row, index) => {
+        const direction = Number(row.change_pct || 0) >= 0 ? "up" : "down";
+        const postureClass = row.posture === "track" ? "good" : row.posture === "avoid" ? "bad" : "warn";
+        const themes = (row.themes || []).map((item) => item.label).join(", ");
+        const topNews = row.top_news?.title ? ` · ${row.top_news.title}` : "";
+        return `<div class="serenity-pick" onclick="openSerenityPick('${escapeHtml(row.symbol)}')">
+          <span class="rank">${index + 1}</span>
+          <div><strong>${escapeHtml(row.symbol)} · ${escapeHtml(row.name || "")}</strong><small>${escapeHtml(row.market || "")} · ${escapeHtml(industryLabel(row.industry))} · ${escapeHtml(themes || rt("serenityPublicProxy"))}</small><small>${escapeHtml((row.drivers || [])[0] || "")}${escapeHtml(topNews)}</small></div>
+          <div class="score-chip"><span>${rt("serenityScore")}</span><b>${escapeHtml(row.serenity_score ?? "-")}</b></div>
+          <div class="score-chip"><span>${rt("serenityPosture")}</span><b><span class="tag ${postureClass}">${escapeHtml(serenityPosture(row.posture))}</span></b></div>
+          <div class="score-chip"><span>${t("change")}</span><b class="${direction}">${arrow(row.change_pct)} ${signed(row.change_pct, "%")}</b></div>
+        </div>`;
+      }).join("");
+    }
+
+    function openSerenityPick(symbol) {
+      $("serenitySymbol").value = symbol;
+      runSerenity(symbol);
+      analyze(symbol);
+    }
+
+    function isWorkspaceTabActive(name) {
+      return document.querySelector(`[data-workspace-tab="${name}"]`)?.classList.contains("active");
     }
 
     async function runSerenity(symbol = "") {
@@ -2522,6 +2607,7 @@
     setInterval(loadContext, 60000);
     setInterval(refreshQuote, 10000);
     scheduleMoverRefresh();
+    serenityRecentTimer = setInterval(() => { if (isWorkspaceTabActive("serenity")) loadSerenityRecent(); }, 120000);
     setInterval(() => { if (autoRefresh && lastData && ($("period").value === "1d" || $("interval").value === "5m")) analyze(lastData.symbol, true); }, 30000);
     setInterval(() => { if (autoRefresh) refreshWatchlist(); }, 30000);
     setInterval(loadForum, 600000);
