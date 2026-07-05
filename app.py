@@ -912,9 +912,10 @@ def analyze(
     latest, previous = rows[-1], rows[-2]
     levels = support_resistance(rows)
     news = fetch_news(resolved, market)
-    risk = build_risk(latest, levels, news)
+    event_context = build_event_context(resolved, market, news)
+    risk = build_risk(latest, levels, news, event_context)
     suitability = build_suitability(latest, risk, news)
-    prediction = build_prediction(rows, latest, risk, news)
+    prediction = build_prediction(rows, latest, risk, news, event_context)
     macro = fetch_macro_snapshot()
     design_signals = build_design_signals(resolved, market, rows, latest, levels, risk, prediction, news, macro)
 
@@ -943,6 +944,7 @@ def analyze(
         "suitability": suitability,
         "prediction": prediction,
         "news": news,
+        "event_context": event_context,
         "macro": macro,
         "design_signals": design_signals,
         "related": related_assets(resolved, market),
@@ -1852,6 +1854,128 @@ def dedupe_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return rows
 
 
+def build_event_context(symbol: str, market: str, news: dict[str, Any] | None = None) -> dict[str, Any]:
+    context = {
+        "risk_points": 0,
+        "confidence_penalty": 0,
+        "direction_edge": 0,
+        "summary": "No near-term earnings or macro event pressure found.",
+        "flags": [],
+        "earnings": [],
+        "macro": [],
+        "earnings_news": [],
+    }
+    try:
+        earnings = fetch_earnings_alerts(symbol, market, 90)[:3] if symbol else []
+        macro = [item for item in fetch_macro_event_alerts(45) if item.get("importance") == "high"][:4]
+    except Exception:
+        return context
+
+    risk_points = 0
+    confidence_penalty = 0
+    direction_edge = 0
+    flags: list[dict[str, Any]] = []
+
+    if earnings:
+        nearest = sorted(earnings, key=lambda item: int(item.get("days_left") or 999))[0]
+        days_left = int(nearest.get("days_left") or 0)
+        if days_left <= 3:
+            extra, penalty, severity = 14, 14, "high"
+        elif days_left <= 10:
+            extra, penalty, severity = 10, 10, "high"
+        elif days_left <= 30:
+            extra, penalty, severity = 6, 7, "medium"
+        else:
+            extra, penalty, severity = 3, 4, "medium"
+        risk_points += extra
+        confidence_penalty += penalty
+        flags.append(
+            {
+                "type": "earnings",
+                "severity": severity,
+                "title": nearest.get("title", ""),
+                "date": nearest.get("date", ""),
+                "days_left": days_left,
+                "link": nearest.get("link", ""),
+                "note": "Upcoming earnings can create gap risk; reduce position size if the setup depends on short-term timing.",
+            }
+        )
+
+    near_macro = [item for item in macro if int(item.get("days_left") or 999) <= 10]
+    if near_macro:
+        event = near_macro[0]
+        risk_points += 4
+        confidence_penalty += 4
+        flags.append(
+            {
+                "type": "macro",
+                "severity": "medium",
+                "title": event.get("title", ""),
+                "date": event.get("date", ""),
+                "days_left": int(event.get("days_left") or 0),
+                "link": event.get("link", ""),
+                "note": "Major macro release nearby; volatility and overnight gaps can widen.",
+            }
+        )
+
+    earnings_news = extract_earnings_news(news or {})[:3]
+    if earnings_news:
+        sentiment_total = sum(int(item.get("sentiment") or 0) for item in earnings_news)
+        if sentiment_total > 0:
+            risk_points -= 3
+            direction_edge += 1
+            note = "Recent earnings headlines lean supportive."
+            severity = "positive"
+        elif sentiment_total < 0:
+            risk_points += 6
+            confidence_penalty += 5
+            direction_edge -= 1
+            note = "Recent earnings headlines lean negative; treat forecasts more cautiously."
+            severity = "high"
+        else:
+            risk_points += 2
+            confidence_penalty += 2
+            note = "Recent earnings headlines exist; confirm the report details before acting."
+            severity = "medium"
+        flags.append(
+            {
+                "type": "earnings_news",
+                "severity": severity,
+                "title": earnings_news[0].get("title", ""),
+                "date": earnings_news[0].get("published", ""),
+                "days_left": None,
+                "link": earnings_news[0].get("link", ""),
+                "note": note,
+            }
+        )
+
+    flag_notes = [flag["note"] for flag in flags if flag.get("note")]
+    context.update(
+        {
+            "risk_points": int(max(-8, min(24, risk_points))),
+            "confidence_penalty": int(max(0, min(24, confidence_penalty))),
+            "direction_edge": int(max(-2, min(2, direction_edge))),
+            "summary": flag_notes[0] if flag_notes else context["summary"],
+            "flags": flags[:5],
+            "earnings": earnings,
+            "macro": macro,
+            "earnings_news": earnings_news,
+        }
+    )
+    return context
+
+
+def extract_earnings_news(news: dict[str, Any]) -> list[dict[str, Any]]:
+    terms = ("earnings", "eps", "revenue", "profit", "guidance", "financial report", "quarterly", "\u8ca1\u5831", "\u6cd5\u8aaa", "\u71df\u6536", "\u7372\u5229")
+    rows: list[dict[str, Any]] = []
+    for item in news.get("items", []) or []:
+        title = str(item.get("title", ""))
+        text = title.lower()
+        if any(term in text for term in terms):
+            rows.append(item)
+    return rows
+
+
 def parse_month_day(value: str, year: int) -> date | None:
     parts = value.strip().split()
     if len(parts) < 2:
@@ -2610,7 +2734,7 @@ def support_resistance(rows: list[dict[str, Any]]) -> dict[str, float]:
     return {"support_60d": number(support), "resistance_60d": number(resistance), "breakout_call": number(resistance * 1.01), "backtest_zone": number(max(support, latest["close"] - atr)), "stop_loss_reference": number(max(0, support - atr * 0.5))}
 
 
-def build_risk(latest: dict[str, Any], levels: dict[str, float], news: dict[str, Any]) -> dict[str, Any]:
+def build_risk(latest: dict[str, Any], levels: dict[str, float], news: dict[str, Any], event_context: dict[str, Any] | None = None) -> dict[str, Any]:
     close, ma20, ma60 = latest["close"], latest["MA20"], latest["MA60"]
     rsi, macd, macd_signal = latest["RSI14"], latest["MACD"], latest["MACD_SIGNAL"]
     score = 45
@@ -2640,6 +2764,15 @@ def build_risk(latest: dict[str, Any], levels: dict[str, float], news: dict[str,
         score -= 5; reasons.append("News keywords lean positive.")
     elif news["label"] == "negative":
         score += 8; reasons.append("News keywords lean negative.")
+    if event_context:
+        event_points = int(event_context.get("risk_points") or 0)
+        score += event_points
+        if event_points:
+            reasons.append(event_context.get("summary") or "Upcoming earnings or macro events may change gap risk.")
+        for flag in event_context.get("flags", [])[:2]:
+            note = flag.get("note")
+            if note and note not in reasons:
+                reasons.append(note)
     score = int(max(0, min(100, score)))
     trend = "bullish" if close > ma20 and macd > macd_signal else "bearish" if close < ma20 else "sideways"
     return {"score": score, "level": "low" if score < 40 else "medium" if score < 70 else "high", "trend": trend, "summary": f"{trend.title()} bias with risk {score}/100. Support {levels['support_60d']}, resistance {levels['resistance_60d']}.", "reasons": reasons}
@@ -2661,7 +2794,7 @@ def suitability_label(score: float) -> dict[str, Any]:
     return {"score": number(score), "label": "suitable" if score >= 70 else "watch" if score >= 50 else "avoid"}
 
 
-def build_prediction(rows: list[dict[str, Any]], latest: dict[str, Any], risk: dict[str, Any], news: dict[str, Any]) -> dict[str, Any]:
+def build_prediction(rows: list[dict[str, Any]], latest: dict[str, Any], risk: dict[str, Any], news: dict[str, Any], event_context: dict[str, Any] | None = None) -> dict[str, Any]:
     closes = [row["close"] for row in rows[-min(60, len(rows)):]]
     if len(closes) < 20:
         return {"model": "OLS trend + momentum", "bias": "neutral", "confidence": 0, "forecast_5d_pct": 0, "forecast_20d_pct": 0, "advice": "Not enough data.", "drivers": []}
@@ -2672,11 +2805,19 @@ def build_prediction(rows: list[dict[str, Any]], latest: dict[str, Any], risk: d
     m5, m20 = latest["RET5"] * 100, latest["RET20"] * 100
     macd_edge = latest["MACD"] - latest["MACD_SIGNAL"]
     news_edge = 1 if news["label"] == "positive" else -1 if news["label"] == "negative" else 0
-    composite = forecast_20 * 0.45 + m20 * 0.25 + m5 * 0.15 + (5 if macd_edge > 0 else -5) * 0.1 + news_edge * 4
+    event_edge = float((event_context or {}).get("direction_edge") or 0)
+    event_penalty = int((event_context or {}).get("confidence_penalty") or 0)
+    event_risk = max(0, int((event_context or {}).get("risk_points") or 0))
+    composite = forecast_20 * 0.45 + m20 * 0.25 + m5 * 0.15 + (5 if macd_edge > 0 else -5) * 0.1 + news_edge * 4 + event_edge * 3
+    if event_risk:
+        composite *= max(0.72, 1 - event_risk / 120)
     bias = "bullish" if composite >= 4 else "bearish" if composite <= -4 else "neutral"
-    confidence = int(max(5, min(92, abs(composite) * 8 + max(0, r2) * 35 - int(risk["score"]) * 0.15)))
+    confidence = int(max(5, min(92, abs(composite) * 8 + max(0, r2) * 35 - int(risk["score"]) * 0.15 - event_penalty)))
     advice = {"bullish": "Prefer pullback entries. Long-term view is constructive if price holds key moving averages.", "bearish": "Avoid chasing. Wait for price to reclaim MA20 or for selling pressure to fade.", "neutral": "Range-bound setup. Use support/resistance instead of directional conviction."}[bias]
-    return {"model": "OLS trend + momentum", "bias": bias, "confidence": confidence, "forecast_5d_pct": number(forecast_5), "forecast_20d_pct": number(forecast_20), "advice": advice, "drivers": [f"OLS 20-step forecast {number(forecast_20)}%.", f"Momentum: 5-period {number(m5)}%, 20-period {number(m20)}%.", "MACD above signal." if macd_edge > 0 else "MACD below signal.", f"News sentiment: {news['label']}."]}
+    drivers = [f"OLS 20-step forecast {number(forecast_20)}%.", f"Momentum: 5-period {number(m5)}%, 20-period {number(m20)}%.", "MACD above signal." if macd_edge > 0 else "MACD below signal.", f"News sentiment: {news['label']}."]
+    if event_context and event_context.get("flags"):
+        drivers.append(f"Event/earnings risk: {event_context.get('summary')}")
+    return {"model": "OLS trend + momentum + event risk", "bias": bias, "confidence": confidence, "forecast_5d_pct": number(forecast_5), "forecast_20d_pct": number(forecast_20), "advice": advice, "drivers": drivers}
 
 
 def build_design_signals(

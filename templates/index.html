@@ -109,9 +109,12 @@
     .event-card:hover { border-color: var(--blue); }
     .event-card.high { box-shadow: inset 4px 0 0 #f97316; }
     .event-card.medium { box-shadow: inset 4px 0 0 #facc15; }
+    .event-card.earnings, .event-card.earnings_news { border-color: rgba(251,146,60,.55); background: linear-gradient(135deg, rgba(251,146,60,.18), rgba(20,30,62,.96) 44%); }
+    .event-card.earnings:hover, .event-card.earnings_news:hover { border-color: #fb923c; box-shadow: 0 0 0 2px rgba(251,146,60,.16), inset 4px 0 0 #fb923c; }
     .event-date { min-width: 76px; text-align: center; border: 1px solid var(--line); border-radius: 7px; padding: 6px; background: #0f172f; }
     .event-date b, .event-card strong, .event-card small { display: block; }
     .event-date b { font-size: 16px; }
+    .event-date span { display: block; }
     .event-date span, .event-card small { color: var(--muted); font-size: 12px; }
     .event-card p { margin: 6px 0 0; color: #dbeafe; font-size: 13px; line-height: 1.4; }
     .mover-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
@@ -232,7 +235,7 @@
     .summary { margin-top: 10px; line-height: 1.65; color: #d7e3ff; }
     .riskbar { height: 10px; background: #0f172f; border-radius: 999px; overflow: hidden; margin-top: 12px; }
     .riskbar div { height: 100%; width: 0; background: var(--green); transition: width .3s ease; }
-    .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 16px; }
+    .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 16px; align-items: start; }
     .kvgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 12px; }
     .kv, .news, .watch-item, .quote-row, .plainbox { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
     .kv strong { font-size: 15px; }
@@ -255,6 +258,16 @@
     .news { margin-top: 10px; line-height: 1.45; }
     .news a { color: #dbeafe; text-decoration: none; }
     .news a:hover { color: var(--blue); }
+    .news-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); max-height: min(560px, calc(100vh - 168px)); }
+    .news-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 5px; scrollbar-gutter: stable; }
+    .news-scroll::-webkit-scrollbar { width: 8px; }
+    .news-scroll::-webkit-scrollbar-thumb { background: #304272; border-radius: 999px; }
+    .news-scroll::-webkit-scrollbar-track { background: #0f172f; border-radius: 999px; }
+    .news-event-flag { display: grid; gap: 6px; margin-top: 10px; padding: 10px; border: 1px solid rgba(251,146,60,.58); border-left: 4px solid #fb923c; border-radius: 7px; background: linear-gradient(135deg, rgba(251,146,60,.18), rgba(20,30,62,.96) 48%); }
+    .news-event-flag:hover { border-color: #fb923c; transform: translateY(-1px); transition: .15s ease; }
+    .news-event-flag strong, .news-event-flag small { display: block; }
+    .news-event-flag a { color: #ffedd5; text-decoration: none; }
+    .news-event-flag a:hover { color: #fed7aa; }
     .up { color: var(--green); } .down { color: var(--red); } .tw-up { color: var(--red); } .tw-down { color: var(--green); }
     .quote-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; margin-top: 12px; }
     .chart-hint { margin: 8px 0 10px; color: var(--muted); font-size: 12px; }
@@ -329,6 +342,7 @@
       .video-links { flex-wrap: nowrap; overflow-x: auto; }
       .video-links a.button { width: auto; flex: 0 0 auto; height: 34px; font-size: 13px; }
       .keyboard-shortcuts { display: none; }
+      .news-panel { max-height: min(520px, calc(100vh - 120px)); }
     }
   </style>
 </head>
@@ -659,7 +673,7 @@
         <div class="kvgrid" id="suitability"></div>
         <p class="explain" id="scoreHelp"></p>
       </article>
-      <article class="panel"><h2 data-i18n="news">利多 / 利空</h2><div id="newsBox"></div></article>
+      <article class="panel news-panel"><h2 data-i18n="news">利多 / 利空</h2><div id="newsBox" class="news-scroll"></div></article>
     </section>
 
     <section class="grid">
@@ -1868,11 +1882,13 @@
         const dateText = eventDateText(item.date);
         const category = eventCategoryLabel(item.category);
         const days = Number(item.days_left || 0);
-        const tag = days <= 0 ? rt("eventToday") : `${days} ${rt("eventDaysLeft")}`;
-        const body = `<div class="event-date"><b>${escapeHtml(dateText.md)}</b><span>${escapeHtml(dateText.year)}</span><span>${escapeHtml(tag)}</span></div>
+        const tag = eventDateMeta(dateText, days);
+        const kind = String(item.category || "macro").replace(/[^a-z_]/gi, "");
+        const importance = String(item.importance || "medium").replace(/[^a-z]/gi, "");
+        const body = `<div class="event-date"><b>${escapeHtml(dateText.md)}</b><span>${escapeHtml(tag.year)}</span><span>${escapeHtml(tag.days)}</span></div>
           <div><small>${escapeHtml(category)} · ${escapeHtml(item.source || "")} · ${escapeHtml(item.importance || "")}</small><strong>${escapeHtml(item.title || "")}</strong><p>${escapeHtml(item.note || "")}</p></div>`;
-        if (item.link) return `<a class="event-card ${escapeHtml(item.importance || "medium")}" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">${body}</a>`;
-        return `<div class="event-card ${escapeHtml(item.importance || "medium")}">${body}</div>`;
+        if (item.link) return `<a class="event-card ${escapeHtml(importance)} ${escapeHtml(kind)}" href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">${body}</a>`;
+        return `<div class="event-card ${escapeHtml(importance)} ${escapeHtml(kind)}">${body}</div>`;
       }).join("");
       $("eventAlerts").innerHTML = `
         <div class="event-alert-head">
@@ -1886,6 +1902,13 @@
       const parts = String(value || "").split("-");
       if (parts.length !== 3) return { md: "-", year: "" };
       return { md: `${parts[1]}/${parts[2]}`, year: parts[0] };
+    }
+
+    function eventDateMeta(dateText, days) {
+      return {
+        year: dateText.year || "",
+        days: days <= 0 ? rt("eventToday") : `${days} ${rt("eventDaysLeft")}`
+      };
     }
 
     function eventCategoryLabel(value) {
@@ -2509,12 +2532,29 @@
       kv("playbook", { [t("trigger")]: `> ${fmt(data.levels.breakout_call)}`, [t("pressure")]: fmt(data.levels.resistance_60d), [t("backtest")]: fmt(data.levels.backtest_zone), [t("model")]: data.prediction.model });
       kv("macroBox", macroPairs(data.macro));
       $("modelDrivers").innerHTML = data.prediction.drivers.map((x) => `<div class="muted">${escapeHtml(x)}</div>`).join("");
-      $("newsBox").innerHTML = `<span class="tag ${data.news.label === "positive" ? "good" : data.news.label === "negative" ? "bad" : "warn"}">${label(data.news.label)} · +${data.news.positive} / -${data.news.negative}</span>` +
-        data.news.items.map((n) => `<div class="news"><a href="${n.link}" target="_blank" rel="noreferrer">${escapeHtml(n.title)}</a><div class="muted">${n.source} · ${n.published || ""} · score ${n.sentiment}</div></div>`).join("");
+      const newsItems = data.news.items || [];
+      $("newsBox").innerHTML = renderNewsEventFlags(data.event_context || {}) +
+        `<span class="tag ${data.news.label === "positive" ? "good" : data.news.label === "negative" ? "bad" : "warn"}">${label(data.news.label)} · +${data.news.positive} / -${data.news.negative}</span>` +
+        newsItems.map((n) => `<div class="news"><a href="${escapeHtml(n.link)}" target="_blank" rel="noreferrer">${escapeHtml(n.title)}</a><div class="muted">${escapeHtml(n.source || "")} · ${escapeHtml(n.published || "")} · score ${escapeHtml(n.sentiment)}</div></div>`).join("");
       renderDesignSignals(data.design_signals || {});
       renderChart(data);
       $("refreshMeta").textContent = `${t("updated")} ${new Date().toLocaleTimeString()}`;
       if (!watch.includes(data.symbol)) renderWatchlist();
+    }
+
+    function renderNewsEventFlags(context) {
+      const rows = [];
+      for (const item of (context.earnings || []).slice(0, 2)) {
+        rows.push({ label: rt("eventEarnings"), title: item.title, link: item.link, date: item.date, note: item.note || context.summary });
+      }
+      for (const item of (context.earnings_news || []).slice(0, 2)) {
+        rows.push({ label: rt("eventEarnings"), title: item.title, link: item.link, date: item.published, note: context.summary });
+      }
+      return rows.slice(0, 3).map((item) => {
+        const title = escapeHtml(item.title || "");
+        const link = item.link ? `<a href="${escapeHtml(item.link)}" target="_blank" rel="noreferrer">${title}</a>` : title;
+        return `<div class="news-event-flag"><small>${escapeHtml(item.label || "")} · ${escapeHtml(item.date || "")}</small><strong>${link}</strong><span class="muted">${escapeHtml(item.note || "")}</span></div>`;
+      }).join("");
     }
 
     async function refreshQuote() {
