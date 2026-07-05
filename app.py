@@ -229,6 +229,33 @@ SERENITY_SYMBOL_THEMES: dict[str, list[str]] = {
     "MSTR": ["platform_consumer_fintech"],
 }
 
+OPEN_SOURCE_DESIGN_LENSES: list[dict[str, Any]] = [
+    {
+        "key": "finmind",
+        "source": "FinMind",
+        "url": "https://github.com/FinMind/FinMind",
+        "idea": "Multi-dataset financial data matrix with clear update cadence and quota boundaries.",
+    },
+    {
+        "key": "twstock",
+        "source": "twstock",
+        "url": "https://github.com/mlouielu/twstock",
+        "idea": "Taiwan-local TWSE/TPEX data access and Best Four Point style buy/sell hints.",
+    },
+    {
+        "key": "daily_stock_analysis",
+        "source": "daily_stock_analysis",
+        "url": "https://github.com/ZhuLinsen/daily_stock_analysis",
+        "idea": "Decision dashboard: score, trend, entry/exit, risk alert, catalyst and checklist.",
+    },
+    {
+        "key": "consensus_risk",
+        "source": "BlockTempo / Grayscale-Pandl",
+        "url": "https://www.blocktempo.com/grayscale-pandl-bitcoin-quantum-threat-social-consensus-outweighs-technical-risk/",
+        "idea": "Separate technical solvability from governance, consensus and coordination risk.",
+    },
+]
+
 
 def init_db() -> None:
     with sqlite3.connect(DB_PATH) as conn:
@@ -889,6 +916,7 @@ def analyze(
     suitability = build_suitability(latest, risk, news)
     prediction = build_prediction(rows, latest, risk, news)
     macro = fetch_macro_snapshot()
+    design_signals = build_design_signals(resolved, market, rows, latest, levels, risk, prediction, news, macro)
 
     response = {
         "ok": True,
@@ -916,6 +944,7 @@ def analyze(
         "prediction": prediction,
         "news": news,
         "macro": macro,
+        "design_signals": design_signals,
         "related": related_assets(resolved, market),
         "chart": build_chart_rows(rows[-180:], market),
     }
@@ -2648,6 +2677,151 @@ def build_prediction(rows: list[dict[str, Any]], latest: dict[str, Any], risk: d
     confidence = int(max(5, min(92, abs(composite) * 8 + max(0, r2) * 35 - int(risk["score"]) * 0.15)))
     advice = {"bullish": "Prefer pullback entries. Long-term view is constructive if price holds key moving averages.", "bearish": "Avoid chasing. Wait for price to reclaim MA20 or for selling pressure to fade.", "neutral": "Range-bound setup. Use support/resistance instead of directional conviction."}[bias]
     return {"model": "OLS trend + momentum", "bias": bias, "confidence": confidence, "forecast_5d_pct": number(forecast_5), "forecast_20d_pct": number(forecast_20), "advice": advice, "drivers": [f"OLS 20-step forecast {number(forecast_20)}%.", f"Momentum: 5-period {number(m5)}%, 20-period {number(m20)}%.", "MACD above signal." if macd_edge > 0 else "MACD below signal.", f"News sentiment: {news['label']}."]}
+
+
+def build_design_signals(
+    symbol: str,
+    market: str,
+    rows: list[dict[str, Any]],
+    latest: dict[str, Any],
+    levels: dict[str, float],
+    risk: dict[str, Any],
+    prediction: dict[str, Any],
+    news: dict[str, Any],
+    macro: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "lenses": OPEN_SOURCE_DESIGN_LENSES,
+        "source_matrix": build_source_matrix(market),
+        "tw_local_signal": build_tw_local_signal(market, rows, latest),
+        "decision_checklist": build_decision_checklist(latest, levels, risk, prediction, news),
+        "narrative_risk": build_narrative_risk(symbol, market, news, macro),
+    }
+
+
+def build_source_matrix(market: str) -> list[dict[str, Any]]:
+    rows = [
+        {
+            "key": "price",
+            "source": "Yahoo Chart",
+            "status": "live",
+            "used_for": "quote, K-line, MA, RSI, MACD, ATR, volume ratio",
+            "cadence": "user interval plus active-tab refresh",
+        },
+        {
+            "key": "rss_news",
+            "source": "Public RSS",
+            "status": "live",
+            "used_for": "headline sentiment, catalysts and risk phrases",
+            "cadence": "on analysis request",
+        },
+        {
+            "key": "finmind",
+            "source": "FinMind design lens",
+            "status": "design-ready",
+            "used_for": "future Taiwan fundamentals, chips, derivatives and market datasets",
+            "cadence": "daily datasets; 300 requests/hour without token, 600/hour with token",
+        },
+        {
+            "key": "twstock",
+            "source": "twstock design lens",
+            "status": "local-signal",
+            "used_for": "Taiwan Best Four Point style volume/price and short-MA rules",
+            "cadence": "respect TWSE/TPEX throttling if direct source is enabled later",
+        },
+    ]
+    if market != "TW":
+        rows[-1]["status"] = "reference"
+        rows[-1]["used_for"] = "Taiwan-local logic kept as reference; not applied to US tickers"
+    return rows
+
+
+def build_tw_local_signal(market: str, rows: list[dict[str, Any]], latest: dict[str, Any]) -> dict[str, Any]:
+    if market != "TW":
+        return {"applies": False, "action": "not_applicable", "score": None, "reasons": ["Taiwan-local twstock style signal applies only to TW/TWO tickers."]}
+    closes = [row["close"] for row in rows if row.get("close") is not None]
+    volumes = [row.get("volume") or 0 for row in rows if row.get("volume") is not None]
+    if len(closes) < 6:
+        return {"applies": True, "action": "watch", "score": 50, "reasons": ["Need at least 6 bars for MA3/MA6 signal."]}
+
+    ma3 = avg(closes[-3:])
+    ma6 = avg(closes[-6:])
+    avg_vol5 = avg([float(v) for v in volumes[-6:-1]]) if len(volumes) >= 6 else 0
+    close = float(latest.get("close") or 0)
+    open_price = float(latest.get("open") or close)
+    latest_volume = float(latest.get("volume") or 0)
+    score = 50
+    reasons: list[str] = []
+
+    if close >= open_price and avg_vol5 and latest_volume >= avg_vol5 * 1.2:
+        score += 18
+        reasons.append("Volume expansion with a green/red-up Taiwan candle.")
+    if close < open_price and avg_vol5 and latest_volume <= avg_vol5 * 0.85:
+        score -= 12
+        reasons.append("Volume contraction with a weak candle.")
+    if ma3 > ma6:
+        score += 12
+        reasons.append("MA3 is above MA6, matching a short-term buy-point style rule.")
+    elif ma3 < ma6:
+        score -= 12
+        reasons.append("MA3 is below MA6, matching a short-term sell-pressure rule.")
+    if close > float(latest.get("MA20") or close):
+        score += 5
+        reasons.append("Price is holding above MA20.")
+    else:
+        score -= 5
+        reasons.append("Price has not reclaimed MA20.")
+
+    score = int(max(0, min(100, score)))
+    action = "buy_watch" if score >= 66 else "sell_pressure" if score <= 38 else "watch"
+    if not reasons:
+        reasons.append("Neutral volume/price mix; wait for a cleaner setup.")
+    return {"applies": True, "action": action, "score": score, "ma3": number(ma3), "ma6": number(ma6), "reasons": reasons}
+
+
+def build_decision_checklist(latest: dict[str, Any], levels: dict[str, float], risk: dict[str, Any], prediction: dict[str, Any], news: dict[str, Any]) -> list[dict[str, Any]]:
+    close = float(latest.get("close") or 0)
+    ma20 = float(latest.get("MA20") or close)
+    backtest_zone = float(levels.get("backtest_zone") or close)
+    breakout = float(levels.get("breakout_call") or close)
+    stop = float(levels.get("stop_loss_reference") or 0)
+    risk_score = int(risk.get("score") or 0)
+
+    trend_status = "pass" if prediction.get("bias") == "bullish" and close >= ma20 else "fail" if prediction.get("bias") == "bearish" and close < ma20 else "watch"
+    entry_status = "pass" if backtest_zone and close <= backtest_zone * 1.035 else "watch" if close < breakout else "fail"
+    risk_status = "pass" if risk_score < 45 else "watch" if risk_score < 70 else "fail"
+    catalyst_status = "pass" if news.get("label") == "positive" else "fail" if news.get("label") == "negative" else "watch"
+    stop_status = "pass" if stop and close > stop else "watch"
+
+    return [
+        {"key": "trend", "label": "Trend", "status": trend_status, "note": f"{prediction.get('bias', 'neutral')} bias; close {number(close)} vs MA20 {number(ma20)}."},
+        {"key": "entry", "label": "Entry", "status": entry_status, "note": f"Backtest {number(backtest_zone)}, breakout {number(breakout)}."},
+        {"key": "risk", "label": "Risk", "status": risk_status, "note": f"Risk score {risk_score}/100."},
+        {"key": "catalyst", "label": "Catalyst", "status": catalyst_status, "note": f"News tone {news.get('label', 'neutral')}; +{news.get('positive', 0)} / -{news.get('negative', 0)}."},
+        {"key": "stop_plan", "label": "Stop plan", "status": stop_status, "note": f"Reference stop {number(stop)}; only valid if it fits user risk budget."},
+    ]
+
+
+def build_narrative_risk(symbol: str, market: str, news: dict[str, Any], macro: dict[str, Any]) -> dict[str, Any]:
+    titles = " ".join(str(item.get("title", "")) for item in news.get("items", []))
+    text = f"{symbol} {market} {titles} {macro.get('label', '')}".lower()
+    keyword_groups = {
+        "policy": ["fed", "central bank", "央行", "interest rate", "tariff", "ban", "restriction", "policy", "regulation", "監管", "法規", "禁令"],
+        "governance": ["governance", "consensus", "protocol", "fork", "治理", "共識", "協議", "分叉"],
+        "legal": ["lawsuit", "probe", "investigation", "antitrust", "訴訟", "調查", "反壟斷"],
+        "quantum": ["quantum", "post-quantum", "cryptography", "量子", "後量子", "密碼學"],
+    }
+    hits = sorted({word for words in keyword_groups.values() for word in words if word in text})
+    crypto_like = symbol.upper().replace(".TW", "").replace(".TWO", "") in {"COIN", "MSTR", "BTC", "IBIT", "BITO", "MARA", "RIOT"}
+    score = 24 + len(hits) * 12 + (16 if crypto_like else 0)
+    score = int(max(0, min(100, score)))
+    level = "high" if score >= 70 else "medium" if score >= 42 else "low"
+    summary = (
+        "This name carries coordination/governance risk in addition to price risk; technical fixes may not remove market uncertainty."
+        if level != "low"
+        else "No strong governance or consensus-risk keywords in current public headlines."
+    )
+    return {"score": score, "level": level, "hits": hits[:8], "summary": summary, "model": "keyword groups + crypto/policy exposure lens"}
 
 
 def build_chart_rows(rows: list[dict[str, Any]], market: str) -> list[dict[str, Any]]:

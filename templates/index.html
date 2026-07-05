@@ -36,6 +36,23 @@
     }
     button.secondary, a.secondary { background: var(--card); border-color: var(--line); color: var(--text); }
     button:disabled { opacity: .6; cursor: wait; }
+    button, a.button, .relation-card, .watch-summary-card, .serenity-pick, .plainbox, .kv, .news, .icon-btn {
+      transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, background .16s ease;
+    }
+    button:not(:disabled):hover, a.button:hover, .icon-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(20, 35, 70, .34);
+    }
+    button:not(:disabled):active, a.button:active, .icon-btn:active { transform: translateY(0) scale(.98); }
+    [data-tip] { position: relative; }
+    [data-tip]:hover::after {
+      content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%);
+      z-index: 120; width: max-content; max-width: min(260px, 82vw); padding: 7px 9px; border-radius: 6px;
+      background: #e8f1ff; color: #0b1020; border: 1px solid rgba(118,169,255,.5); box-shadow: 0 14px 34px rgba(0,0,0,.3);
+      font-size: 12px; line-height: 1.4; pointer-events: none; white-space: normal;
+    }
+    .utility-dock { position: fixed; right: 12px; top: 45%; z-index: 65; display: grid; gap: 8px; }
+    .icon-btn { width: 42px; height: 42px; padding: 0; border-radius: 50%; background: #f8fafc; color: #13213f; border-color: #dbeafe; font-weight: 900; }
     .cards { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 16px; }
     .card, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
     .card { padding: 14px; min-height: 86px; }
@@ -214,6 +231,20 @@
     .kv strong { font-size: 15px; }
     .tag { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 9px; border-radius: 999px; background: var(--card); color: var(--muted); font-size: 12px; }
     .tag.good { color: #86efac; } .tag.bad { color: #fda4af; } .tag.warn { color: #fde68a; }
+    .design-grid { display: grid; gap: 9px; margin-top: 12px; }
+    .design-card { display: grid; gap: 7px; background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 11px; }
+    .design-card:hover, .plainbox:hover, .kv:hover { border-color: rgba(118,169,255,.75); }
+    .design-card-head, .check-row { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+    .design-card p, .check-row p { margin: 0; color: #dbeafe; line-height: 1.45; font-size: 13px; }
+    .check-list { display: grid; gap: 8px; margin-top: 12px; }
+    .check-row { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; align-items: flex-start; }
+    .check-row.pass { box-shadow: inset 4px 0 0 var(--green); }
+    .check-row.watch { box-shadow: inset 4px 0 0 var(--amber); }
+    .check-row.fail { box-shadow: inset 4px 0 0 var(--red); }
+    .source-list { display: grid; gap: 8px; margin-top: 12px; }
+    .source-row { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
+    .source-row strong, .source-row small { display: block; }
+    .source-row small { color: var(--muted); margin-top: 4px; line-height: 1.45; }
     .news { margin-top: 10px; line-height: 1.45; }
     .news a { color: #dbeafe; text-decoration: none; }
     .news a:hover { color: var(--blue); }
@@ -280,6 +311,8 @@
       .watch-strip-head, .watch-actions { display: grid; grid-template-columns: 1fr; }
       .chat-drawer { right: 9px; left: 9px; bottom: 78px; width: auto; height: min(620px, calc(100vh - 96px)); }
       .chat-fab { right: 14px; bottom: 14px; }
+      .utility-dock { right: 8px; top: 38%; gap: 6px; }
+      .icon-btn { width: 38px; height: 38px; font-size: 14px; }
       .story-hero { min-height: 238px; }
       .story-overlay strong { font-size: 19px; }
       .story-topic { width: 86px; height: 86px; font-size: 30px; }
@@ -565,9 +598,9 @@
           <span class="tag" id="market">-</span>
         </div>
         <div class="chart-actions">
-          <a id="googleLink" class="button secondary" href="#" target="_blank" rel="noreferrer">Google Finance</a>
-          <a id="yahooLink" class="button secondary" href="#" target="_blank" rel="noreferrer">Yahoo</a>
-          <a id="tradingViewLink" class="button secondary" href="#" target="_blank" rel="noreferrer">TradingView</a>
+          <a id="googleLink" class="button secondary" href="#" target="_blank" rel="noreferrer" data-reco-tip="tipGoogle">Google Finance</a>
+          <a id="yahooLink" class="button secondary" href="#" target="_blank" rel="noreferrer" data-reco-tip="tipYahoo">Yahoo</a>
+          <a id="tradingViewLink" class="button secondary" href="#" target="_blank" rel="noreferrer" data-reco-tip="tipTradingView">TradingView</a>
         </div>
         <div class="quote-row">
           <div>
@@ -624,9 +657,23 @@
       <article class="panel"><h2 data-i18n="periodHelpTitle">Today / Day / Week 是什麼</h2><p class="summary" data-i18n="periodHelp"></p></article>
       <article class="panel"><h2 data-i18n="refreshHelpTitle">動態追蹤</h2><p class="summary" data-i18n="refreshHelp"></p></article>
     </section>
+
+    <section class="grid">
+      <article class="panel"><h2 data-i18n="designSignals">開源設計訊號</h2><div id="designSignalsBox" class="design-grid"></div></article>
+      <article class="panel"><h2 data-i18n="decisionChecklist">決策檢查表</h2><div id="decisionChecklistBox" class="check-list"></div></article>
+      <article class="panel"><h2 data-i18n="sourceMatrix">資料源矩陣</h2><div id="sourceMatrixBox" class="source-list"></div></article>
+      <article class="panel"><h2 data-i18n="narrativeRisk">敘事/治理風險</h2><div id="narrativeRiskBox" class="plainbox"></div></article>
+    </section>
   </main>
 
   <div id="watchAlertStack" class="alert-stack" aria-live="polite" aria-atomic="false"></div>
+
+  <nav class="utility-dock" aria-label="Quick tools">
+    <button class="icon-btn" type="button" data-reco-tip="tipFocus" onclick="$('symbol').focus(); $('symbol').select();">⌕</button>
+    <button class="icon-btn" type="button" data-reco-tip="tipWatch" onclick="addWatch(lastData?.symbol || $('symbol').value.trim())">★</button>
+    <button class="icon-btn" type="button" data-reco-tip="tipRefresh" onclick="lastData ? analyze(lastData.symbol) : analyze($('symbol').value || '2330')">↻</button>
+    <button class="icon-btn" type="button" data-reco-tip="tipHelp" onclick="switchWorkspaceTab('help')">?</button>
+  </nav>
 
   <aside id="chatDrawer" class="chat-drawer" aria-live="polite">
     <div class="chat-drawer-head">
@@ -886,6 +933,34 @@
       serenityIntelRefresh: "Collect public intel", serenityIntelLoading: "Collecting public intel", serenityIntelEmpty: "No public intel yet", serenityIntelMeta: "Public intel", serenityDetected: "Detected stocks", serenitySources: "Sources", serenityPipeline: "System logic"
     });
 
+    Object.assign(recoCopy["zh-tw"], {
+      tipGoogle: "在新分頁開啟 Google Finance，即時看盤；本頁保持不動。",
+      tipYahoo: "在新分頁開啟 Yahoo Finance 原始報價頁。",
+      tipTradingView: "在新分頁搜尋 TradingView 圖表與社群想法。",
+      tipFocus: "聚焦股票代號輸入框。",
+      tipWatch: "把目前股票加入關注清單。",
+      tipRefresh: "重新分析目前股票。",
+      tipHelp: "打開完整功能說明。"
+    });
+    Object.assign(recoCopy["zh-cn"], {
+      tipGoogle: "在新分页开启 Google Finance，即时看盘；本页保持不动。",
+      tipYahoo: "在新分页开启 Yahoo Finance 原始报价页。",
+      tipTradingView: "在新分页搜索 TradingView 图表与社区想法。",
+      tipFocus: "聚焦股票代码输入框。",
+      tipWatch: "把目前股票加入关注清单。",
+      tipRefresh: "重新分析目前股票。",
+      tipHelp: "打开完整功能说明。"
+    });
+    Object.assign(recoCopy.en, {
+      tipGoogle: "Open Google Finance in a new tab; this page stays in place.",
+      tipYahoo: "Open the Yahoo Finance quote page in a new tab.",
+      tipTradingView: "Search TradingView charts and ideas in a new tab.",
+      tipFocus: "Focus the ticker input.",
+      tipWatch: "Add the current ticker to the watchlist.",
+      tipRefresh: "Run analysis again for the current ticker.",
+      tipHelp: "Open the full feature guide."
+    });
+
     Object.assign(screenerCopy["zh-tw"], {
       title: "股票篩選器", hint: "選市場、產業與股價範圍，系統會依品質分數、市值或成交量列出候選股。",
       us: "美股", tw: "台股", minPrice: "最低股價", maxPrice: "最高股價", sort: "排序",
@@ -986,7 +1061,10 @@
         trigger: "Breakout", pressure: "Pressure", backtest: "Backtest", stop: "Stop ref",
         intraday: "Intraday", short: "Short", long: "Long", forecast5: "5-step forecast", forecast20: "20-step forecast",
         confidence: "Confidence", model: "Model", advice: "Advice", updated: "Updated",
-        relatedTitle: "Related Assets", relatedHint: "Leveraged ETFs, peers, upstream/downstream and sector ETFs."
+        relatedTitle: "Related Assets", relatedHint: "Leveraged ETFs, peers, upstream/downstream and sector ETFs.",
+        designSignals: "Open-source Design Signals", decisionChecklist: "Decision Checklist", sourceMatrix: "Source Matrix", narrativeRisk: "Narrative / Governance Risk",
+        twLocalSignal: "TW local signal", openSourceLens: "Open-source lens", sourceStatus: "Status", usedFor: "Used for", cadence: "Cadence",
+        statusPass: "Pass", statusWatch: "Watch", statusFail: "Fail", narrativeHits: "Detected words", narrativeModel: "Model", noDesignData: "No design signal data yet"
       }
     };
     const t = (key) => (dict[lang] && dict[lang][key]) || dict.en[key] || key;
@@ -1010,7 +1088,10 @@
       trigger: "突破觀察", pressure: "壓力", backtest: "回測區", stop: "停損參考",
       intraday: "當沖", short: "短期", long: "長期", forecast5: "5 日預測", forecast20: "20 日預測",
       confidence: "信心", model: "模型", advice: "建議", updated: "更新",
-      relatedTitle: "關聯標的", relatedHint: "槓桿 ETF、同業、上下游與產業 ETF。"
+      relatedTitle: "關聯標的", relatedHint: "槓桿 ETF、同業、上下游與產業 ETF。",
+      designSignals: "開源設計訊號", decisionChecklist: "決策檢查表", sourceMatrix: "資料源矩陣", narrativeRisk: "敘事 / 治理風險",
+      twLocalSignal: "台股在地訊號", openSourceLens: "開源設計借鏡", sourceStatus: "狀態", usedFor: "用途", cadence: "更新節奏",
+      statusPass: "通過", statusWatch: "觀察", statusFail: "不佳", narrativeHits: "偵測字詞", narrativeModel: "模型", noDesignData: "尚無設計訊號資料"
     });
     Object.assign(dict["zh-cn"], {
       subtitle: "输入美股或台股代号，检查价格、K 线、新闻、风险、总经与当冲/短期/长期适合度。",
@@ -1031,7 +1112,10 @@
       trigger: "突破观察", pressure: "压力", backtest: "回测区", stop: "止损参考",
       intraday: "当冲", short: "短期", long: "长期", forecast5: "5 日预测", forecast20: "20 日预测",
       confidence: "信心", model: "模型", advice: "建议", updated: "更新",
-      relatedTitle: "关联标的", relatedHint: "杠杆 ETF、同业、上下游与产业 ETF。"
+      relatedTitle: "关联标的", relatedHint: "杠杆 ETF、同业、上下游与产业 ETF。",
+      designSignals: "开源设计信号", decisionChecklist: "决策检查表", sourceMatrix: "数据源矩阵", narrativeRisk: "叙事 / 治理风险",
+      twLocalSignal: "台股本地信号", openSourceLens: "开源设计借鉴", sourceStatus: "状态", usedFor: "用途", cadence: "更新节奏",
+      statusPass: "通过", statusWatch: "观察", statusFail: "不佳", narrativeHits: "侦测词", narrativeModel: "模型", noDesignData: "暂无设计信号数据"
     });
 
     document.querySelectorAll("[data-lang]").forEach((btn) => btn.addEventListener("click", () => {
@@ -1092,6 +1176,11 @@
       document.querySelectorAll("[data-screen-i18n]").forEach((el) => el.textContent = st(el.dataset.screenI18n));
       document.querySelectorAll("[data-reco-i18n]").forEach((el) => el.textContent = rt(el.dataset.recoI18n));
       document.querySelectorAll("[data-reco-placeholder]").forEach((el) => el.placeholder = rt(el.dataset.recoPlaceholder));
+      document.querySelectorAll("[data-reco-tip]").forEach((el) => {
+        const text = rt(el.dataset.recoTip);
+        el.setAttribute("data-tip", text);
+        el.setAttribute("title", text);
+      });
       $("scoreHelp").textContent = t("scoreHelp");
       $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff");
       $("recoRefreshBtn").textContent = rt("refresh");
@@ -1099,6 +1188,7 @@
       renderStickers();
       renderShortcuts();
       renderWatchDetailPanel();
+      if (lastData?.design_signals) renderDesignSignals(lastData.design_signals);
       if (eventAlertsData) renderEventAlerts(eventAlertsData);
       if (serenityData) renderSerenity(serenityData);
       if (serenityRecentData) renderSerenityRecent(serenityRecentData);
@@ -1173,6 +1263,7 @@
       if (lang === "en") {
         return [
           { title: "Analyze", text: "Enter a US or Taiwan ticker, choose Today/Day/Week, then run analysis. The main cards show price, move, risk and trend; the chart can open Google Finance in a new tab." },
+          { title: "Open-source design signals", text: "The signal area borrows ideas from FinMind, twstock, daily_stock_analysis and public narrative-risk research: source matrix, Taiwan-local buy/sell watch, decision checklist and governance-risk lens." },
           { title: "Serenity Tracker", text: "Open the Serenity tab to score the current ticker with public price/news data and supply-chain themes. Original X, GitHub and Capafy sources stay as external links." },
           { title: "Watchlist", text: "Click Watch to save the current ticker. Use the expand button under the summary cards to show watched-stock mini reports, query one ticker, or remove it." },
           { title: "Cross-device sync", text: "Device A: click Save sync and Share to forum. Device B: enter the same sync code, or click Replace all/Add missing on the watchlist bundle in the discussion." },
@@ -1184,6 +1275,7 @@
       if (lang === "zh-cn") {
         return [
           { title: "股票分析", text: "输入美股或台股代码，选择 Today/Day/Week 后分析。上方卡片显示价格、涨跌、风险与趋势；点 K 线图会另开 Google Finance。" },
+          { title: "开源设计信号", text: "新区域吸收 FinMind、twstock、daily_stock_analysis 与公开叙事风险研究的优点，拆成数据源矩阵、台股买卖点观察、决策检查表与治理风险。" },
           { title: "Serenity 追踪", text: "打开 Serenity 分页，可用公开价格/新闻资料与供应链主题替目前股票评分；原始 X、GitHub、Capafy 来源保留为外部链接。" },
           { title: "关注清单", text: "按加入关注可保存目前股票。摘要卡下方的展开按钮会显示已关注股票的小报告，也能单独查询或删除。" },
           { title: "跨装置同步", text: "装置 A：按储存同步并分享到讨论。装置 B：输入同一组同步码载入，或在讨论里的关注组合卡点全抄覆盖/只添加缺少。" },
@@ -1194,6 +1286,7 @@
       }
       return [
         { title: "股票分析", text: "輸入美股或台股代號，選 Today/Day/Week 後分析。上方卡片顯示價格、漲跌、風險與趨勢；點 K 線圖會另開 Google Finance。" },
+        { title: "開源設計訊號", text: "新區塊吸收 FinMind、twstock、daily_stock_analysis 與公開敘事風險研究的優點，拆成資料源矩陣、台股買賣點觀察、決策檢查表與治理風險。" },
         { title: "Serenity 追蹤", text: "打開 Serenity 分頁，可用公開價格/新聞資料與供應鏈主題替目前股票評分；原始 X、GitHub、Capafy 來源保留為外部連結。" },
         { title: "關注清單", text: "按加入關注可保存目前股票。摘要卡下方的展開按鈕會顯示已關注股票的小報告，也能單獨查詢或刪除。" },
         { title: "跨裝置同步", text: "裝置 A：按儲存同步並分享到討論。裝置 B：輸入同一組同步碼載入，或在討論裡的關注組合卡點全抄覆蓋/只添加缺少。" },
@@ -2080,6 +2173,78 @@
       }).join("");
     }
 
+    function renderDesignSignals(design = {}) {
+      const signalsBox = $("designSignalsBox");
+      const checklistBox = $("decisionChecklistBox");
+      const sourceBox = $("sourceMatrixBox");
+      const narrativeBox = $("narrativeRiskBox");
+      if (!signalsBox || !checklistBox || !sourceBox || !narrativeBox) return;
+      if (!design || !Object.keys(design).length) {
+        const empty = `<div class="plainbox muted">${escapeHtml(t("noDesignData"))}</div>`;
+        signalsBox.innerHTML = empty;
+        checklistBox.innerHTML = empty;
+        sourceBox.innerHTML = empty;
+        narrativeBox.innerHTML = empty;
+        return;
+      }
+
+      const tw = design.tw_local_signal || {};
+      const narrative = design.narrative_risk || {};
+      const lenses = design.lenses || [];
+      const firstLens = lenses[0] || {};
+      const twReasons = (tw.reasons || []).slice(0, 3).map((x) => `<small>${escapeHtml(x)}</small>`).join("");
+      signalsBox.innerHTML = `
+        <div class="design-card">
+          <div class="design-card-head"><strong>${escapeHtml(t("twLocalSignal"))}</strong><span class="tag ${tw.action === "sell_pressure" ? "bad" : tw.action === "buy_watch" ? "good" : "warn"}">${escapeHtml(designActionLabel(tw.action))}${tw.score == null ? "" : ` ${tw.score}/100`}</span></div>
+          <p>${tw.applies ? escapeHtml(`MA3 ${fmt(tw.ma3)} / MA6 ${fmt(tw.ma6)}`) : escapeHtml((tw.reasons || [])[0] || "-")}</p>
+          ${tw.applies ? twReasons : ""}
+        </div>
+        <div class="design-card">
+          <div class="design-card-head"><strong>${escapeHtml(t("openSourceLens"))}</strong><span class="tag">${escapeHtml(firstLens.source || "FinMind")}</span></div>
+          <p>${escapeHtml(firstLens.idea || "Multi-source data and bounded update cadence.")}</p>
+          <small class="muted">${escapeHtml((lenses || []).map((x) => x.source).filter(Boolean).join(" / "))}</small>
+        </div>
+        <div class="design-card">
+          <div class="design-card-head"><strong>${escapeHtml(t("narrativeRisk"))}</strong><span class="tag ${narrative.level === "high" ? "bad" : narrative.level === "medium" ? "warn" : "good"}">${escapeHtml(label(narrative.level || "low"))} ${narrative.score || 0}/100</span></div>
+          <p>${escapeHtml(narrative.summary || "-")}</p>
+        </div>`;
+
+      checklistBox.innerHTML = (design.decision_checklist || []).map((item) => {
+        const status = item.status || "watch";
+        return `<div class="check-row ${escapeHtml(status)}">
+          <div><strong>${escapeHtml(item.label || item.key || "-")}</strong><p>${escapeHtml(item.note || "")}</p></div>
+          <span class="tag ${status === "pass" ? "good" : status === "fail" ? "bad" : "warn"}">${escapeHtml(statusLabel(status))}</span>
+        </div>`;
+      }).join("") || `<div class="plainbox muted">${escapeHtml(t("noDesignData"))}</div>`;
+
+      sourceBox.innerHTML = (design.source_matrix || []).map((row) => `<div class="source-row">
+        <div class="design-card-head"><strong>${escapeHtml(row.source || "-")}</strong><span class="tag">${escapeHtml(row.status || "-")}</span></div>
+        <small>${escapeHtml(t("usedFor"))}: ${escapeHtml(row.used_for || "-")}</small>
+        <small>${escapeHtml(t("cadence"))}: ${escapeHtml(row.cadence || "-")}</small>
+      </div>`).join("") || `<div class="plainbox muted">${escapeHtml(t("noDesignData"))}</div>`;
+
+      const hits = (narrative.hits || []).length ? narrative.hits.join(", ") : "-";
+      narrativeBox.innerHTML = `<strong>${escapeHtml(label(narrative.level || "low"))} ${narrative.score || 0}/100</strong>
+        <p class="explain">${escapeHtml(narrative.summary || "-")}</p>
+        <div class="kvgrid" style="margin-top:10px">
+          <div class="kv"><span>${escapeHtml(t("narrativeHits"))}</span><strong>${escapeHtml(hits)}</strong></div>
+          <div class="kv"><span>${escapeHtml(t("narrativeModel"))}</span><strong>${escapeHtml(narrative.model || "-")}</strong></div>
+        </div>`;
+    }
+
+    function statusLabel(status) {
+      return status === "pass" ? t("statusPass") : status === "fail" ? t("statusFail") : t("statusWatch");
+    }
+
+    function designActionLabel(value) {
+      const labels = {
+        "zh-tw": { buy_watch: "買點觀察", sell_pressure: "賣壓", watch: "觀察", not_applicable: "不適用" },
+        "zh-cn": { buy_watch: "买点观察", sell_pressure: "卖压", watch: "观察", not_applicable: "不适用" },
+        en: { buy_watch: "Buy watch", sell_pressure: "Sell pressure", watch: "Watch", not_applicable: "N/A" }
+      };
+      return labels[lang]?.[value] || value || "-";
+    }
+
     function relationshipText(row) {
       if (lang === "en") return row.why || row.relation || "";
       const zhHans = lang === "zh-cn";
@@ -2304,6 +2469,7 @@
       $("modelDrivers").innerHTML = data.prediction.drivers.map((x) => `<div class="muted">${escapeHtml(x)}</div>`).join("");
       $("newsBox").innerHTML = `<span class="tag ${data.news.label === "positive" ? "good" : data.news.label === "negative" ? "bad" : "warn"}">${label(data.news.label)} · +${data.news.positive} / -${data.news.negative}</span>` +
         data.news.items.map((n) => `<div class="news"><a href="${n.link}" target="_blank" rel="noreferrer">${escapeHtml(n.title)}</a><div class="muted">${n.source} · ${n.published || ""} · score ${n.sentiment}</div></div>`).join("");
+      renderDesignSignals(data.design_signals || {});
       renderChart(data);
       $("refreshMeta").textContent = `${t("updated")} ${new Date().toLocaleTimeString()}`;
       if (!watch.includes(data.symbol)) renderWatchlist();
