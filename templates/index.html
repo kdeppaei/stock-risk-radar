@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Stock Risk Radar</title>
+  <title>OpenKiri | AI Stock Risk Lens</title>
   <link rel="icon" href="data:," />
   <style>
     :root {
@@ -21,7 +21,8 @@
     .status strong, .card strong, .kv strong { display: block; margin-top: 4px; }
     header { grid-template-columns: minmax(0, 1fr) auto; align-items: end; margin-bottom: 14px; }
     h1, h2, h3, p { margin: 0; letter-spacing: 0; }
-    h1 { font-size: 30px; }
+    h1 { display: grid; gap: 2px; font-size: 31px; line-height: 1.05; }
+    h1 small { color: var(--blue); font-size: 15px; font-weight: 700; letter-spacing: 0; }
     h2 { font-size: 17px; }
     .sub, .muted, .explain { color: var(--muted); line-height: 1.5; }
     .sub { margin-top: 6px; }
@@ -125,7 +126,7 @@
     .mover-item:hover, .relation-card:hover { border-color: var(--blue); }
     .relation-grid { display: grid; gap: 8px; margin-top: 10px; }
     .relation-card { background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; cursor: pointer; }
-    .relation-card strong, .relation-card small { display: block; }
+    .relation-card strong, .relation-card small { display: block; overflow-wrap: anywhere; }
     .relation-card p { margin-top: 6px; color: #dbeafe; font-size: 13px; line-height: 1.45; }
     .relation-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
     .serenity-shell { display: grid; gap: 14px; }
@@ -217,11 +218,17 @@
     .syncbar { grid-template-columns: auto minmax(130px, 1fr) auto auto; margin: 8px 0; }
     .metric { text-align: right; font-size: 13px; }
     .metric b { display: block; margin-top: 2px; font-size: 15px; }
-    .main { grid-template-columns: minmax(0, 1fr) 390px; }
+    .main { grid-template-columns: minmax(0, 1fr) 390px; align-items: start; }
     .panel { padding: 16px; min-width: 0; }
     .chart-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 12px; }
     canvas { display: block; width: 100%; height: 540px; background: #0f172f; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
-    .side { display: grid; gap: 14px; align-content: start; }
+    .side {
+      display: grid; gap: 14px; align-content: start; max-height: min(720px, calc(100vh - 118px));
+      overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-gutter: stable;
+    }
+    .side::-webkit-scrollbar { width: 9px; }
+    .side::-webkit-scrollbar-thumb { background: #2f4073; border-radius: 999px; }
+    .side::-webkit-scrollbar-track { background: #0f172f; border-radius: 999px; }
     .summary { margin-top: 10px; line-height: 1.65; color: #d7e3ff; }
     .riskbar { height: 10px; background: #0f172f; border-radius: 999px; overflow: hidden; margin-top: 12px; }
     .riskbar div { height: 100%; width: 0; background: var(--green); transition: width .3s ease; }
@@ -298,7 +305,7 @@
     .explain { margin-top: 10px; font-size: 13px; }
     @keyframes blinkUp { 50% { background: rgba(34,197,94,.18); } }
     @keyframes blinkDown { 50% { background: rgba(239,68,68,.18); } }
-    @media (max-width: 1120px) { header, .main, .grid, .statusbar, .serenity-grid { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .cards, .screener-results, .watch-detail-grid { grid-template-columns: repeat(2, 1fr); } .watch-summary-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .watch-row-tools { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); } .screener-controls, .portfolio-form { grid-template-columns: repeat(3, 1fr); } .screener-row, .recommend-row, .allocation-row, .serenity-pick { grid-template-columns: 1fr 1fr; } .portfolio-summary, .interval-grid, .serenity-breakdown, .serenity-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); } .metric, .score-chip { text-align: left; } .shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 1120px) { header, .main, .grid, .statusbar, .serenity-grid { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .side { max-height: none; overflow: visible; padding-right: 0; } .cards, .screener-results, .watch-detail-grid { grid-template-columns: repeat(2, 1fr); } .watch-summary-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .watch-row-tools { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); } .screener-controls, .portfolio-form { grid-template-columns: repeat(3, 1fr); } .screener-row, .recommend-row, .allocation-row, .serenity-pick { grid-template-columns: 1fr 1fr; } .portfolio-summary, .interval-grid, .serenity-breakdown, .serenity-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); } .metric, .score-chip { text-align: left; } .shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 640px) {
       .wrap { width: min(100% - 18px, 1440px); }
       .search, .langbar, .quickbar, .chart-actions, .refreshbar { display: grid; grid-template-columns: 1fr 1fr; }
@@ -321,6 +328,7 @@
       .remove { grid-column: 2; }
       .video-links { flex-wrap: nowrap; overflow-x: auto; }
       .video-links a.button { width: auto; flex: 0 0 auto; height: 34px; font-size: 13px; }
+      .keyboard-shortcuts { display: none; }
     }
   </style>
 </head>
@@ -335,8 +343,8 @@
 
     <header>
       <div>
-        <h1>Stock Risk Radar</h1>
-        <p class="sub" data-i18n="subtitle">輸入美股或台股代號，快速整理股價、K 線、新聞、風險、總經與短長期建議。</p>
+        <h1>OpenKiri <small>AI Stock Risk Lens</small></h1>
+        <p class="sub" data-i18n="subtitle">一個結合 K 線、新聞情緒、風險分數與交易劇本的股票決策輔助工具</p>
       </div>
       <div class="controls">
         <div class="langbar">
@@ -526,7 +534,10 @@
         </section>
         <section class="workspace-pane" id="pane-help">
           <h2 data-reco-i18n="shortcutTitle">快捷鍵</h2>
-          <div id="shortcutGrid" class="shortcut-grid"></div>
+          <p class="explain" data-reco-i18n="shortcutHint">PC 可用快捷鍵；手機與平板請看下方觸控操作。</p>
+          <div id="shortcutGrid" class="shortcut-grid keyboard-shortcuts"></div>
+          <h2 data-reco-i18n="touchGuideTitle">手機 / 平板操作</h2>
+          <div id="touchGuide" class="shortcut-grid touch-guide-grid"></div>
           <h2 data-reco-i18n="featureGuideTitle">功能說明</h2>
           <div id="featureGuide" class="report-list"></div>
         </section>
@@ -841,6 +852,7 @@
       watchSyncGuide: "同步方式：裝置 A 先按「儲存同步」並「分享到討論」；裝置 B 打開同頁討論，輸入同步碼載入，或直接在組合分享卡點覆蓋/添加。",
       watchHolding: "持有", watchObserving: "觀望", watchAlertTitle: "關注急轉提醒", watchAlertRisk: "風險快速升高", watchAlertTrend: "趨勢轉弱", watchAlertPrice: "短線價格急跌", watchAlertRecover: "短線轉強提醒",
       portfolioUseWatch: "套用關注並試算", portfolioUseWatchEmpty: "尚未有關注股票可套用", shareUnit: "股", lotUnit: "張", featureGuideTitle: "功能說明",
+      shortcutHint: "PC 可用快捷鍵；手機與平板請看下方觸控操作。", touchGuideTitle: "手機 / 平板操作",
       serenityTitle: "Serenity Stock Tracker", serenityHint: "整合 Serenity 的研究方向：用公開價格、RSS 新聞、供應鏈主題與技術面產生追蹤分數；不抓私人 X 登入資料。",
       serenitySymbol: "股票代號", serenityRun: "評分目前股票", serenityLoading: "Serenity 追蹤中", serenityEmpty: "輸入股票或先完成主查詢，即可產生 Serenity-style 分數。",
       serenityOpenX: "開啟 X", serenityOpenGithub: "開源 Repo", serenityOpenCapafy: "Capafy 預覽", serenityScore: "Serenity 分數", serenityPosture: "追蹤姿態", serenityConfidence: "信心水準",
@@ -885,6 +897,7 @@
       watchSyncGuide: "同步方式：装置 A 先按“储存同步”并“分享到讨论”；装置 B 打开同页讨论，输入同步码载入，或直接在组合分享卡点覆盖/添加。",
       watchHolding: "持有", watchObserving: "观望", watchAlertTitle: "关注急转提醒", watchAlertRisk: "风险快速升高", watchAlertTrend: "趋势转弱", watchAlertPrice: "短线价格急跌", watchAlertRecover: "短线转强提醒",
       portfolioUseWatch: "套用关注并试算", portfolioUseWatchEmpty: "尚未有关注股票可套用", shareUnit: "股", lotUnit: "张", featureGuideTitle: "功能说明",
+      shortcutHint: "PC 可用快捷键；手机与平板请看下方触控操作。", touchGuideTitle: "手机 / 平板操作",
       serenityTitle: "Serenity Stock Tracker", serenityHint: "整合 Serenity 的研究方向：用公开价格、RSS 新闻、供应链主题与技术面产生追踪分数；不抓私人 X 登录资料。",
       serenitySymbol: "股票代码", serenityRun: "评分目前股票", serenityLoading: "Serenity 追踪中", serenityEmpty: "输入股票或先完成主查询，即可产生 Serenity-style 分数。",
       serenityOpenX: "开启 X", serenityOpenGithub: "开源 Repo", serenityOpenCapafy: "Capafy 预览", serenityScore: "Serenity 分数", serenityPosture: "追踪姿态", serenityConfidence: "置信水平",
@@ -922,6 +935,7 @@
       watchSyncGuide: "Sync flow: Device A clicks Save sync and Share to forum. Device B opens the same discussion, loads the sync code, or imports from the watchlist bundle card.",
       watchHolding: "Holding", watchObserving: "Watching", watchAlertTitle: "Watchlist turn alert", watchAlertRisk: "Risk rising fast", watchAlertTrend: "Trend weakening", watchAlertPrice: "Short-term price drop", watchAlertRecover: "Short-term strength alert",
       portfolioUseWatch: "Use watchlist & run", portfolioUseWatchEmpty: "No watched stocks to use yet", shareUnit: "shares", lotUnit: "lots", featureGuideTitle: "Feature Guide",
+      shortcutHint: "Keyboard shortcuts are for desktop. On phones and tablets, use the touch guide below.", touchGuideTitle: "Phone / Tablet Flow",
       serenityTitle: "Serenity Stock Tracker", serenityHint: "A public-safe Serenity-style tracker using price, RSS news, supply-chain themes and technical setup. It does not scrape private X sessions.",
       serenitySymbol: "Ticker", serenityRun: "Score ticker", serenityLoading: "Tracking with Serenity", serenityEmpty: "Enter a ticker or analyze one first to generate a Serenity-style score.",
       serenityOpenX: "Open X", serenityOpenGithub: "Open repo", serenityOpenCapafy: "Capafy preview", serenityScore: "Serenity Score", serenityPosture: "Posture", serenityConfidence: "Confidence",
@@ -1003,7 +1017,7 @@
 
     const dict = {
       "zh-tw": {
-        subtitle: "輸入美股或台股代號，快速整理股價、K 線、新聞、風險、總經與短長期建議。",
+        subtitle: "一個結合 K 線、新聞情緒、風險分數與交易劇本的股票決策輔助工具",
         analyze: "分析", addWatch: "加入關注", autoOn: "自動刷新：開", autoOff: "自動刷新：關",
         symbol: "股票代號", close: "收盤/最新", change: "漲跌", risk: "風險", trend: "趨勢",
         chartTitle: "K 線 / MA5 / MA20 / MA60 / Volume", liveSnapshot: "站內即時摘要", summary: "總結",
@@ -1023,7 +1037,7 @@
         confidence: "信心", model: "模型", advice: "建議", updated: "更新"
       },
       "zh-cn": {
-        subtitle: "输入美股或台股代码，快速整理股价、K线、新闻、风险、总经与短长期建议。",
+        subtitle: "一个结合 K 线、新闻情绪、风险分数与交易剧本的股票决策辅助工具",
         analyze: "分析", addWatch: "加入关注", autoOn: "自动刷新：开", autoOff: "自动刷新：关",
         symbol: "股票代码", close: "收盘/最新", change: "涨跌", risk: "风险", trend: "趋势",
         chartTitle: "K线 / MA5 / MA20 / MA60 / Volume", liveSnapshot: "站内即时摘要", summary: "总结",
@@ -1043,7 +1057,7 @@
         confidence: "信心", model: "模型", advice: "建议", updated: "更新"
       },
       en: {
-        subtitle: "Enter a US or Taiwan ticker to review price, candles, news, risk, macro context and trading suitability.",
+        subtitle: "AI Stock Risk Lens: a decision aid combining candles, news sentiment, risk scores and trading playbooks.",
         analyze: "Analyze", addWatch: "Watch", autoOn: "Auto refresh: on", autoOff: "Auto refresh: off",
         symbol: "Symbol", close: "Close/latest", change: "Change", risk: "Risk", trend: "Trend",
         chartTitle: "Candles / MA5 / MA20 / MA60 / Volume", liveSnapshot: "Live Snapshot", summary: "Summary",
@@ -1070,7 +1084,7 @@
     const t = (key) => (dict[lang] && dict[lang][key]) || dict.en[key] || key;
 
     Object.assign(dict["zh-tw"], {
-      subtitle: "輸入美股或台股代號，檢查價格、K 線、新聞、風險、總經與當沖/短期/長期適合度。",
+      subtitle: "一個結合 K 線、新聞情緒、風險分數與交易劇本的股票決策輔助工具",
       analyze: "分析", addWatch: "加入關注", autoOn: "自動刷新：開", autoOff: "自動刷新：關",
       symbol: "股票代號", close: "收盤/最新", change: "漲跌", risk: "風險", trend: "趨勢",
       chartTitle: "K 線 / MA5 / MA20 / MA60 / Volume", liveSnapshot: "站內即時摘要", summary: "摘要",
@@ -1094,7 +1108,7 @@
       statusPass: "通過", statusWatch: "觀察", statusFail: "不佳", narrativeHits: "偵測字詞", narrativeModel: "模型", noDesignData: "尚無設計訊號資料"
     });
     Object.assign(dict["zh-cn"], {
-      subtitle: "输入美股或台股代号，检查价格、K 线、新闻、风险、总经与当冲/短期/长期适合度。",
+      subtitle: "一个结合 K 线、新闻情绪、风险分数与交易剧本的股票决策辅助工具",
       analyze: "分析", addWatch: "加入关注", autoOn: "自动刷新：开", autoOff: "自动刷新：关",
       symbol: "股票代码", close: "收盘/最新", change: "涨跌", risk: "风险", trend: "趋势",
       chartTitle: "K 线 / MA5 / MA20 / MA60 / Volume", liveSnapshot: "站内即时摘要", summary: "摘要",
@@ -1254,9 +1268,37 @@
         ["Alt+W", rt("shortcutWatch")],
       ];
       $("shortcutGrid").innerHTML = rows.map(([key, label]) => `<div class="plainbox"><span class="shortcut-key">${key}</span><div class="muted" style="margin-top:8px">${escapeHtml(label)}</div></div>`).join("");
+      if ($("touchGuide")) {
+        $("touchGuide").innerHTML = touchGuideItems().map((item) => `<div class="plainbox"><strong>${escapeHtml(item.title)}</strong><p class="explain">${escapeHtml(item.text)}</p></div>`).join("");
+      }
       if ($("featureGuide")) {
         $("featureGuide").innerHTML = featureGuideItems().map((item) => `<div class="plainbox"><strong>${escapeHtml(item.title)}</strong><p class="explain">${escapeHtml(item.text)}</p></div>`).join("");
       }
+    }
+
+    function touchGuideItems() {
+      if (lang === "en") {
+        return [
+          { title: "Swipe tabs", text: "The Home / Screener / News / Serenity / Forum / Portfolio tabs can scroll sideways. Start with Home, then jump to News or Portfolio when needed." },
+          { title: "Use large buttons", text: "On touch screens, use Analyze, Watch, Auto Refresh and the floating round buttons instead of memorizing keyboard shortcuts." },
+          { title: "Chart and side drawer", text: "Tap the chart to open Google Finance. On desktop the right-side related/news area scrolls inside its own panel; on mobile it becomes normal stacked content." },
+          { title: "Watch first", text: "Add holdings or watch candidates to the watchlist first. Alerts only work while the page is open and the symbol is being tracked." }
+        ];
+      }
+      if (lang === "zh-cn") {
+        return [
+          { title: "左右滑分页", text: "常用 / 筛选 / 要闻 / Serenity / 讨论 / 组合 / 说明 可横向滑动。先用常用看盘，需要时再切到要闻或组合。" },
+          { title: "优先按大按钮", text: "手机和平板不用记快捷键，直接点分析、加入关注、自动刷新与右侧圆形工具。" },
+          { title: "图表与右侧栏", text: "点 K 线图可开启 Google Finance。桌机右侧关联/新闻区会在自己的框内滚动，手机则改成上下堆叠。" },
+          { title: "先加入关注", text: "把持股或观察股先加入关注；网页开着且股票被追踪时，才会出现急转提醒。" }
+        ];
+      }
+      return [
+        { title: "左右滑頁籤", text: "常用 / 篩選 / 要聞 / Serenity / 討論 / 組合 / 說明 可橫向滑動。先用常用看盤，需要時再切到要聞或組合。" },
+        { title: "優先按大按鈕", text: "手機和平板不用記快捷鍵，直接點分析、加入關注、自動刷新與右側圓形工具。" },
+        { title: "圖表與右側欄", text: "點 K 線圖可開啟 Google Finance。桌機右側關聯/新聞區會在自己的框內捲動，手機則改成上下堆疊。" },
+        { title: "先加入關注", text: "把持股或觀察股先加入關注；網頁開著且股票被追蹤時，才會出現急轉提醒。" }
+      ];
     }
 
     function featureGuideItems() {
