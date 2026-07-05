@@ -917,6 +917,8 @@ def analyze(
     suitability = build_suitability(latest, risk, news)
     prediction = build_prediction(rows, latest, risk, news, event_context)
     macro = fetch_macro_snapshot()
+    visible_rows = rows[-180:]
+    chart_math = build_chart_math(visible_rows, latest, risk, prediction)
     design_signals = build_design_signals(resolved, market, rows, latest, levels, risk, prediction, news, macro)
 
     response = {
@@ -948,7 +950,8 @@ def analyze(
         "macro": macro,
         "design_signals": design_signals,
         "related": related_assets(resolved, market),
-        "chart": build_chart_rows(rows[-180:], market),
+        "chart_math": chart_math,
+        "chart": build_chart_rows(visible_rows, market),
     }
     save_log(raw, resolved, market, response)
     return response
@@ -2732,6 +2735,147 @@ def support_resistance(rows: list[dict[str, Any]]) -> dict[str, float]:
     resistance = max(row["high"] for row in recent)
     atr = latest["ATR14"] or 0
     return {"support_60d": number(support), "resistance_60d": number(resistance), "breakout_call": number(resistance * 1.01), "backtest_zone": number(max(support, latest["close"] - atr)), "stop_loss_reference": number(max(0, support - atr * 0.5))}
+
+
+def build_chart_math(
+    rows: list[dict[str, Any]],
+    latest: dict[str, Any],
+    risk: dict[str, Any],
+    prediction: dict[str, Any],
+) -> dict[str, Any]:
+    if len(rows) < 20:
+        return {
+            "status": "insufficient",
+            "verdict": "unclear",
+            "confidence": 0,
+            "crosses": [],
+            "latest_cross": None,
+            "topology": "unknown",
+            "metrics": {},
+            "explanation": "Not enough bars to classify the chart structure.",
+        }
+
+    closes = [float(row["close"]) for row in rows if row.get("close") is not None]
+    recent = rows[-min(60, len(rows)):]
+    recent_closes = [float(row["close"]) for row in recent]
+    slope, _, r2 = linear_regression(recent_closes)
+    close = float(latest.get("close") or closes[-1])
+    ma5 = float(latest.get("MA5") or close)
+    ma20 = float(latest.get("MA20") or close)
+    ma60 = float(latest.get("MA60") or close)
+    slope_pct = slope / close * 100 if close else 0
+    ma20_slope = ma_slope_pct(rows, "MA20", close, 10)
+    ma60_slope = ma_slope_pct(rows, "MA60", close, 20)
+    spread_pct = (ma20 - ma60) / close * 100 if close else 0
+    volatility_pct = stddev([row["RET1"] * 100 for row in recent[-20:] if row.get("RET1") is not None])
+
+    topology = ma_topology(close, ma5, ma20, ma60)
+    crosses = find_ma_crosses(rows)
+    latest_cross = crosses[-1] if crosses else None
+    bars_since_cross = len(rows) - 1 - latest_cross["index"] if latest_cross else None
+    status = latest_cross["type"] if latest_cross and bars_since_cross is not None and bars_since_cross <= 35 else topology
+
+    bearish_stack = topology == "bearish_stack"
+    bullish_stack = topology == "bullish_stack"
+    trend_down = slope_pct < -0.035 and ma20_slope < -0.04 and r2 >= 0.18
+    trend_up = slope_pct > 0.035 and ma20_slope > 0.04 and r2 >= 0.18
+    noisy = r2 < 0.16 or abs(spread_pct) < 0.18
+
+    if latest_cross and latest_cross["type"] == "death_cross" and bars_since_cross is not None and bars_since_cross <= 35:
+        if bearish_stack and trend_down:
+            verdict = "bearish_continuation"
+            explanation = "MA20 crossed below MA60 while price remains under the moving-average stack; regression slope and R-squared support downside continuation."
+        elif noisy or close > ma20:
+            verdict = "death_cross_unclear"
+            explanation = "A death cross appeared, but the regression fit or moving-average spread is weak; treat it as a warning, not a confirmed trend."
+        else:
+            verdict = "bearish_watch"
+            explanation = "Death cross pressure is present, but the path is not clean enough for high conviction."
+    elif latest_cross and latest_cross["type"] == "golden_cross" and bars_since_cross is not None and bars_since_cross <= 35:
+        if bullish_stack and trend_up:
+            verdict = "bullish_continuation"
+            explanation = "MA20 crossed above MA60 and the moving-average stack is aligned upward; momentum supports a bull trend."
+        elif noisy or close < ma20:
+            verdict = "golden_cross_unclear"
+            explanation = "A golden cross appeared, but price action is still noisy; wait for MA20 support or volume confirmation."
+        else:
+            verdict = "bullish_watch"
+            explanation = "Golden-cross pressure is present, but confirmation is still moderate."
+    elif bearish_stack and trend_down:
+        verdict = "bearish_continuation"
+        explanation = "Moving averages are ordered bearishly and regression slope is negative, so downside pressure may continue."
+    elif bullish_stack and trend_up:
+        verdict = "bullish_continuation"
+        explanation = "Moving averages are ordered bullishly and regression slope is positive, so upside pressure may continue."
+    else:
+        verdict = "unclear"
+        explanation = "Moving-average topology is tangled or regression confidence is low; current chart does not give a clean bull/bear continuation signal."
+
+    confidence = int(max(5, min(95, abs(slope_pct) * 420 + max(0, r2) * 42 + abs(spread_pct) * 5 - int(risk.get("score") or 0) * 0.12)))
+    if noisy:
+        confidence = min(confidence, 48)
+    if "continuation" in verdict:
+        confidence = max(confidence, 55)
+
+    return {
+        "status": status,
+        "verdict": verdict,
+        "confidence": confidence,
+        "crosses": crosses[-8:],
+        "latest_cross": latest_cross,
+        "bars_since_cross": bars_since_cross,
+        "topology": topology,
+        "model": "MA topology graph + OLS slope/R2 + spread/volatility filters",
+        "metrics": {
+            "slope_pct_per_bar": number(slope_pct, 4),
+            "r2": number(r2, 4),
+            "ma20_slope_pct": number(ma20_slope, 4),
+            "ma60_slope_pct": number(ma60_slope, 4),
+            "ma20_ma60_spread_pct": number(spread_pct, 4),
+            "volatility_20d_pct": number(volatility_pct, 2),
+            "risk_score": int(risk.get("score") or 0),
+            "prediction_bias": prediction.get("bias", "neutral"),
+        },
+        "explanation": explanation,
+    }
+
+
+def ma_slope_pct(rows: list[dict[str, Any]], key: str, close: float, lookback: int) -> float:
+    if len(rows) <= lookback or not close:
+        return 0
+    cur = float(rows[-1].get(key) or 0)
+    prev = float(rows[-lookback - 1].get(key) or 0)
+    return (cur - prev) / close * 100 if prev else 0
+
+
+def ma_topology(close: float, ma5: float, ma20: float, ma60: float) -> str:
+    if close > ma5 > ma20 > ma60:
+        return "bullish_stack"
+    if close < ma5 < ma20 < ma60:
+        return "bearish_stack"
+    if ma20 > ma60 and close >= ma20:
+        return "bullish_above_ma20"
+    if ma20 < ma60 and close <= ma20:
+        return "bearish_below_ma20"
+    return "mixed_topology"
+
+
+def find_ma_crosses(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    crosses: list[dict[str, Any]] = []
+    for i in range(1, len(rows)):
+        prev = rows[i - 1]
+        cur = rows[i]
+        prev_ma20 = float(prev.get("MA20") or 0)
+        prev_ma60 = float(prev.get("MA60") or 0)
+        cur_ma20 = float(cur.get("MA20") or 0)
+        cur_ma60 = float(cur.get("MA60") or 0)
+        if not all([prev_ma20, prev_ma60, cur_ma20, cur_ma60]):
+            continue
+        if prev_ma20 >= prev_ma60 and cur_ma20 < cur_ma60:
+            crosses.append({"index": i, "date": cur.get("date_label", ""), "type": "death_cross", "spread_pct": number((cur_ma20 - cur_ma60) / float(cur.get("close") or 1) * 100, 4)})
+        elif prev_ma20 <= prev_ma60 and cur_ma20 > cur_ma60:
+            crosses.append({"index": i, "date": cur.get("date_label", ""), "type": "golden_cross", "spread_pct": number((cur_ma20 - cur_ma60) / float(cur.get("close") or 1) * 100, 4)})
+    return crosses
 
 
 def build_risk(latest: dict[str, Any], levels: dict[str, float], news: dict[str, Any], event_context: dict[str, Any] | None = None) -> dict[str, Any]:

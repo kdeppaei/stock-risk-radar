@@ -225,6 +225,23 @@
     .panel { padding: 16px; min-width: 0; }
     .chart-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 12px; }
     canvas { display: block; width: 100%; height: 540px; background: #0f172f; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+    .chart-legend { margin-top: 10px; background: #0f172f; border: 1px solid var(--line); border-radius: 7px; padding: 10px 12px; }
+    .chart-legend summary { cursor: pointer; color: #dbeafe; font-weight: 800; }
+    .legend-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+    .legend-item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: start; color: var(--muted); font-size: 13px; line-height: 1.35; }
+    .legend-swatch { width: 22px; height: 10px; border-radius: 999px; margin-top: 4px; background: var(--swatch); box-shadow: 0 0 0 1px rgba(255,255,255,.12); }
+    .legend-swatch.candle { height: 18px; border-radius: 4px; background: linear-gradient(90deg, var(--green) 0 48%, var(--red) 52% 100%); }
+    .legend-swatch.buy { height: 18px; border-radius: 999px; background: rgba(34,197,94,.24); border: 1px solid var(--green); }
+    .legend-swatch.cross { height: 18px; border-radius: 4px; background: linear-gradient(135deg, #ef4444 0 48%, #fbbf24 50% 100%); }
+    .chart-signal-box { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(94px, .8fr)); gap: 8px; margin-top: 10px; padding: 10px; border: 1px solid var(--line); border-left: 4px solid var(--amber); border-radius: 7px; background: var(--card); }
+    .chart-signal-box.good { border-left-color: var(--green); }
+    .chart-signal-box.bad { border-left-color: var(--red); }
+    .chart-signal-box.warn { border-left-color: var(--amber); }
+    .chart-signal-main strong, .chart-signal-metric strong { display: block; }
+    .chart-signal-main p { margin: 5px 0 0; color: #dbeafe; line-height: 1.45; font-size: 13px; }
+    .chart-signal-metric { min-height: 58px; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: #0f172f; }
+    .chart-signal-metric span { display: block; color: var(--muted); font-size: 12px; }
+    .chart-signal-metric strong { overflow-wrap: anywhere; line-height: 1.3; }
     .side {
       display: grid; gap: 14px; align-content: start; max-height: min(720px, calc(100vh - 118px));
       overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-gutter: stable;
@@ -323,7 +340,9 @@
       .wrap { width: min(100% - 18px, 1440px); }
       .search, .langbar, .quickbar, .chart-actions, .refreshbar { display: grid; grid-template-columns: 1fr 1fr; }
       input, select, button, a.button { width: 100%; }
-      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form, .portfolio-form, .portfolio-summary, .interval-grid, .allocation-row, .mover-board, .mover-tools, .bot-controls, .bot-grid, .hindsight-grid, .syncbar, .watch-detail-grid, .watch-detail-kv, .event-alert-grid, .watch-summary-row, .watch-row-tools, .serenity-hero, .serenity-controls, .serenity-breakdown, .serenity-lists, .serenity-pick, .serenity-intel-grid { grid-template-columns: 1fr; }
+      .cards, .kvgrid, .screener-controls, .screener-results, .shortcut-grid, .forum-form, .portfolio-form, .portfolio-summary, .interval-grid, .allocation-row, .mover-board, .mover-tools, .bot-controls, .bot-grid, .hindsight-grid, .syncbar, .watch-detail-grid, .watch-detail-kv, .event-alert-grid, .watch-summary-row, .watch-row-tools, .serenity-hero, .serenity-controls, .serenity-breakdown, .serenity-lists, .serenity-pick, .serenity-intel-grid, .legend-grid { grid-template-columns: 1fr; }
+      .chart-signal-box { grid-template-columns: 1fr 1fr; }
+      .chart-signal-main, .chart-signal-metric:last-child { grid-column: 1 / -1; }
       .serenity-actions { justify-content: stretch; }
       .portfolio-form .wide-field { grid-column: auto; }
       .forum-shell { height: min(520px, calc(100vh - 160px)); }
@@ -627,6 +646,10 @@
           <a id="yahooLink" class="button secondary" href="#" target="_blank" rel="noreferrer" data-reco-tip="tipYahoo">Yahoo</a>
           <a id="tradingViewLink" class="button secondary" href="#" target="_blank" rel="noreferrer" data-reco-tip="tipTradingView">TradingView</a>
         </div>
+        <details class="chart-legend">
+          <summary id="chartLegendSummary">線條說明</summary>
+          <div id="chartLegendBody" class="legend-grid"></div>
+        </details>
         <div class="quote-row">
           <div>
             <strong data-i18n="liveSnapshot">站內即時摘要</strong>
@@ -634,6 +657,7 @@
           </div>
           <span class="tag" id="predictionBadge">-</span>
         </div>
+        <div id="chartSignalBox" class="chart-signal-box"></div>
         <div class="chart-hint" id="chartHint" data-i18n="chartHint">點擊 K 線圖可開啟 Google Finance；BUY 是條件式參考訊號。</div>
         <canvas id="chart"></canvas>
       </article>
@@ -1096,6 +1120,111 @@
       }
     };
     const t = (key) => (dict[lang] && dict[lang][key]) || dict.en[key] || key;
+    const chartTexts = {
+      "zh-tw": {
+        legendTitle: "線條 / 顏色說明",
+        candle: "K 線：美股漲綠跌紅；台股漲紅跌綠。實體代表開收盤，影線代表高低點。",
+        ma5: "MA5 藍線：短線情緒，常用來看當沖或數日內轉折。",
+        ma20: "MA20 黃線：短中期成本區，跌破後常代表賣壓變重。",
+        ma60: "MA60 紫線：中期趨勢與主力成本區，越陡代表趨勢越明顯。",
+        volume: "Volume 成交量：越高表示分歧或資金動能越大，需搭配價格方向判讀。",
+        buy: "BUY 標記：條件式觀察點，不是保證買點；用於提醒站回均線、回測或量價條件。",
+        cross: "交叉標記：MA20 下穿 MA60 為死亡交叉；上穿為黃金交叉。",
+        chartDecision: "圖表判讀",
+        model: "模型",
+        confidence: "信心",
+        topology: "均線拓樸",
+        slope: "斜率/日",
+        spread: "MA20-MA60",
+        death_cross: "死亡交叉",
+        golden_cross: "黃金交叉",
+        bearish_continuation: "偏空延續",
+        death_cross_unclear: "死亡交叉但行情不清",
+        bearish_watch: "偏空觀察",
+        bullish_continuation: "偏多延續",
+        golden_cross_unclear: "黃金交叉但行情不清",
+        bullish_watch: "偏多觀察",
+        unclear: "看不出明確行情",
+        insufficient: "資料不足",
+        bullish_stack: "多頭排列",
+        bearish_stack: "空頭排列",
+        bullish_above_ma20: "MA20 上方偏多",
+        bearish_below_ma20: "MA20 下方偏空",
+        mixed_topology: "均線糾結",
+        unknown: "未知",
+        deathNote: "死亡交叉後若價格仍在 MA5/MA20/MA60 下方，且斜率/R²同步轉弱，偏向行情延續；若 R²低或均線糾結，代表雜訊大，暫時看不出行情。",
+        bullNote: "黃金交叉後若價格站上均線堆疊且斜率轉正，偏向多頭延續；若量能或價格沒有確認，仍以觀察為主。"
+      },
+      "zh-cn": {
+        legendTitle: "线条 / 颜色说明",
+        candle: "K 线：美股涨绿跌红；台股涨红跌绿。实体代表开收盘，影线代表高低点。",
+        ma5: "MA5 蓝线：短线情绪，常用来看当冲或数日内转折。",
+        ma20: "MA20 黄线：短中期成本区，跌破后常代表卖压变重。",
+        ma60: "MA60 紫线：中期趋势与主力成本区，越陡代表趋势越明显。",
+        volume: "Volume 成交量：越高表示分歧或资金动能越大，需搭配价格方向判读。",
+        buy: "BUY 标记：条件式观察点，不是保证买点；用于提醒站回均线、回测或量价条件。",
+        cross: "交叉标记：MA20 下穿 MA60 为死亡交叉；上穿为黄金交叉。",
+        chartDecision: "图表判读",
+        model: "模型",
+        confidence: "信心",
+        topology: "均线拓扑",
+        slope: "斜率/日",
+        spread: "MA20-MA60",
+        death_cross: "死亡交叉",
+        golden_cross: "黄金交叉",
+        bearish_continuation: "偏空延续",
+        death_cross_unclear: "死亡交叉但行情不清",
+        bearish_watch: "偏空观察",
+        bullish_continuation: "偏多延续",
+        golden_cross_unclear: "黄金交叉但行情不清",
+        bullish_watch: "偏多观察",
+        unclear: "看不出明确行情",
+        insufficient: "资料不足",
+        bullish_stack: "多头排列",
+        bearish_stack: "空头排列",
+        bullish_above_ma20: "MA20 上方偏多",
+        bearish_below_ma20: "MA20 下方偏空",
+        mixed_topology: "均线纠结",
+        unknown: "未知",
+        deathNote: "死亡交叉后若价格仍在 MA5/MA20/MA60 下方，且斜率/R²同步转弱，偏向行情延续；若 R²低或均线纠结，代表噪声大，暂时看不出行情。",
+        bullNote: "黄金交叉后若价格站上均线堆叠且斜率转正，偏向多头延续；若量能或价格没有确认，仍以观察为主。"
+      },
+      en: {
+        legendTitle: "Line / Color Guide",
+        candle: "Candles: US up green/down red; Taiwan up red/down green. Body is open-close, wick is high-low.",
+        ma5: "MA5 blue: short-term mood and fast reversals.",
+        ma20: "MA20 yellow: short/mid cost zone; losing it often means heavier selling pressure.",
+        ma60: "MA60 purple: mid-term trend and main cost zone.",
+        volume: "Volume: higher bars mean stronger disagreement or capital flow; read with price direction.",
+        buy: "BUY markers: conditional watch points, not guaranteed entries.",
+        cross: "Cross markers: MA20 below MA60 is a death cross; MA20 above MA60 is a golden cross.",
+        chartDecision: "Chart Read",
+        model: "Model",
+        confidence: "Confidence",
+        topology: "MA topology",
+        slope: "Slope/bar",
+        spread: "MA20-MA60",
+        death_cross: "Death cross",
+        golden_cross: "Golden cross",
+        bearish_continuation: "Bearish continuation",
+        death_cross_unclear: "Death cross, unclear trend",
+        bearish_watch: "Bearish watch",
+        bullish_continuation: "Bullish continuation",
+        golden_cross_unclear: "Golden cross, unclear trend",
+        bullish_watch: "Bullish watch",
+        unclear: "No clean trend",
+        insufficient: "Not enough data",
+        bullish_stack: "Bullish stack",
+        bearish_stack: "Bearish stack",
+        bullish_above_ma20: "Bullish above MA20",
+        bearish_below_ma20: "Bearish below MA20",
+        mixed_topology: "Tangled averages",
+        unknown: "Unknown",
+        deathNote: "After a death cross, continuation is more likely when price stays below the MA stack and slope/R² weaken together; low R² or tangled averages means the trend is unclear.",
+        bullNote: "After a golden cross, continuation is stronger when price holds above the MA stack and slope turns positive."
+      }
+    };
+    function ccopy(key) { return (chartTexts[lang] && chartTexts[lang][key]) || chartTexts.en[key] || key; }
 
     Object.assign(dict["zh-tw"], {
       subtitle: "一個結合 K 線、新聞情緒、風險分數與交易劇本的股票決策輔助工具",
@@ -1212,6 +1341,8 @@
       $("scoreHelp").textContent = t("scoreHelp");
       $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff");
       $("recoRefreshBtn").textContent = rt("refresh");
+      renderChartLegend();
+      if (lastData) renderChartSignal(lastData);
       updatePortfolioRiskLabel();
       renderStickers();
       renderShortcuts();
@@ -2537,6 +2668,8 @@
         `<span class="tag ${data.news.label === "positive" ? "good" : data.news.label === "negative" ? "bad" : "warn"}">${label(data.news.label)} · +${data.news.positive} / -${data.news.negative}</span>` +
         newsItems.map((n) => `<div class="news"><a href="${escapeHtml(n.link)}" target="_blank" rel="noreferrer">${escapeHtml(n.title)}</a><div class="muted">${escapeHtml(n.source || "")} · ${escapeHtml(n.published || "")} · score ${escapeHtml(n.sentiment)}</div></div>`).join("");
       renderDesignSignals(data.design_signals || {});
+      renderChartLegend();
+      renderChartSignal(data);
       renderChart(data);
       $("refreshMeta").textContent = `${t("updated")} ${new Date().toLocaleTimeString()}`;
       if (!watch.includes(data.symbol)) renderWatchlist();
@@ -2901,20 +3034,70 @@
       }
     }
 
+    function renderChartLegend() {
+      const rows = [
+        ["candle", "candle", ccopy("candle")],
+        ["ma5", "", ccopy("ma5"), "#76a9ff"],
+        ["ma20", "", ccopy("ma20"), "#fbbf24"],
+        ["ma60", "", ccopy("ma60"), "#c084fc"],
+        ["volume", "", ccopy("volume"), "rgba(148,163,184,.75)"],
+        ["buy", "buy", ccopy("buy")],
+        ["cross", "cross", ccopy("cross")]
+      ];
+      $("chartLegendSummary").textContent = ccopy("legendTitle");
+      $("chartLegendBody").innerHTML = rows.map(([key, cls, text, color]) => `
+        <div class="legend-item">
+          <span class="legend-swatch ${escapeHtml(cls || "")}" style="--swatch:${escapeHtml(color || "#94a3b8")}"></span>
+          <span>${escapeHtml(text)}</span>
+        </div>`).join("");
+    }
+
+    function renderChartSignal(data) {
+      const math = data?.chart_math || {};
+      const metrics = math.metrics || {};
+      const verdict = math.verdict || "unclear";
+      const tone = verdict.includes("bullish") ? "good" : verdict.includes("bearish") || verdict.includes("death") ? "bad" : "warn";
+      const cross = math.latest_cross ? `${ccopy(math.latest_cross.type)} · ${math.latest_cross.date} · ${math.bars_since_cross ?? "-"} bars` : ccopy(math.status || "unclear");
+      const note = verdict.includes("death") || verdict.includes("bearish") ? ccopy("deathNote") : verdict.includes("golden") || verdict.includes("bullish") ? ccopy("bullNote") : (math.explanation || ccopy("unclear"));
+      $("chartSignalBox").className = `chart-signal-box ${tone}`;
+      $("chartSignalBox").innerHTML = `
+        <div class="chart-signal-main">
+          <span class="tag ${tone === "good" ? "good" : tone === "bad" ? "bad" : "warn"}">${escapeHtml(ccopy(verdict))}</span>
+          <strong>${escapeHtml(ccopy("chartDecision"))}: ${escapeHtml(cross)}</strong>
+          <p>${escapeHtml(note)}</p>
+        </div>
+        <div class="chart-signal-metric"><span>${escapeHtml(ccopy("confidence"))}</span><strong>${escapeHtml(math.confidence ?? "-")}%</strong></div>
+        <div class="chart-signal-metric"><span>${escapeHtml(ccopy("topology"))}</span><strong>${escapeHtml(ccopy(math.topology || "unknown"))}</strong></div>
+        <div class="chart-signal-metric"><span>${escapeHtml(ccopy("slope"))}</span><strong>${escapeHtml(metrics.slope_pct_per_bar ?? "-")}%</strong></div>
+        <div class="chart-signal-metric"><span>${escapeHtml(ccopy("spread"))}</span><strong>${escapeHtml(metrics.ma20_ma60_spread_pct ?? "-")}%</strong></div>
+        <div class="chart-signal-metric"><span>R²</span><strong>${escapeHtml(metrics.r2 ?? "-")}</strong></div>
+        <div class="chart-signal-metric"><span>${escapeHtml(ccopy("model"))}</span><strong>${escapeHtml(math.model || "-")}</strong></div>`;
+    }
+
     function renderChart(data) {
       if (!data) return;
       const rect = canvas.getBoundingClientRect(); const dpr = window.devicePixelRatio || 1;
       canvas.width = Math.max(320, Math.round(rect.width * dpr)); canvas.height = Math.max(360, Math.round(rect.height * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const w = rect.width, h = rect.height; ctx.clearRect(0, 0, w, h);
-      const rows = data.chart; const pad = { l: 52, r: 16, t: 18, b: 94 }; const chartH = h - pad.t - pad.b;
-      const min = Math.min(...rows.map((r) => r.low)) * 0.985; const max = Math.max(...rows.map((r) => r.high)) * 1.015; const volMax = Math.max(...rows.map((r) => r.volume));
-      const x = (i) => pad.l + i * ((w - pad.l - pad.r) / Math.max(1, rows.length - 1)); const y = (p) => pad.t + (max - p) / (max - min) * chartH; const vy = (v) => h - 28 - (v / volMax) * 56;
-      ctx.strokeStyle = "#26345f";
+      const rows = data.chart || []; if (!rows.length) return;
+      const pad = { l: 52, r: 70, t: 18, b: 94 }; const chartH = h - pad.t - pad.b;
+      const rawMin = Math.min(...rows.map((r) => r.low)); const rawMax = Math.max(...rows.map((r) => r.high));
+      const spread = Math.max(0.0001, rawMax - rawMin);
+      const min = rawMin - spread * 0.035; const max = rawMax + spread * 0.035; const volMax = Math.max(1, ...rows.map((r) => r.volume || 0));
+      const x = (i) => pad.l + i * ((w - pad.l - pad.r) / Math.max(1, rows.length - 1)); const y = (p) => pad.t + (max - p) / Math.max(0.0001, max - min) * chartH; const vy = (v) => h - 28 - (v / volMax) * 56;
+      const bg = ctx.createLinearGradient(0, pad.t, 0, h - pad.b);
+      bg.addColorStop(0, "rgba(59,130,246,.08)"); bg.addColorStop(1, "rgba(15,23,47,0)");
+      ctx.fillStyle = bg; ctx.fillRect(pad.l, pad.t, w - pad.l - pad.r, chartH);
+      ctx.strokeStyle = "#26345f"; ctx.lineWidth = 1;
       for (let i = 0; i < 5; i++) { const yy = pad.t + i * chartH / 4; ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(w - pad.r, yy); ctx.stroke(); ctx.fillStyle = "#97a4c2"; ctx.font = "12px Segoe UI"; ctx.fillText(fmt(max - i * (max - min) / 4), 5, yy + 4); }
       const barW = Math.max(3, (w - pad.l - pad.r) / rows.length * .62);
       rows.forEach((r, i) => { const xx = x(i); ctx.strokeStyle = r.color; ctx.fillStyle = r.color; ctx.beginPath(); ctx.moveTo(xx, y(r.high)); ctx.lineTo(xx, y(r.low)); ctx.stroke(); const top = y(Math.max(r.open, r.close)); const bottom = y(Math.min(r.open, r.close)); ctx.fillRect(xx - barW / 2, top, barW, Math.max(1, bottom - top)); ctx.globalAlpha = .35; ctx.fillRect(xx - barW / 2, vy(r.volume), barW, h - 28 - vy(r.volume)); ctx.globalAlpha = 1; });
-      drawLine(rows, "ma5", "#76a9ff", x, y); drawLine(rows, "ma20", "#fbbf24", x, y); drawLine(rows, "ma60", "#c084fc", x, y); drawBuySignals(data, rows, x, y);
+      drawLine(rows, "ma5", "#76a9ff", x, y); drawLine(rows, "ma20", "#fbbf24", x, y); drawLine(rows, "ma60", "#c084fc", x, y); drawCrossSignals(data, rows, x, y, pad, h); drawBuySignals(data, rows, x, y);
+      const last = rows.at(-1); const lastY = y(last.close);
+      ctx.save(); ctx.setLineDash([5, 5]); ctx.strokeStyle = "rgba(226,232,240,.55)"; ctx.beginPath(); ctx.moveTo(pad.l, lastY); ctx.lineTo(w - pad.r + 8, lastY); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = "#0f172f"; ctx.strokeStyle = "#76a9ff"; ctx.lineWidth = 1; const label = fmt(last.close); const labelW = Math.min(64, ctx.measureText(label).width + 16);
+      ctx.beginPath(); ctx.roundRect?.(w - pad.r + 10, lastY - 12, labelW, 24, 6); if (!ctx.roundRect) ctx.rect(w - pad.r + 10, lastY - 12, labelW, 24); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#dbeafe"; ctx.fillText(label, w - pad.r + 18, lastY + 4); ctx.restore();
       ctx.fillStyle = "#97a4c2"; ctx.fillText(rows[0].date, pad.l, h - 8); ctx.fillText(rows.at(-1).date, Math.max(pad.l, w - 92), h - 8);
     }
     function drawLine(rows, key, color, x, y) {
@@ -2925,6 +3108,17 @@
       findBuySignals(data, rows).slice(-5).forEach((signal) => {
         const row = rows[signal.index]; const xx = x(signal.index); const yy = Math.max(28, y(row.low) - 18);
         ctx.save(); ctx.fillStyle = "rgba(34,197,94,.16)"; ctx.strokeStyle = "#22c55e"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(xx, yy + 4, 13, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#86efac"; ctx.font = "700 11px Segoe UI"; ctx.textAlign = "center"; ctx.fillText("BUY", xx, yy + 8); ctx.fillStyle = "#22c55e"; ctx.beginPath(); ctx.moveTo(xx, yy + 19); ctx.lineTo(xx - 5, yy + 29); ctx.lineTo(xx + 5, yy + 29); ctx.closePath(); ctx.fill(); ctx.restore();
+      });
+    }
+    function drawCrossSignals(data, rows, x, y, pad, h) {
+      (data.chart_math?.crosses || []).slice(-5).forEach((cross) => {
+        const row = rows[cross.index]; if (!row) return;
+        const xx = x(cross.index); const yy = y((row.ma20 + row.ma60) / 2);
+        const death = cross.type === "death_cross"; const color = death ? "#ef4444" : "#22c55e"; const fill = death ? "rgba(239,68,68,.18)" : "rgba(34,197,94,.18)";
+        ctx.save(); ctx.setLineDash([4, 5]); ctx.strokeStyle = color; ctx.globalAlpha = .72; ctx.beginPath(); ctx.moveTo(xx, pad.t); ctx.lineTo(xx, h - pad.b + 56); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+        ctx.fillStyle = fill; ctx.strokeStyle = color; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(xx, yy, 12, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = color; ctx.font = "800 10px Segoe UI"; ctx.textAlign = "center"; ctx.fillText(death ? "D" : "G", xx, yy + 4);
+        ctx.fillStyle = "#dbeafe"; ctx.font = "700 11px Segoe UI"; ctx.fillText(death ? ccopy("death_cross") : ccopy("golden_cross"), xx, Math.max(18, yy - 17)); ctx.restore();
       });
     }
     function findBuySignals(data, rows) {
