@@ -88,6 +88,15 @@ STOCK_UNIVERSE = [
     {"symbol": "CVX", "name": "Chevron", "market": "US", "industry": "Energy", "market_cap_usd": 280000000000},
     {"symbol": "CAT", "name": "Caterpillar", "market": "US", "industry": "Industrials", "market_cap_usd": 180000000000},
     {"symbol": "GE", "name": "GE Aerospace", "market": "US", "industry": "Industrials", "market_cap_usd": 270000000000},
+    {"symbol": "ASML", "name": "ASML", "market": "US", "industry": "Semiconductors", "market_cap_usd": 390000000000},
+    {"symbol": "AMAT", "name": "Applied Materials", "market": "US", "industry": "Semiconductors", "market_cap_usd": 190000000000},
+    {"symbol": "LRCX", "name": "Lam Research", "market": "US", "industry": "Semiconductors", "market_cap_usd": 140000000000},
+    {"symbol": "KLAC", "name": "KLA", "market": "US", "industry": "Semiconductors", "market_cap_usd": 120000000000},
+    {"symbol": "GLW", "name": "Corning", "market": "US", "industry": "Materials", "market_cap_usd": 65000000000},
+    {"symbol": "TSM", "name": "TSMC ADR", "market": "US", "industry": "Semiconductors", "market_cap_usd": 950000000000},
+    {"symbol": "DELL", "name": "Dell Technologies", "market": "US", "industry": "Technology", "market_cap_usd": 90000000000},
+    {"symbol": "WDC", "name": "Western Digital", "market": "US", "industry": "Technology", "market_cap_usd": 35000000000},
+    {"symbol": "STX", "name": "Seagate", "market": "US", "industry": "Technology", "market_cap_usd": 25000000000},
     {"symbol": "2330.TW", "name": "TSMC", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 950000000000},
     {"symbol": "2317.TW", "name": "Hon Hai", "market": "TW", "industry": "Technology", "market_cap_usd": 95000000000},
     {"symbol": "2454.TW", "name": "MediaTek", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 75000000000},
@@ -110,6 +119,9 @@ STOCK_UNIVERSE = [
     {"symbol": "2609.TW", "name": "Yang Ming Marine", "market": "TW", "industry": "Shipping", "market_cap_usd": 8000000000},
     {"symbol": "5871.TW", "name": "Chailease", "market": "TW", "industry": "Financials", "market_cap_usd": 8000000000},
     {"symbol": "6488.TWO", "name": "GlobalWafers", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 7000000000},
+    {"symbol": "2408.TW", "name": "Nanya Technology", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 5500000000},
+    {"symbol": "2344.TW", "name": "Winbond", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 4500000000},
+    {"symbol": "3260.TWO", "name": "ADATA", "market": "TW", "industry": "Technology", "market_cap_usd": 1800000000},
     {"symbol": "3034.TW", "name": "Novatek", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 9000000000},
     {"symbol": "2379.TW", "name": "Realtek", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 9000000000},
     {"symbol": "6669.TW", "name": "Wiwynn", "market": "TW", "industry": "Technology", "market_cap_usd": 14000000000},
@@ -117,6 +129,47 @@ STOCK_UNIVERSE = [
     {"symbol": "2356.TW", "name": "Inventec", "market": "TW", "industry": "Technology", "market_cap_usd": 6500000000},
     {"symbol": "2357.TW", "name": "Asustek", "market": "TW", "industry": "Technology", "market_cap_usd": 12000000000},
 ]
+
+TOPIC_DEFS = [
+    {"key": "memory_upstream_equipment", "label": "Memory upstream equipment", "group": "memory"},
+    {"key": "memory_materials_substrate", "label": "Memory materials and substrates", "group": "memory"},
+    {"key": "memory_hbm_dram", "label": "HBM / DRAM / NAND makers", "group": "memory"},
+    {"key": "memory_foundry_packaging", "label": "Foundry and advanced packaging", "group": "memory"},
+    {"key": "ai_memory_demand", "label": "AI memory demand side", "group": "ai"},
+    {"key": "ai_server_supply_chain", "label": "AI server supply chain", "group": "ai"},
+]
+
+SYMBOL_TOPICS: dict[str, list[str]] = {
+    "ASML": ["memory_upstream_equipment"],
+    "AMAT": ["memory_upstream_equipment"],
+    "LRCX": ["memory_upstream_equipment"],
+    "KLAC": ["memory_upstream_equipment"],
+    "GLW": ["memory_materials_substrate"],
+    "6488.TWO": ["memory_materials_substrate"],
+    "MU": ["memory_hbm_dram"],
+    "WDC": ["memory_hbm_dram"],
+    "STX": ["memory_hbm_dram"],
+    "2408.TW": ["memory_hbm_dram"],
+    "2344.TW": ["memory_hbm_dram"],
+    "3260.TWO": ["memory_hbm_dram"],
+    "TSM": ["memory_foundry_packaging"],
+    "2330.TW": ["memory_foundry_packaging"],
+    "3711.TW": ["memory_foundry_packaging"],
+    "NVDA": ["ai_memory_demand"],
+    "AMD": ["ai_memory_demand"],
+    "MSFT": ["ai_memory_demand"],
+    "GOOGL": ["ai_memory_demand"],
+    "AMZN": ["ai_memory_demand"],
+    "META": ["ai_memory_demand"],
+    "TSLA": ["ai_memory_demand"],
+    "DELL": ["ai_memory_demand", "ai_server_supply_chain"],
+    "SMCI": ["ai_memory_demand", "ai_server_supply_chain"],
+    "6669.TW": ["ai_server_supply_chain"],
+    "2382.TW": ["ai_server_supply_chain"],
+    "3231.TW": ["ai_server_supply_chain"],
+    "2356.TW": ["ai_server_supply_chain"],
+    "2317.TW": ["ai_server_supply_chain"],
+}
 
 RELATED_ASSETS: dict[str, list[dict[str, Any]]] = {
     "MU": [
@@ -540,13 +593,14 @@ def quote(symbol: str = Query(..., min_length=1, max_length=32)) -> dict[str, An
 @app.get("/api/screener/options")
 def screener_options() -> dict[str, Any]:
     industries = sorted({item["industry"] for item in STOCK_UNIVERSE})
-    return {"markets": ["US", "TW"], "industries": industries, "count": len(STOCK_UNIVERSE)}
+    return {"markets": ["US", "TW"], "industries": industries, "topics": TOPIC_DEFS, "count": len(STOCK_UNIVERSE)}
 
 
 @app.get("/api/screener")
 def screener(
     markets: str = Query("US,TW", max_length=16),
     industries: str = Query("all", max_length=240),
+    topics: str = Query("all", max_length=400),
     min_price: float | None = Query(None, ge=0),
     max_price: float | None = Query(None, ge=0),
     sort_by: str = Query("quality", pattern="^(quality|market_cap|volume|change)$"),
@@ -554,9 +608,12 @@ def screener(
 ) -> dict[str, Any]:
     selected_markets = {part.strip().upper() for part in markets.split(",") if part.strip()}
     selected_industries = {part.strip() for part in industries.split(",") if part.strip() and part.strip().lower() != "all"}
+    selected_topics = {part.strip() for part in topics.split(",") if part.strip() and part.strip().lower() != "all"}
     pool = [
         item for item in STOCK_UNIVERSE
-        if item["market"] in selected_markets and (not selected_industries or item["industry"] in selected_industries)
+        if item["market"] in selected_markets
+        and (not selected_topics or set(stock_topic_keys(item)) & selected_topics)
+        and (selected_topics or not selected_industries or item["industry"] in selected_industries)
     ]
     pool = sorted(pool, key=lambda item: item["market_cap_usd"], reverse=True)[:80]
 
@@ -586,8 +643,9 @@ def screener(
         "count": len(rows),
         "scanned": len(pool),
         "sort_by": sort_by,
+        "topics": sorted(selected_topics),
         "rows": rows[:limit],
-        "note": "Market cap is an approximate built-in ranking value; price and volume come from Yahoo chart data.",
+        "note": "Market cap is an approximate built-in ranking value; price and volume come from Yahoo chart data. Topic filters are cross-industry chains.",
     }
 
 
@@ -1149,6 +1207,10 @@ def find_universe_item(symbol: str) -> dict[str, Any] | None:
     return None
 
 
+def stock_topic_keys(item: dict[str, Any]) -> list[str]:
+    return SYMBOL_TOPICS.get(str(item.get("symbol", "")).upper(), [])
+
+
 def screen_one_stock(item: dict[str, Any]) -> dict[str, Any] | None:
     rows = fetch_price_history(item["symbol"], "1y", "1d")
     if len(rows) < 60:
@@ -1182,6 +1244,7 @@ def screen_one_stock(item: dict[str, Any]) -> dict[str, Any] | None:
         "volume_ratio": number(latest["VOLUME_RATIO"]),
         "forecast_20d_pct": prediction["forecast_20d_pct"],
         "confidence": prediction["confidence"],
+        "topics": stock_topic_keys(item),
         "reasons": quality["reasons"],
     }
 
@@ -2060,9 +2123,13 @@ def screener_quality_score(
         reasons.append("risk score controlled")
     if latest["VOLUME_RATIO"] >= 1.2:
         reasons.append("volume above average")
+    if any(topic.startswith("memory_") for topic in stock_topic_keys(item)):
+        reasons.append("memory/HBM theme")
+    elif "ai_memory_demand" in stock_topic_keys(item):
+        reasons.append("AI memory demand theme")
     if not reasons:
         reasons.append("balanced but not high-conviction")
-    return {"score": score, "reasons": reasons[:3]}
+    return {"score": score, "reasons": reasons[:4]}
 
 
 async def safe_json(request: Request) -> dict[str, Any]:

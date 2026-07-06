@@ -205,6 +205,10 @@
     .check input, .industry-check input { width: auto; height: auto; accent-color: #3b82f6; }
     .industry-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
     .industry-check { min-height: 34px; padding: 6px 9px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; }
+    .filter-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .filter-title { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .topic-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .topic-tag { display: inline-flex; min-height: 22px; align-items: center; padding: 2px 7px; border: 1px solid rgba(118,169,255,.35); border-radius: 999px; color: #bfdbfe; background: rgba(59,130,246,.12); font-size: 12px; }
     .screener-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
     .screener-row { display: grid; grid-template-columns: minmax(160px, 1fr) repeat(4, minmax(82px, auto)) auto; gap: 10px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; cursor: pointer; }
     .screener-row:hover { border-color: var(--blue); }
@@ -602,6 +606,13 @@
         <button id="scRunBtn" type="button" data-screen-i18n="run">篩選股票</button>
       </div>
       <div id="scIndustries" class="industry-grid"></div>
+      <div class="filter-section">
+        <div class="filter-title">
+          <strong id="scTopicsTitle" data-screen-i18n="topicsTitle">近期話題分類</strong>
+          <span class="muted" id="scTopicsHint" data-screen-i18n="topicsHint">記憶體鏈、HBM、AI 需求端等跨產業主題。</span>
+        </div>
+        <div id="scTopics" class="industry-grid"></div>
+      </div>
       <p class="explain" id="scMeta">-</p>
       <div id="scResults" class="screener-results"></div>
       <div class="bot-lab">
@@ -1029,11 +1040,52 @@
       scanned: "已扫描", matched: "符合", quality: "品质", price: "股价", risk: "风险", volume: "成交量",
       cap: "市值", add: "关注", reasons: "依据", note: "市值为内建近似排序值；价格与成交量来自 Yahoo chart。"
     });
+    Object.assign(screenerCopy["zh-tw"], {
+      topicsTitle: "近期話題分類",
+      topicsHint: "記憶體鏈、HBM、AI 需求端等跨產業主題；勾選後會跨產業搜尋台股與美股。",
+      empty: "沒有符合條件的股票，請放寬價格、話題或產業條件。"
+    });
+    Object.assign(screenerCopy["zh-cn"], {
+      topicsTitle: "近期话题分类",
+      topicsHint: "记忆体链、HBM、AI 需求端等跨产业主题；勾选后会跨产业搜索台股与美股。",
+      empty: "没有符合条件的股票，请放宽价格、话题或产业条件。"
+    });
+    Object.assign(screenerCopy.en, {
+      topicsTitle: "Recent Themes",
+      topicsHint: "Memory, HBM and AI-demand chains across industries for both Taiwan and US stocks.",
+      empty: "No stocks matched. Try a wider price, theme or industry filter."
+    });
 
     const industryCopy = {
       "zh-tw": { Automotive: "汽車", Communication: "通訊", Consumer: "消費", Energy: "能源", Financials: "金融", Healthcare: "醫療", Industrials: "工業", Materials: "原物料", Retail: "零售", Semiconductors: "半導體", Shipping: "航運", Technology: "科技", Cash: "現金" },
       "zh-cn": { Automotive: "汽车", Communication: "通信", Consumer: "消费", Energy: "能源", Financials: "金融", Healthcare: "医疗", Industrials: "工业", Materials: "原物料", Retail: "零售", Semiconductors: "半导体", Shipping: "航运", Technology: "科技", Cash: "现金" },
       en: {}
+    };
+    const topicCopy = {
+      "zh-tw": {
+        memory_upstream_equipment: "記憶體上游設備",
+        memory_materials_substrate: "材料 / 耗材 / 基板",
+        memory_hbm_dram: "HBM / DRAM / NAND",
+        memory_foundry_packaging: "代工 / 先進封裝",
+        ai_memory_demand: "AI 需求端",
+        ai_server_supply_chain: "AI 伺服器供應鏈"
+      },
+      "zh-cn": {
+        memory_upstream_equipment: "记忆体上游设备",
+        memory_materials_substrate: "材料 / 耗材 / 基板",
+        memory_hbm_dram: "HBM / DRAM / NAND",
+        memory_foundry_packaging: "代工 / 先进封装",
+        ai_memory_demand: "AI 需求端",
+        ai_server_supply_chain: "AI 服务器供应链"
+      },
+      en: {
+        memory_upstream_equipment: "Memory upstream equipment",
+        memory_materials_substrate: "Materials / consumables / substrates",
+        memory_hbm_dram: "HBM / DRAM / NAND",
+        memory_foundry_packaging: "Foundry / advanced packaging",
+        ai_memory_demand: "AI memory demand",
+        ai_server_supply_chain: "AI server supply chain"
+      }
     };
     const reasonCopy = {
       "zh-tw": {
@@ -1050,7 +1102,16 @@
       },
       en: {}
     };
+    Object.assign(reasonCopy["zh-tw"], {
+      "memory/HBM theme": "記憶體 / HBM 題材",
+      "AI memory demand theme": "AI 記憶體需求題材"
+    });
+    Object.assign(reasonCopy["zh-cn"], {
+      "memory/HBM theme": "记忆体 / HBM 题材",
+      "AI memory demand theme": "AI 记忆体需求题材"
+    });
     function industryLabel(value) { return (industryCopy[lang] && industryCopy[lang][value]) || value; }
+    function topicLabel(value) { return (topicCopy[lang] && topicCopy[lang][value]) || value; }
     function reasonLabel(value) { return (reasonCopy[lang] && reasonCopy[lang][value]) || value; }
 
     const dict = {
@@ -1346,6 +1407,8 @@
       updatePortfolioRiskLabel();
       renderStickers();
       renderShortcuts();
+      if (screenerOptionsData) renderScreenerOptions(screenerOptionsData);
+      if (screenerData) renderScreener(screenerData);
       renderWatchDetailPanel();
       if (lastData?.design_signals) renderDesignSignals(lastData.design_signals);
       if (eventAlertsData) renderEventAlerts(eventAlertsData);
@@ -1751,10 +1814,15 @@
 
     function renderScreenerOptions(data) {
       const active = new Set([...document.querySelectorAll("#scIndustries input:checked")].map((input) => input.value));
+      const activeTopics = new Set([...document.querySelectorAll("#scTopics input:checked")].map((input) => input.value));
       const selected = active.size ? active : new Set(["Semiconductors", "Technology", "Financials"]);
       $("scIndustries").innerHTML = data.industries.map((industry) => {
         const checked = selected.has(industry) ? "checked" : "";
         return `<label class="industry-check"><input type="checkbox" value="${escapeHtml(industry)}" ${checked} /> ${escapeHtml(industryLabel(industry))}</label>`;
+      }).join("");
+      $("scTopics").innerHTML = (data.topics || []).map((topic) => {
+        const checked = activeTopics.has(topic.key) ? "checked" : "";
+        return `<label class="industry-check"><input type="checkbox" value="${escapeHtml(topic.key)}" ${checked} /> ${escapeHtml(topicLabel(topic.key))}</label>`;
       }).join("");
       $("screenerCount").textContent = `${data.count} ${st("ready")}`;
     }
@@ -1769,9 +1837,11 @@
         if ($("scMarketUS").checked) markets.push("US");
         if ($("scMarketTW").checked) markets.push("TW");
         const industries = [...document.querySelectorAll("#scIndustries input:checked")].map((input) => input.value);
+        const topics = [...document.querySelectorAll("#scTopics input:checked")].map((input) => input.value);
         const qs = new URLSearchParams({
           markets: markets.join(",") || "US,TW",
           industries: industries.length ? industries.join(",") : "all",
+          topics: topics.length ? topics.join(",") : "all",
           sort_by: $("scSort").value,
           limit: "30"
         });
@@ -1793,7 +1863,8 @@
 
     function renderScreener(data) {
       $("screenerCount").textContent = `${data.count} ${st("matched")}`;
-      $("scMeta").textContent = `${st("scanned")} ${data.scanned} / ${st("matched")} ${data.count}. ${st("note")}`;
+      const selectedTopics = (data.topics || []).map(topicLabel).join(", ");
+      $("scMeta").textContent = `${st("scanned")} ${data.scanned} / ${st("matched")} ${data.count}${selectedTopics ? ` · ${st("topicsTitle")}: ${selectedTopics}` : ""}. ${st("note")}`;
       if (!data.rows.length) {
         $("scResults").innerHTML = `<div class="plainbox muted">${st("empty")}</div>`;
         return;
@@ -1801,8 +1872,9 @@
       $("scResults").innerHTML = data.rows.map((row) => {
         const direction = row.change_pct >= 0 ? "up" : "down";
         const reasons = (row.reasons || []).map((item) => escapeHtml(reasonLabel(item))).join(", ");
+        const topicTags = (row.topics || []).slice(0, 4).map((topic) => `<span class="topic-tag">${escapeHtml(topicLabel(topic))}</span>`).join("");
         return `<div class="screener-row" onclick="analyze('${row.symbol}')">
-          <div><strong>${escapeHtml(row.symbol)}</strong><small>${escapeHtml(row.name)} · ${row.market} · ${escapeHtml(industryLabel(row.industry))}</small><small>${st("reasons")}: ${reasons}</small></div>
+          <div><strong>${escapeHtml(row.symbol)}</strong><small>${escapeHtml(row.name)} · ${row.market} · ${escapeHtml(industryLabel(row.industry))}</small><small>${st("reasons")}: ${reasons}</small>${topicTags ? `<div class="topic-tags">${topicTags}</div>` : ""}</div>
           <div class="metric"><span>${st("quality")}</span><b>${row.quality_score}/100</b></div>
           <div class="metric"><span>${st("price")}</span><b>${fmt(row.price)}</b></div>
           <div class="metric"><span>${st("risk")}</span><b>${row.risk_score}/100</b></div>
