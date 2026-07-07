@@ -5,7 +5,7 @@ OpenKiri is a FastAPI stock-risk dashboard for Taiwan and US stocks. It groups t
 Public website:
 
 ```text
-https://openkiri.onrender.com
+https://stock-risk-radar.onrender.com/#
 ```
 
 ## Features
@@ -52,7 +52,7 @@ Start Command:
 uvicorn openkiri_app:app --host 0.0.0.0 --port $PORT
 ```
 
-The included `render.yaml` uses the same OpenKiri entry point and can be used as a Render Blueprint.
+The included `render.yaml` keeps the existing `stock-risk-radar` Render service name while using the OpenKiri app entry point.
 
 ## API
 
