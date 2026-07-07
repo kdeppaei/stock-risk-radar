@@ -27,7 +27,7 @@ from fastapi.templating import Jinja2Templates
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "stock_risk_log.sqlite3"
 
-app = FastAPI(title="Stock Risk Radar", version="4.5.0")
+app = FastAPI(title="OpenKiri", version="4.6.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["GET"], allow_headers=["*"])
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
@@ -38,6 +38,7 @@ SERENITY_RECENT_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 SERENITY_INTEL_CACHE: dict[tuple[int], tuple[float, dict[str, Any]]] = {}
 QUOTE_CACHE: dict[tuple[str], tuple[float, dict[str, Any]]] = {}
 MARKET_PULSE_CACHE: dict[tuple[int], tuple[float, dict[str, Any]]] = {}
+VALUATION_CACHE: dict[tuple[str], tuple[float, dict[str, Any]]] = {}
 
 DAYTRADE_DEFAULT_SYMBOLS = [
     "2330.TW", "2317.TW", "2454.TW", "3481.TW", "2409.TW", "2002.TW",
@@ -166,6 +167,21 @@ TOPIC_DEFS = [
     {"key": "memory_foundry_packaging", "label": "Foundry and advanced packaging", "group": "memory"},
     {"key": "ai_memory_demand", "label": "AI memory demand side", "group": "ai"},
     {"key": "ai_server_supply_chain", "label": "AI server supply chain", "group": "ai"},
+]
+
+SETUP_SIGNAL_DEFS = [
+    {"key": "all", "label": "All setups", "tone": "neutral"},
+    {"key": "golden_cross_continuation", "label": "Golden cross continuation", "tone": "bullish"},
+    {"key": "golden_cross_watch", "label": "Golden cross watch", "tone": "bullish"},
+    {"key": "death_cross_continuation", "label": "Death cross continuation", "tone": "bearish"},
+    {"key": "death_cross_watch", "label": "Death cross warning", "tone": "bearish"},
+    {"key": "bullish_continuation", "label": "Bullish MA continuation", "tone": "bullish"},
+    {"key": "bearish_continuation", "label": "Bearish MA continuation", "tone": "bearish"},
+    {"key": "volume_breakout", "label": "Volume breakout", "tone": "bullish"},
+    {"key": "pullback_hold", "label": "MA20 pullback hold", "tone": "bullish"},
+    {"key": "oversold_rebound", "label": "Oversold rebound", "tone": "watch"},
+    {"key": "overheat_risk", "label": "Overheat risk", "tone": "risk"},
+    {"key": "mixed", "label": "Mixed or range-bound", "tone": "neutral"},
 ]
 
 SYMBOL_TOPICS: dict[str, list[str]] = {
@@ -658,7 +674,13 @@ async def daytrade_analyze(request: Request) -> dict[str, Any]:
 @app.get("/api/screener/options")
 def screener_options() -> dict[str, Any]:
     industries = sorted({item["industry"] for item in STOCK_UNIVERSE})
-    return {"markets": ["US", "TW"], "industries": industries, "topics": TOPIC_DEFS, "count": len(STOCK_UNIVERSE)}
+    return {
+        "markets": ["US", "TW"],
+        "industries": industries,
+        "topics": TOPIC_DEFS,
+        "setup_signals": SETUP_SIGNAL_DEFS,
+        "count": len(STOCK_UNIVERSE),
+    }
 
 
 @app.get("/api/screener")
@@ -666,14 +688,16 @@ def screener(
     markets: str = Query("US,TW", max_length=16),
     industries: str = Query("all", max_length=240),
     topics: str = Query("all", max_length=400),
+    setup: str = Query("all", max_length=64),
     min_price: float | None = Query(None, ge=0),
     max_price: float | None = Query(None, ge=0),
-    sort_by: str = Query("quality", pattern="^(quality|market_cap|volume|change)$"),
+    sort_by: str = Query("quality", pattern="^(quality|market_cap|volume|change|pe|signal)$"),
     limit: int = Query(30, ge=1, le=50),
 ) -> dict[str, Any]:
     selected_markets = {part.strip().upper() for part in markets.split(",") if part.strip()}
     selected_industries = {part.strip() for part in industries.split(",") if part.strip() and part.strip().lower() != "all"}
     selected_topics = {part.strip() for part in topics.split(",") if part.strip() and part.strip().lower() != "all"}
+    selected_setup = (setup or "all").strip().lower() or "all"
     pool = [
         item for item in STOCK_UNIVERSE
         if item["market"] in selected_markets
@@ -694,6 +718,8 @@ def screener(
                 continue
             if max_price is not None and price > max_price:
                 continue
+            if not matches_setup_signal(result, selected_setup):
+                continue
             rows.append(result)
 
     sort_key = {
@@ -701,6 +727,8 @@ def screener(
         "market_cap": lambda item: item["market_cap_usd"],
         "volume": lambda item: item["volume"],
         "change": lambda item: item["change_pct"],
+        "pe": lambda item: -float(item.get("trailing_pe") or item.get("forward_pe") or 9999),
+        "signal": lambda item: (item.get("setup_signal") or {}).get("score", 0),
     }[sort_by]
     rows.sort(key=sort_key, reverse=True)
     return {
@@ -709,8 +737,9 @@ def screener(
         "scanned": len(pool),
         "sort_by": sort_by,
         "topics": sorted(selected_topics),
+        "setup": selected_setup,
         "rows": rows[:limit],
-        "note": "Market cap is an approximate built-in ranking value; price and volume come from Yahoo chart data. Topic filters are cross-industry chains.",
+        "note": "Market cap uses Yahoo quoteSummary when available and built-in USD estimates as fallback; PE is displayed when Yahoo valuation data is available. Topic filters are cross-industry chains.",
     }
 
 
@@ -1043,6 +1072,8 @@ def analyze(
     visible_rows = rows[-180:]
     chart_math = build_chart_math(visible_rows, latest, risk, prediction)
     design_signals = build_design_signals(resolved, market, rows, latest, levels, risk, prediction, news, macro)
+    universe_item = find_universe_item(resolved) or {"symbol": resolved, "name": resolved, "market": market, "industry": "Unknown", "market_cap_usd": 0}
+    valuation = stock_valuation_payload(universe_item, latest["close"])
 
     response = {
         "ok": True,
@@ -1071,6 +1102,7 @@ def analyze(
         "news": news,
         "event_context": event_context,
         "macro": macro,
+        "valuation": valuation,
         "design_signals": design_signals,
         "related": related_assets(resolved, market),
         "chart_math": chart_math,
@@ -1794,6 +1826,181 @@ def stock_topic_keys(item: dict[str, Any]) -> list[str]:
     return SYMBOL_TOPICS.get(str(item.get("symbol", "")).upper(), [])
 
 
+def matches_setup_signal(row: dict[str, Any], selected_setup: str) -> bool:
+    if not selected_setup or selected_setup == "all":
+        return True
+    signal = row.get("setup_signal") or {}
+    keys = {
+        str(signal.get("primary") or ""),
+        str(signal.get("verdict") or ""),
+        str(signal.get("topology") or ""),
+        *(str(tag) for tag in signal.get("tags", [])),
+    }
+    if selected_setup == "bullish_setups":
+        return bool(keys & {"golden_cross_continuation", "golden_cross_watch", "bullish_continuation", "volume_breakout", "pullback_hold"})
+    if selected_setup == "bearish_setups":
+        return bool(keys & {"death_cross_continuation", "death_cross_watch", "bearish_continuation", "overheat_risk"})
+    return selected_setup in keys
+
+
+def build_setup_signal(
+    rows: list[dict[str, Any]],
+    latest: dict[str, Any],
+    levels: dict[str, float],
+    risk: dict[str, Any],
+    prediction: dict[str, Any],
+    chart_math: dict[str, Any],
+) -> dict[str, Any]:
+    close = float(latest.get("close") or 0)
+    ma20 = float(latest.get("MA20") or close)
+    rsi = float(latest.get("RSI14") or 50)
+    volume_ratio = float(latest.get("VOLUME_RATIO") or 1)
+    ret20 = float(latest.get("RET20") or 0) * 100
+    previous = rows[-2] if len(rows) >= 2 else latest
+    latest_cross = chart_math.get("latest_cross") or {}
+    bars_since_cross = chart_math.get("bars_since_cross")
+    recent_cross = isinstance(bars_since_cross, int) and bars_since_cross <= 35
+    verdict = str(chart_math.get("verdict") or "unclear")
+    topology = str(chart_math.get("topology") or "mixed_topology")
+
+    tags: list[str] = []
+
+    def add_tag(key: str) -> None:
+        if key not in tags:
+            tags.append(key)
+
+    if recent_cross and latest_cross.get("type") == "golden_cross":
+        add_tag("golden_cross_watch")
+        if verdict == "bullish_continuation":
+            add_tag("golden_cross_continuation")
+    if recent_cross and latest_cross.get("type") == "death_cross":
+        add_tag("death_cross_watch")
+        if verdict == "bearish_continuation":
+            add_tag("death_cross_continuation")
+    if verdict == "bullish_continuation":
+        add_tag("bullish_continuation")
+    if verdict == "bearish_continuation":
+        add_tag("bearish_continuation")
+    if topology == "bullish_stack":
+        add_tag("bullish_stack")
+    if topology == "bearish_stack":
+        add_tag("bearish_stack")
+
+    near_resistance = close >= float(levels.get("resistance_60d") or close) * 0.995 if close else False
+    if near_resistance and volume_ratio >= 1.25:
+        add_tag("volume_breakout")
+
+    pulled_to_ma20 = bool(ma20 and float(latest.get("low") or close) <= ma20 * 1.015 <= close * 1.04)
+    if pulled_to_ma20 and close >= ma20 and int(risk.get("score") or 0) < 62:
+        add_tag("pullback_hold")
+
+    rebound = close > float(previous.get("close") or close) and close >= float(latest.get("open") or close)
+    if rsi <= 42 and rebound:
+        add_tag("oversold_rebound")
+
+    if rsi >= 78 or ret20 >= 18:
+        add_tag("overheat_risk")
+
+    priority = [
+        ("golden_cross_continuation", 88, "MA20 has crossed above MA60 and continuation filters are aligned."),
+        ("death_cross_continuation", 88, "MA20 has crossed below MA60 and downside continuation filters are aligned."),
+        ("volume_breakout", 78, "Price is testing 60-day resistance with above-average volume."),
+        ("pullback_hold", 72, "Price is holding near MA20 after a controlled pullback."),
+        ("bullish_continuation", 70, "Moving-average stack and regression slope lean upward."),
+        ("bearish_continuation", 70, "Moving-average stack and regression slope lean downward."),
+        ("golden_cross_watch", 62, "Golden cross is recent, but confirmation is still moderate."),
+        ("death_cross_watch", 62, "Death cross is recent, but confirmation is still moderate."),
+        ("oversold_rebound", 58, "RSI is washed out and price is attempting a rebound."),
+        ("overheat_risk", 52, "RSI or 20-day return is extended; chase risk is higher."),
+    ]
+    primary, score, reason = "mixed", 45, "No clean continuation signal; treat as range-bound or mixed."
+    for key, candidate_score, candidate_reason in priority:
+        if key in tags:
+            primary, score, reason = key, candidate_score, candidate_reason
+            break
+
+    if primary in {"death_cross_continuation", "bearish_continuation"}:
+        tone = "bad"
+    elif primary in {"death_cross_watch", "overheat_risk"}:
+        tone = "warn"
+    elif primary in {"mixed"}:
+        tone = "neutral"
+    else:
+        tone = "good"
+
+    if primary == "mixed":
+        add_tag("mixed")
+
+    return {
+        "primary": primary,
+        "tags": tags[:6],
+        "score": int(score),
+        "tone": tone,
+        "verdict": verdict,
+        "topology": topology,
+        "latest_cross": latest_cross if latest_cross else None,
+        "bars_since_cross": bars_since_cross,
+        "reason": reason,
+    }
+
+
+def yahoo_raw_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return value.get("raw", value.get("fmt"))
+    return value
+
+
+def fetch_yahoo_valuation(symbol: str) -> dict[str, Any]:
+    key = (symbol.upper(),)
+    now = time.time()
+    cached = VALUATION_CACHE.get(key)
+    if cached and now - cached[0] < 1800:
+        return cached[1]
+
+    summary = yahoo_quote_summary(symbol, "price,summaryDetail,defaultKeyStatistics,financialData")
+    if not summary:
+        payload: dict[str, Any] = {}
+        VALUATION_CACHE[key] = (now, payload)
+        return payload
+
+    price = summary.get("price") or {}
+    detail = summary.get("summaryDetail") or {}
+    stats = summary.get("defaultKeyStatistics") or {}
+    financial = summary.get("financialData") or {}
+    payload = {
+        "currency": price.get("currency") or detail.get("currency"),
+        "market_cap": yahoo_raw_value(price.get("marketCap")),
+        "trailing_pe": yahoo_raw_value(detail.get("trailingPE")) or yahoo_raw_value(stats.get("trailingPE")),
+        "forward_pe": yahoo_raw_value(stats.get("forwardPE")) or yahoo_raw_value(detail.get("forwardPE")),
+        "eps_ttm": yahoo_raw_value(stats.get("trailingEps")) or yahoo_raw_value(financial.get("trailingEps")),
+        "regular_market_price": yahoo_raw_value(price.get("regularMarketPrice")),
+        "source": "Yahoo quoteSummary",
+    }
+    VALUATION_CACHE[key] = (now, payload)
+    return payload
+
+
+def stock_valuation_payload(item: dict[str, Any], latest_price: float) -> dict[str, Any]:
+    fetched = fetch_yahoo_valuation(item["symbol"])
+    currency = str(fetched.get("currency") or ("TWD" if item["market"] == "TW" else "USD"))
+    live_market_cap = optional_number(fetched.get("market_cap"), 0)
+    market_cap_usd = int(item["market_cap_usd"])
+    if live_market_cap and currency.upper() == "USD":
+        market_cap_usd = int(live_market_cap)
+    source = fetched.get("source") if fetched else "built-in estimate"
+    return {
+        "market_cap": int(live_market_cap or market_cap_usd),
+        "market_cap_usd": market_cap_usd,
+        "currency": currency.upper(),
+        "trailing_pe": optional_number(fetched.get("trailing_pe")),
+        "forward_pe": optional_number(fetched.get("forward_pe")),
+        "eps_ttm": optional_number(fetched.get("eps_ttm")),
+        "price": optional_number(fetched.get("regular_market_price")) or number(latest_price),
+        "source": source,
+        "fallback": not bool(fetched),
+    }
+
+
 def screen_one_stock(item: dict[str, Any]) -> dict[str, Any] | None:
     rows = fetch_price_history(item["symbol"], "1y", "1d")
     if len(rows) < 60:
@@ -1805,6 +2012,9 @@ def screen_one_stock(item: dict[str, Any]) -> dict[str, Any] | None:
     risk = build_risk(latest, levels, neutral_news)
     suitability = build_suitability(latest, risk, neutral_news)
     prediction = build_prediction(rows, latest, risk, neutral_news)
+    chart_math = build_chart_math(rows[-180:], latest, risk, prediction)
+    setup_signal = build_setup_signal(rows, latest, levels, risk, prediction, chart_math)
+    valuation = stock_valuation_payload(item, latest["close"])
     quality = screener_quality_score(latest, risk, suitability, prediction, item)
     return {
         "symbol": item["symbol"],
@@ -1814,11 +2024,15 @@ def screen_one_stock(item: dict[str, Any]) -> dict[str, Any] | None:
         "price": number(latest["close"]),
         "change_pct": number((latest["close"] / previous["close"] - 1) * 100) if previous["close"] else 0,
         "volume": int(latest["volume"] or 0),
-        "market_cap_usd": int(item["market_cap_usd"]),
+        "market_cap_usd": int(valuation["market_cap_usd"]),
+        "valuation": valuation,
+        "trailing_pe": valuation["trailing_pe"],
+        "forward_pe": valuation["forward_pe"],
         "quality_score": quality["score"],
         "risk_score": risk["score"],
         "trend": risk["trend"],
         "bias": prediction["bias"],
+        "setup_signal": setup_signal,
         "intraday_score": suitability["intraday"]["score"],
         "short_score": suitability["short_term"]["score"],
         "long_score": suitability["long_term"]["score"],
@@ -1838,10 +2052,15 @@ def enrich_recommendation(row: dict[str, Any]) -> dict[str, Any] | None:
         technical_score = bounded(100 - row["risk_score"] + (10 if row["trend"] == "bullish" else -8 if row["trend"] == "bearish" else 0))
         statistics_score = bounded(50 + row["forecast_20d_pct"] * 1.8 + row["confidence"] * 0.25 + row["ret20_pct"] * 0.35)
         news_score = bounded(50 + news["score"] * 8 + news["positive"] * 3 - news["negative"] * 4)
+        pe_value = row.get("trailing_pe") or row.get("forward_pe")
+        pe_bonus = 0
+        if pe_value:
+            pe_bonus = 6 if 0 < pe_value <= 22 else 3 if pe_value <= 35 else -6 if pe_value >= 75 else 0
         fundamental_score = bounded(
             45
             + (math.log10(max(1000000000, row["market_cap_usd"])) - 9) * 7
             + (math.log10(max(100000, row["volume"])) - 5) * 4
+            + pe_bonus
         )
         composite = int(round(statistics_score * 0.32 + technical_score * 0.28 + news_score * 0.22 + fundamental_score * 0.18))
         reasons = []
@@ -1853,6 +2072,10 @@ def enrich_recommendation(row: dict[str, Any]) -> dict[str, Any] | None:
             reasons.append("news tone supportive")
         if fundamental_score >= 65:
             reasons.append("large/liquid leader")
+        if pe_value and 0 < pe_value <= 35:
+            reasons.append("visible PE not stretched")
+        elif pe_value and pe_value >= 75:
+            reasons.append("rich PE risk")
         if not reasons:
             reasons.append("balanced watch candidate")
         return {
@@ -3829,3 +4052,15 @@ def number(value: Any, digits: int = 2) -> float:
         return round(value, digits)
     except Exception:
         return 0
+
+
+def optional_number(value: Any, digits: int = 2) -> float | None:
+    try:
+        if value in (None, "", "N/A", "-"):
+            return None
+        value = float(value)
+        if math.isnan(value) or math.isinf(value):
+            return None
+        return round(value, digits)
+    except Exception:
+        return None
