@@ -1,8 +1,8 @@
 services:
   - type: web
-    name: stock-risk-radar
+    name: openkiri
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn openkiri_app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
