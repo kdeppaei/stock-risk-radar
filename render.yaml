@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: openkiri
+    name: stock-risk-radar
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
