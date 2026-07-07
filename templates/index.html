@@ -248,6 +248,21 @@
     .chart-signal-metric { min-height: 58px; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: #0f172f; }
     .chart-signal-metric span { display: block; color: var(--muted); font-size: 12px; }
     .chart-signal-metric strong { overflow-wrap: anywhere; line-height: 1.3; }
+    .chart-layerbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+    .chart-switch { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 999px; background: #0f172f; color: #dbeafe; font-size: 12px; cursor: pointer; user-select: none; }
+    .chart-switch input { position: absolute; opacity: 0; pointer-events: none; }
+    .switch-track { width: 34px; height: 18px; border-radius: 999px; background: #26345f; position: relative; transition: background .18s ease; flex: 0 0 auto; }
+    .switch-track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 999px; background: #dbeafe; transition: transform .18s ease; }
+    .chart-switch input:checked + .switch-track { background: #2563eb; }
+    .chart-switch input:checked + .switch-track::after { transform: translateX(16px); }
+    .layer-dot { width: 18px; height: 4px; border-radius: 999px; background: var(--layer-color); box-shadow: 0 0 0 1px rgba(255,255,255,.12); }
+    .bias-panel { display: none; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; margin: 8px 0 10px; padding: 10px; border: 1px solid var(--line); border-left: 4px solid var(--amber); border-radius: 7px; background: #0f172f; }
+    .bias-panel.active { display: grid; }
+    .bias-panel.good { border-left-color: var(--green); }
+    .bias-panel.bad { border-left-color: var(--red); }
+    .bias-panel strong { display: block; }
+    .bias-panel small { color: var(--muted); line-height: 1.45; }
+    .bias-value { font-size: 20px; font-weight: 900; color: #dbeafe; white-space: nowrap; }
     .side {
       display: grid; gap: 14px; align-content: start; max-height: min(720px, calc(100vh - 118px));
       overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; scrollbar-gutter: stable;
@@ -538,8 +553,8 @@
                 <h3 data-reco-i18n="costRadarTitle">當沖成本雷達 Break-even Radar</h3>
                 <div class="desk-form">
                   <label><span data-reco-i18n="dtSymbol">股票代號</span><input id="dtCostSymbol" value="2330" /></label>
-                  <label><span data-reco-i18n="dtBuyPrice">買進價格</span><input id="dtBuyPrice" type="number" step="0.01" value="68.4" /></label>
-                  <label><span data-reco-i18n="dtSellPrice">賣出價格</span><input id="dtSellPrice" type="number" step="0.01" value="69.4" /></label>
+                  <label><span data-reco-i18n="dtBuyPrice">買進價格</span><input id="dtBuyPrice" type="number" step="0.01" placeholder="auto" /></label>
+                  <label><span data-reco-i18n="dtSellPrice">賣出價格</span><input id="dtSellPrice" type="number" step="0.01" placeholder="auto" /></label>
                   <label><span data-reco-i18n="dtShares">股數</span><input id="dtShares" type="number" step="1" value="1000" /></label>
                   <label><span data-reco-i18n="dtFeeRate">手續費率</span><input id="dtFeeRate" type="number" step="0.000001" value="0.001425" /></label>
                   <label><span data-reco-i18n="dtFeeDiscount">手續費折扣</span><input id="dtFeeDiscount" type="number" step="0.01" value="1" /></label>
@@ -787,7 +802,7 @@
     <section class="main">
       <article class="panel">
         <div class="chart-head">
-          <h2 data-i18n="chartTitle">K 線 / MA5 / MA20 / MA60 / Volume</h2>
+          <h2 data-i18n="chartTitle">K 線 / MA5 / MA20 / MA25 / MA60 / Volume</h2>
           <span class="tag" id="market">-</span>
         </div>
         <div class="chart-actions">
@@ -795,6 +810,8 @@
           <a id="yahooLink" class="button secondary" href="#" target="_blank" rel="noreferrer" data-reco-tip="tipYahoo">Yahoo</a>
           <a id="tradingViewLink" class="button secondary" href="#" target="_blank" rel="noreferrer" data-reco-tip="tipTradingView">TradingView</a>
         </div>
+        <div id="chartLayerControls" class="chart-layerbar"></div>
+        <div id="bias25Panel" class="bias-panel"></div>
         <details class="chart-legend">
           <summary id="chartLegendSummary">線條說明</summary>
           <div id="chartLegendBody" class="legend-grid"></div>
@@ -898,6 +915,8 @@
     const canvas = $("chart");
     const ctx = canvas.getContext("2d");
     let lastData = null;
+    const DEFAULT_CHART_LAYERS = { ma5: true, ma20: true, ma25: true, ma60: true, volume: true, crosses: true, buys: true, bias25: true };
+    let chartLayers = { ...DEFAULT_CHART_LAYERS, ...(JSON.parse(localStorage.getItem("okiri.chartLayers") || "{}")) };
     let lang = localStorage.getItem("srr.lang") || "zh-tw";
     let watch = JSON.parse(localStorage.getItem("srr.watch") || "[]");
     let watchState = JSON.parse(localStorage.getItem("srr.watchState") || "{}");
@@ -933,6 +952,7 @@
     let daytradeAnalyzeTimer = null;
     let daytradeLastPrices = {};
     let daytradeAnalyzeData = null;
+    let daytradePriceAutoSymbol = "";
     const STICKERS = ["👍", "🔥", "🚀", "📈", "📉", "⚠️", "💡", "✅", "🤔", "💎"];
     const WATCH_BUNDLE_PREFIX = "__SRR_WATCH__";
 
@@ -1335,7 +1355,7 @@
         subtitle: "一個結合 K 線、新聞情緒、風險分數與交易劇本的股票決策輔助工具",
         analyze: "分析", addWatch: "加入關注", autoOn: "自動刷新：開", autoOff: "自動刷新：關",
         symbol: "股票代號", close: "收盤/最新", change: "漲跌", risk: "風險", trend: "趨勢", valuation: "市值 / P/E",
-        chartTitle: "K 線 / MA5 / MA20 / MA60 / Volume", liveSnapshot: "站內即時摘要", summary: "總結",
+        chartTitle: "K 線 / MA5 / MA20 / MA25 / MA60 / Volume", liveSnapshot: "站內即時摘要", summary: "總結",
         watchlist: "關注清單", playbook: "白話交易劇本", technical: "技術指標", levels: "壓力支撐",
         suitability: "短中長建議", news: "利多 / 利空", macro: "總經 / 量化模型", modelWhy: "模型依據",
         twTime: "台灣時間", usTime: "美東時間", fx: "USD/TWD", macroMood: "總經氣氛",
@@ -1355,7 +1375,7 @@
         subtitle: "一个结合 K 线、新闻情绪、风险分数与交易剧本的股票决策辅助工具",
         analyze: "分析", addWatch: "加入关注", autoOn: "自动刷新：开", autoOff: "自动刷新：关",
         symbol: "股票代码", close: "收盘/最新", change: "涨跌", risk: "风险", trend: "趋势", valuation: "市值 / P/E",
-        chartTitle: "K线 / MA5 / MA20 / MA60 / Volume", liveSnapshot: "站内即时摘要", summary: "总结",
+        chartTitle: "K线 / MA5 / MA20 / MA25 / MA60 / Volume", liveSnapshot: "站内即时摘要", summary: "总结",
         watchlist: "关注清单", playbook: "白话交易剧本", technical: "技术指标", levels: "压力支撑",
         suitability: "短中长建议", news: "利多 / 利空", macro: "总经 / 量化模型", modelWhy: "模型依据",
         twTime: "台湾时间", usTime: "美东时间", fx: "USD/TWD", macroMood: "总经气氛",
@@ -1375,7 +1395,7 @@
         subtitle: "AI Stock Risk Lens: a decision aid combining candles, news sentiment, risk scores and trading playbooks.",
         analyze: "Analyze", addWatch: "Watch", autoOn: "Auto refresh: on", autoOff: "Auto refresh: off",
         symbol: "Symbol", close: "Close/latest", change: "Change", risk: "Risk", trend: "Trend", valuation: "Mkt cap / P/E",
-        chartTitle: "Candles / MA5 / MA20 / MA60 / Volume", liveSnapshot: "Live Snapshot", summary: "Summary",
+        chartTitle: "Candles / MA5 / MA20 / MA25 / MA60 / Volume", liveSnapshot: "Live Snapshot", summary: "Summary",
         watchlist: "Watchlist", playbook: "Plain Playbook", technical: "Technical", levels: "Levels",
         suitability: "Suitability", news: "Bullish / Bearish", macro: "Macro / Quant", modelWhy: "Model Drivers",
         twTime: "Taiwan Time", usTime: "US Eastern", fx: "USD/TWD", macroMood: "Macro Mood",
@@ -1502,12 +1522,50 @@
       }
     };
     function ccopy(key) { return (chartTexts[lang] && chartTexts[lang][key]) || chartTexts.en[key] || key; }
+    function chartUi(key) {
+      const copy = {
+        "zh-tw": {
+          ma25: "MA25 黃線：BNF 常看的 25 日成本線，用來觀察短線乖離與回檔壓力。",
+          bias25: "25 日乖離率：股價離 MA25 越遠，短線越容易出現回檔或反彈。",
+          layerMA5: "MA5", layerMA20: "MA20", layerMA25: "MA25", layerMA60: "MA60", layerVolume: "成交量", layerCrosses: "交叉", layerBuys: "BUY", layerBias25: "25 日乖離",
+          biasTitle: "BNF 25 日均線乖離率", biasNeutral: "貼近 MA25，短線沒有明顯過熱或過冷。",
+          biasHot: "正乖離偏大，短線追價風險升高，留意賣壓或回檔。",
+          biasWarm: "正乖離擴大，偏多但不宜忽略回檔風險。",
+          biasCold: "負乖離偏大，可能有反彈空間，但需確認止跌與量能。",
+          biasCool: "股價低於 MA25，先觀察是否重新站回均線。",
+          biasLine: "股價 - MA25 的距離會以半透明帶狀區顯示。"
+        },
+        "zh-cn": {
+          ma25: "MA25 黄线：BNF 常看的 25 日成本线，用来观察短线乖离与回档压力。",
+          bias25: "25 日乖离率：股价离 MA25 越远，短线越容易出现回档或反弹。",
+          layerMA5: "MA5", layerMA20: "MA20", layerMA25: "MA25", layerMA60: "MA60", layerVolume: "成交量", layerCrosses: "交叉", layerBuys: "BUY", layerBias25: "25 日乖离",
+          biasTitle: "BNF 25 日均线乖离率", biasNeutral: "贴近 MA25，短线没有明显过热或过冷。",
+          biasHot: "正乖离偏大，短线追价风险升高，留意卖压或回档。",
+          biasWarm: "正乖离扩大，偏多但不宜忽略回档风险。",
+          biasCold: "负乖离偏大，可能有反弹空间，但需确认止跌与量能。",
+          biasCool: "股价低于 MA25，先观察是否重新站回均线。",
+          biasLine: "股价 - MA25 的距离会以半透明带状区显示。"
+        },
+        en: {
+          ma25: "MA25: a BNF-style 25-day cost line for short-term distance and pullback risk.",
+          bias25: "25-day deviation: the farther price moves from MA25, the higher the mean-reversion risk.",
+          layerMA5: "MA5", layerMA20: "MA20", layerMA25: "MA25", layerMA60: "MA60", layerVolume: "Volume", layerCrosses: "Crosses", layerBuys: "BUY", layerBias25: "25D bias",
+          biasTitle: "BNF 25-day MA deviation", biasNeutral: "Price is close to MA25; no strong short-term stretch.",
+          biasHot: "Positive deviation is large; chase risk and pullback pressure are elevated.",
+          biasWarm: "Positive deviation is expanding; trend is constructive but pullback risk matters.",
+          biasCold: "Negative deviation is large; rebound potential exists, but confirm stabilization and volume.",
+          biasCool: "Price is below MA25; watch whether it can reclaim the average.",
+          biasLine: "The price-to-MA25 distance is shown as a translucent band."
+        }
+      };
+      return (copy[lang] && copy[lang][key]) || copy.en[key] || key;
+    }
 
     Object.assign(dict["zh-tw"], {
       subtitle: "一個結合 K 線、新聞情緒、風險分數與交易劇本的股票決策輔助工具",
       analyze: "分析", addWatch: "加入關注", autoOn: "自動刷新：開", autoOff: "自動刷新：關",
       symbol: "股票代號", close: "收盤/最新", change: "漲跌", risk: "風險", trend: "趨勢", valuation: "市值 / P/E",
-      chartTitle: "K 線 / MA5 / MA20 / MA60 / Volume", liveSnapshot: "站內即時摘要", summary: "摘要",
+      chartTitle: "K 線 / MA5 / MA20 / MA25 / MA60 / Volume", liveSnapshot: "站內即時摘要", summary: "摘要",
       watchlist: "關注清單", playbook: "小白操作參考", technical: "技術面", levels: "支撐壓力",
       suitability: "短中長建議", news: "利好 / 利空", macro: "總經 / 量化", modelWhy: "模型依據",
       twTime: "台灣時間", usTime: "美東時間", fx: "USD/TWD", macroMood: "總經氣氛",
@@ -1531,7 +1589,7 @@
       subtitle: "一个结合 K 线、新闻情绪、风险分数与交易剧本的股票决策辅助工具",
       analyze: "分析", addWatch: "加入关注", autoOn: "自动刷新：开", autoOff: "自动刷新：关",
       symbol: "股票代码", close: "收盘/最新", change: "涨跌", risk: "风险", trend: "趋势", valuation: "市值 / P/E",
-      chartTitle: "K 线 / MA5 / MA20 / MA60 / Volume", liveSnapshot: "站内即时摘要", summary: "摘要",
+      chartTitle: "K 线 / MA5 / MA20 / MA25 / MA60 / Volume", liveSnapshot: "站内即时摘要", summary: "摘要",
       watchlist: "关注清单", playbook: "新手操作参考", technical: "技术面", levels: "支撑压力",
       suitability: "短中长建议", news: "利好 / 利空", macro: "总经 / 量化", modelWhy: "模型依据",
       twTime: "台湾时间", usTime: "美东时间", fx: "USD/TWD", macroMood: "总经气氛",
@@ -1624,8 +1682,10 @@
       $("scoreHelp").textContent = t("scoreHelp");
       $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff");
       $("recoRefreshBtn").textContent = rt("refresh");
+      renderChartLayerControls();
       renderChartLegend();
       if (lastData) renderChartSignal(lastData);
+      renderBias25Panel(lastData);
       updatePortfolioRiskLabel();
       renderStickers();
       renderShortcuts();
@@ -3033,9 +3093,30 @@
       }
     }
 
+    function validPriceInput(id) {
+      return $(id) && Number($(id).value || 0) > 0;
+    }
+
+    function setDaytradeLatestPrices(symbol, price, force = false) {
+      const value = Number(price || 0);
+      if (!value || !$("dtBuyPrice") || !$("dtSellPrice")) return;
+      const normalized = symbol || lastData?.symbol || $("symbol").value.trim();
+      const symbolChanged = daytradePriceAutoSymbol !== normalized;
+      if ($("dtCostSymbol")) $("dtCostSymbol").value = normalized;
+      if (force || symbolChanged || !validPriceInput("dtBuyPrice")) $("dtBuyPrice").value = value;
+      if (force || symbolChanged || !validPriceInput("dtSellPrice")) $("dtSellPrice").value = value;
+      daytradePriceAutoSymbol = normalized;
+      calculateDaytradeCost(false);
+    }
+
+    function syncDaytradePricesFromAnalysis(data) {
+      if (!data?.latest?.close) return;
+      setDaytradeLatestPrices(data.symbol, data.latest.close, false);
+    }
+
     function selectDaytradeSymbol(symbol, latestPrice = 0) {
       $("dtCostSymbol").value = symbol;
-      if (latestPrice) $("dtSellPrice").value = latestPrice;
+      if (latestPrice) setDaytradeLatestPrices(symbol, latestPrice, true);
       calculateDaytradeCost(false);
       analyzeDaytradeSymbol(symbol);
       analyze(symbol);
@@ -3074,8 +3155,7 @@
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.detail || "quote failed");
         $("dtCostSymbol").value = data.symbol;
-        $("dtSellPrice").value = data.price || "";
-        if (!$("dtBuyPrice").value || Number($("dtBuyPrice").value) <= 0) $("dtBuyPrice").value = data.price || "";
+        setDaytradeLatestPrices(data.symbol, data.price, true);
         calculateDaytradeCost();
       } catch (error) {
         $("dtCostSummary").textContent = `資料可能延遲 / 目前使用 fallback：${error.message}`;
@@ -3092,8 +3172,7 @@
         if (!res.ok || !data.ok) throw new Error(data.detail || "daytrade analyze failed");
         daytradeAnalyzeData = data;
         if (data.latest?.price) {
-          if (!$("dtBuyPrice").value || Number($("dtBuyPrice").value) <= 0) $("dtBuyPrice").value = data.latest.price;
-          if (!$("dtSellPrice").value || Number($("dtSellPrice").value) <= 0) $("dtSellPrice").value = data.latest.price;
+          setDaytradeLatestPrices(normalized, data.latest.price, false);
         }
         renderDaytradeAnalyze(data);
       } catch (error) {
@@ -3175,7 +3254,8 @@
       $("predictionBadge").textContent = `${label(data.prediction.bias)} · ${t("confidence")} ${data.prediction.confidence}%`;
       updateLinks(data);
       renderRelated(data.related || []);
-      kv("technical", { MA5: data.technical.ma5, MA20: data.technical.ma20, MA60: data.technical.ma60, RSI: data.technical.rsi14, MACD: data.technical.macd, "ATR %": `${fmt(data.technical.atr_pct)}%`, "Vol ratio": data.technical.volume_ratio });
+      syncDaytradePricesFromAnalysis(data);
+      kv("technical", { MA5: data.technical.ma5, MA20: data.technical.ma20, MA25: data.technical.ma25, MA60: data.technical.ma60, "25D bias": `${signed(data.technical.bias25_pct, "%")}`, RSI: data.technical.rsi14, MACD: data.technical.macd, "ATR %": `${fmt(data.technical.atr_pct)}%`, "Vol ratio": data.technical.volume_ratio });
       kv("levels", { [t("trigger")]: data.levels.breakout_call, [t("pressure")]: data.levels.resistance_60d, [t("backtest")]: data.levels.backtest_zone, [t("stop")]: data.levels.stop_loss_reference });
       kv("suitability", {
         [t("intraday")]: explainScore(data.suitability.intraday),
@@ -3195,6 +3275,7 @@
       renderDesignSignals(data.design_signals || {});
       renderChartLegend();
       renderChartSignal(data);
+      renderBias25Panel(data);
       renderChart(data);
       $("refreshMeta").textContent = `${t("updated")} ${new Date().toLocaleTimeString()}`;
       if (!watch.includes(data.symbol)) renderWatchlist();
@@ -3561,13 +3642,70 @@
       }
     }
 
+    function chartLayerDefs() {
+      return [
+        { key: "ma5", label: chartUi("layerMA5"), color: "#76a9ff" },
+        { key: "ma20", label: chartUi("layerMA20"), color: "#f59e0b" },
+        { key: "ma25", label: chartUi("layerMA25"), color: "#fde047" },
+        { key: "ma60", label: chartUi("layerMA60"), color: "#c084fc" },
+        { key: "volume", label: chartUi("layerVolume"), color: "rgba(148,163,184,.75)" },
+        { key: "crosses", label: chartUi("layerCrosses"), color: "#22c55e" },
+        { key: "buys", label: chartUi("layerBuys"), color: "#86efac" },
+        { key: "bias25", label: chartUi("layerBias25"), color: "#fb7185" }
+      ];
+    }
+
+    function renderChartLayerControls() {
+      const mount = $("chartLayerControls");
+      if (!mount) return;
+      mount.innerHTML = chartLayerDefs().map((item) => `
+        <label class="chart-switch">
+          <input type="checkbox" data-chart-layer="${escapeHtml(item.key)}" ${chartLayers[item.key] ? "checked" : ""} />
+          <span class="switch-track"></span>
+          <span class="layer-dot" style="--layer-color:${escapeHtml(item.color)}"></span>
+          <span>${escapeHtml(item.label)}</span>
+        </label>`).join("");
+      mount.querySelectorAll("[data-chart-layer]").forEach((input) => {
+        input.addEventListener("change", () => {
+          chartLayers[input.dataset.chartLayer] = input.checked;
+          localStorage.setItem("okiri.chartLayers", JSON.stringify(chartLayers));
+          renderBias25Panel(lastData);
+          renderChart(lastData);
+        });
+      });
+    }
+
+    function renderBias25Panel(data) {
+      const panel = $("bias25Panel");
+      if (!panel) return;
+      if (!data || !chartLayers.bias25) {
+        panel.className = "bias-panel";
+        panel.innerHTML = "";
+        return;
+      }
+      const latest = data.chart?.at(-1) || {};
+      const bias = Number(data.technical?.bias25_pct ?? latest.bias25 ?? 0);
+      const ma25 = Number(data.technical?.ma25 ?? latest.ma25 ?? 0);
+      const tone = Math.abs(bias) >= 8 ? "bad" : Math.abs(bias) >= 5 ? "warn" : "good";
+      const note = bias >= 8 ? chartUi("biasHot") : bias >= 5 ? chartUi("biasWarm") : bias <= -8 ? chartUi("biasCold") : bias <= -5 ? chartUi("biasCool") : chartUi("biasNeutral");
+      panel.className = `bias-panel active ${tone}`;
+      panel.innerHTML = `
+        <div>
+          <strong>${escapeHtml(chartUi("biasTitle"))}</strong>
+          <small>${escapeHtml(note)} ${escapeHtml(chartUi("biasLine"))} MA25 ${ma25 ? fmt(ma25) : "-"}</small>
+        </div>
+        <div class="bias-value">${signed(bias, "%")}</div>`;
+    }
+
     function renderChartLegend() {
       const rows = [
         ["candle", "candle", ccopy("candle")],
         ["ma5", "", ccopy("ma5"), "#76a9ff"],
-        ["ma20", "", ccopy("ma20"), "#fbbf24"],
+        ["ma20", "", ccopy("ma20"), "#f59e0b"],
+        ["ma25", "", chartUi("ma25"), "#fde047"],
         ["ma60", "", ccopy("ma60"), "#c084fc"],
         ["volume", "", ccopy("volume"), "rgba(148,163,184,.75)"],
+        ["bias25", "", chartUi("bias25"), "#fb7185"],
         ["buy", "buy", ccopy("buy")],
         ["cross", "cross", ccopy("cross")]
       ];
@@ -3597,6 +3735,7 @@
         <div class="chart-signal-metric"><span>${escapeHtml(ccopy("topology"))}</span><strong>${escapeHtml(ccopy(math.topology || "unknown"))}</strong></div>
         <div class="chart-signal-metric"><span>${escapeHtml(ccopy("slope"))}</span><strong>${escapeHtml(metrics.slope_pct_per_bar ?? "-")}%</strong></div>
         <div class="chart-signal-metric"><span>${escapeHtml(ccopy("spread"))}</span><strong>${escapeHtml(metrics.ma20_ma60_spread_pct ?? "-")}%</strong></div>
+        <div class="chart-signal-metric"><span>${escapeHtml(chartUi("layerBias25"))}</span><strong>${escapeHtml(metrics.bias25_pct ?? data.technical?.bias25_pct ?? "-")}%</strong></div>
         <div class="chart-signal-metric"><span>R²</span><strong>${escapeHtml(metrics.r2 ?? "-")}</strong></div>
         <div class="chart-signal-metric"><span>${escapeHtml(ccopy("model"))}</span><strong>${escapeHtml(math.model || "-")}</strong></div>`;
     }
@@ -3608,8 +3747,11 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const w = rect.width, h = rect.height; ctx.clearRect(0, 0, w, h);
       const rows = data.chart || []; if (!rows.length) return;
+      renderBias25Panel(data);
       const pad = { l: 52, r: 70, t: 18, b: 94 }; const chartH = h - pad.t - pad.b;
-      const rawMin = Math.min(...rows.map((r) => r.low)); const rawMax = Math.max(...rows.map((r) => r.high));
+      const visibleLines = ["ma5", "ma20", "ma25", "ma60"].filter((key) => chartLayers[key]);
+      const pricePoints = rows.flatMap((r) => [r.low, r.high, ...visibleLines.map((key) => r[key]).filter(Boolean)]);
+      const rawMin = Math.min(...pricePoints); const rawMax = Math.max(...pricePoints);
       const spread = Math.max(0.0001, rawMax - rawMin);
       const min = rawMin - spread * 0.035; const max = rawMax + spread * 0.035; const volMax = Math.max(1, ...rows.map((r) => r.volume || 0));
       const x = (i) => pad.l + i * ((w - pad.l - pad.r) / Math.max(1, rows.length - 1)); const y = (p) => pad.t + (max - p) / Math.max(0.0001, max - min) * chartH; const vy = (v) => h - 28 - (v / volMax) * 56;
@@ -3619,17 +3761,50 @@
       ctx.strokeStyle = "#26345f"; ctx.lineWidth = 1;
       for (let i = 0; i < 5; i++) { const yy = pad.t + i * chartH / 4; ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(w - pad.r, yy); ctx.stroke(); ctx.fillStyle = "#97a4c2"; ctx.font = "12px Segoe UI"; ctx.fillText(fmt(max - i * (max - min) / 4), 5, yy + 4); }
       const barW = Math.max(3, (w - pad.l - pad.r) / rows.length * .62);
-      rows.forEach((r, i) => { const xx = x(i); ctx.strokeStyle = r.color; ctx.fillStyle = r.color; ctx.beginPath(); ctx.moveTo(xx, y(r.high)); ctx.lineTo(xx, y(r.low)); ctx.stroke(); const top = y(Math.max(r.open, r.close)); const bottom = y(Math.min(r.open, r.close)); ctx.fillRect(xx - barW / 2, top, barW, Math.max(1, bottom - top)); ctx.globalAlpha = .35; ctx.fillRect(xx - barW / 2, vy(r.volume), barW, h - 28 - vy(r.volume)); ctx.globalAlpha = 1; });
-      drawLine(rows, "ma5", "#76a9ff", x, y); drawLine(rows, "ma20", "#fbbf24", x, y); drawLine(rows, "ma60", "#c084fc", x, y); drawCrossSignals(data, rows, x, y, pad, h); drawBuySignals(data, rows, x, y);
+      if (chartLayers.bias25) drawBias25Bands(rows, x, y);
+      rows.forEach((r, i) => { const xx = x(i); ctx.strokeStyle = r.color; ctx.fillStyle = r.color; ctx.beginPath(); ctx.moveTo(xx, y(r.high)); ctx.lineTo(xx, y(r.low)); ctx.stroke(); const top = y(Math.max(r.open, r.close)); const bottom = y(Math.min(r.open, r.close)); ctx.fillRect(xx - barW / 2, top, barW, Math.max(1, bottom - top)); if (chartLayers.volume) { ctx.globalAlpha = .35; ctx.fillRect(xx - barW / 2, vy(r.volume), barW, h - 28 - vy(r.volume)); ctx.globalAlpha = 1; } });
+      if (chartLayers.ma5) drawLine(rows, "ma5", "#76a9ff", x, y);
+      if (chartLayers.ma20) drawLine(rows, "ma20", "#f59e0b", x, y);
+      if (chartLayers.ma25) drawLine(rows, "ma25", "#fde047", x, y, [6, 5]);
+      if (chartLayers.ma60) drawLine(rows, "ma60", "#c084fc", x, y);
+      if (chartLayers.crosses) drawCrossSignals(data, rows, x, y, pad, h);
+      if (chartLayers.buys) drawBuySignals(data, rows, x, y);
       const last = rows.at(-1); const lastY = y(last.close);
       ctx.save(); ctx.setLineDash([5, 5]); ctx.strokeStyle = "rgba(226,232,240,.55)"; ctx.beginPath(); ctx.moveTo(pad.l, lastY); ctx.lineTo(w - pad.r + 8, lastY); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle = "#0f172f"; ctx.strokeStyle = "#76a9ff"; ctx.lineWidth = 1; const label = fmt(last.close); const labelW = Math.min(64, ctx.measureText(label).width + 16);
       ctx.beginPath(); ctx.roundRect?.(w - pad.r + 10, lastY - 12, labelW, 24, 6); if (!ctx.roundRect) ctx.rect(w - pad.r + 10, lastY - 12, labelW, 24); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#dbeafe"; ctx.fillText(label, w - pad.r + 18, lastY + 4); ctx.restore();
       ctx.fillStyle = "#97a4c2"; ctx.fillText(rows[0].date, pad.l, h - 8); ctx.fillText(rows.at(-1).date, Math.max(pad.l, w - 92), h - 8);
     }
-    function drawLine(rows, key, color, x, y) {
-      ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath(); let started = false;
-      rows.forEach((r, i) => { if (!r[key]) return; if (!started) { ctx.moveTo(x(i), y(r[key])); started = true; } else ctx.lineTo(x(i), y(r[key])); }); ctx.stroke();
+    function drawLine(rows, key, color, x, y, dash = []) {
+      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = key === "ma25" ? 1.8 : 1.5; ctx.setLineDash(dash); ctx.beginPath(); let started = false;
+      rows.forEach((r, i) => { if (!r[key]) return; if (!started) { ctx.moveTo(x(i), y(r[key])); started = true; } else ctx.lineTo(x(i), y(r[key])); }); ctx.stroke(); ctx.restore();
+    }
+    function drawBias25Bands(rows, x, y) {
+      const recent = rows.slice(-90);
+      ctx.save();
+      recent.forEach((r, offset) => {
+        if (!r.ma25 || r.bias25 == null) return;
+        const i = rows.length - recent.length + offset;
+        const top = y(Math.max(r.close, r.ma25));
+        const bottom = y(Math.min(r.close, r.ma25));
+        const strength = Math.min(.32, Math.max(.06, Math.abs(Number(r.bias25)) / 28));
+        ctx.fillStyle = Number(r.bias25) >= 0 ? `rgba(239,68,68,${strength})` : `rgba(34,197,94,${strength})`;
+        const nextX = offset < recent.length - 1 ? x(i + 1) : x(i);
+        const bandW = Math.max(3, Math.abs(nextX - x(i)) * .72);
+        ctx.fillRect(x(i) - bandW / 2, top, bandW, Math.max(1, bottom - top));
+      });
+      const last = rows.at(-1);
+      if (last?.ma25) {
+        const xx = x(rows.length - 1), yy = y((last.close + last.ma25) / 2);
+        ctx.fillStyle = "rgba(15,23,47,.88)";
+        ctx.strokeStyle = "#fb7185";
+        ctx.lineWidth = 1;
+        const text = `25MA ${signed(last.bias25 || 0, "%")}`;
+        const width = Math.min(118, ctx.measureText(text).width + 18);
+        ctx.beginPath(); ctx.roundRect?.(Math.max(58, xx - width - 8), yy - 13, width, 26, 6); if (!ctx.roundRect) ctx.rect(Math.max(58, xx - width - 8), yy - 13, width, 26); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#ffe4e6"; ctx.font = "800 11px Segoe UI"; ctx.textAlign = "left"; ctx.fillText(text, Math.max(66, xx - width), yy + 4);
+      }
+      ctx.restore();
     }
     function drawBuySignals(data, rows, x, y) {
       findBuySignals(data, rows).slice(-5).forEach((signal) => {
