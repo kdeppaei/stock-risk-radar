@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenKiri | Stock Risk Radar</title>
+  <style>
+    :root {
+      --bg: #0b1020; --panel: #111936; --panel2: #151f42; --line: #26345f;
+      --text: #ecf2ff; --muted: #9aa8c7; --blue: #76a9ff; --green: #22c55e;
+      --red: #ef4444; --amber: #fbbf24; --cyan: #2dd4bf;
+      font-family: "Segoe UI", "Noto Sans TC", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    .wrap { width: min(1320px, calc(100% - 28px)); margin: 0 auto; padding: 18px 0 28px; }
+    header, .hero, .cards, .layout, .filters, .rows, .mini-grid { display: grid; gap: 12px; }
+    header { grid-template-columns: minmax(0, 1fr) auto; align-items: end; margin-bottom: 14px; }
+    h1, h2, h3, p { margin: 0; letter-spacing: 0; }
+    h1 { font-size: 32px; line-height: 1.05; }
+    h1 span { color: var(--blue); }
+    .sub, .muted, small { color: var(--muted); }
+    .search { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    input, select, button { height: 42px; border-radius: 7px; border: 1px solid var(--line); font: inherit; }
+    input, select { background: #0f172f; color: var(--text); padding: 0 12px; min-width: 0; }
+    button { background: #3b82f6; border-color: #3b82f6; color: white; padding: 0 14px; cursor: pointer; }
+    button.secondary { background: var(--panel2); border-color: var(--line); }
+    button:disabled { opacity: .65; cursor: wait; }
+    .panel, .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+    .panel { padding: 16px; min-width: 0; }
+    .hero { grid-template-columns: minmax(0, 1.4fr) minmax(320px, .8fr); align-items: stretch; margin-bottom: 14px; }
+    .hero .panel:first-child { display: grid; gap: 14px; align-content: space-between; min-height: 178px; }
+    .badges { display: flex; gap: 8px; flex-wrap: wrap; }
+    .badge { display: inline-flex; align-items: center; min-height: 26px; padding: 3px 9px; border-radius: 999px; border: 1px solid rgba(118,169,255,.35); color: #bfdbfe; background: rgba(59,130,246,.12); font-size: 12px; }
+    .badge.good { color: #86efac; border-color: rgba(34,197,94,.4); background: rgba(34,197,94,.1); }
+    .badge.bad { color: #fca5a5; border-color: rgba(239,68,68,.4); background: rgba(239,68,68,.1); }
+    .badge.warn { color: #fde68a; border-color: rgba(251,191,36,.4); background: rgba(251,191,36,.1); }
+    .cards { grid-template-columns: repeat(6, minmax(0, 1fr)); margin-bottom: 14px; }
+    .card { padding: 13px; min-height: 86px; }
+    .card span { display: block; color: var(--muted); font-size: 12px; }
+    .card strong { display: block; margin-top: 5px; font-size: 21px; white-space: nowrap; }
+    .card small { display: block; margin-top: 4px; overflow-wrap: anywhere; }
+    .layout { grid-template-columns: minmax(0, 1fr) 420px; align-items: start; }
+    canvas { width: 100%; height: 480px; display: block; background: #0f172f; border: 1px solid var(--line); border-radius: 7px; }
+    .signal-box { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, minmax(86px, auto)); gap: 10px; align-items: center; margin-top: 12px; padding: 12px; border-radius: 8px; border: 1px solid var(--line); background: #0f172f; }
+    .signal-box strong, .metric b { display: block; }
+    .metric { text-align: right; color: var(--muted); font-size: 12px; }
+    .metric b { color: var(--text); margin-top: 3px; font-size: 15px; }
+    .filters { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 12px; }
+    .filters label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+    .filters input, .filters select { width: 100%; }
+    .industry-grid { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 5px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel2); font-size: 13px; }
+    .chip input { width: auto; height: auto; accent-color: #3b82f6; }
+    .rows { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 12px; }
+    .row { display: grid; grid-template-columns: minmax(130px, 1fr) repeat(4, minmax(70px, auto)); gap: 9px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); cursor: pointer; }
+    .row:hover { border-color: var(--blue); }
+    .row strong, .row small { display: block; }
+    .row small { margin-top: 3px; }
+    .side-list { display: grid; gap: 8px; margin-top: 10px; }
+    .mini-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .note { margin-top: 10px; color: var(--muted); line-height: 1.5; font-size: 13px; }
+    .up { color: var(--green); } .down { color: var(--red); } .warn-text { color: var(--amber); }
+    .skeleton { opacity: .7; }
+    @media (max-width: 1080px) {
+      .hero, .layout { grid-template-columns: 1fr; }
+      .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+      .wrap { width: min(100% - 18px, 680px); padding-top: 12px; }
+      header { grid-template-columns: 1fr; }
+      .search { justify-content: stretch; }
+      .search input, .search select, .search button { flex: 1 1 132px; }
+      .cards, .filters, .rows, .mini-grid { grid-template-columns: 1fr; }
+      .signal-box, .row { grid-template-columns: 1fr 1fr; }
+      .signal-box > div:first-child, .row > div:first-child { grid-column: 1 / -1; }
+      canvas { height: 360px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Open<span>Kiri</span></h1>
+        <p class="sub">把股票依「黃金交叉延續、死亡交叉延續、帶量突破、回測均線守住、過熱風險」自動分類，同時顯示浮動市值與 P/E。</p>
+      </div>
+      <form class="search" id="searchForm">
+        <input id="symbol" value="AAPL" autocomplete="off" placeholder="AAPL / 2330" />
+        <select id="period">
+          <option value="3mo">3M</option>
+          <option value="6mo" selected>6M</option>
+          <option value="1y">1Y</option>
+          <option value="2y">2Y</option>
+        </select>
+        <button id="analyzeBtn">分析</button>
+      </form>
+    </header>
+
+    <section class="hero">
+      <article class="panel">
+        <div>
+          <div class="badges">
+            <span class="badge">OpenKiri Beta</span>
+            <span class="badge good">即時 Yahoo 行情</span>
+            <span class="badge warn">研究用途，非投資建議</span>
+          </div>
+          <h2 id="headline" style="margin-top:14px;">正在載入行情...</h2>
+          <p class="note" id="summaryText">系統會用均線拓撲、交叉後天數、斜率、RSI、量能與 P/E 估值來分組。</p>
+        </div>
+      </article>
+      <article class="panel">
+        <h2>今日篩選焦點</h2>
+        <div class="side-list" id="focusList"></div>
+      </article>
+    </section>
+
+    <section class="cards">
+      <article class="card"><span>收盤 / 漲跌</span><strong id="priceCard">-</strong><small id="changeCard">-</small></article>
+      <article class="card"><span>風險</span><strong id="riskCard">-</strong><small id="riskSub">-</small></article>
+      <article class="card"><span>行情型態</span><strong id="setupCard">-</strong><small id="setupSub">-</small></article>
+      <article class="card"><span>市值</span><strong id="capCard">-</strong><small id="capSub">-</small></article>
+      <article class="card"><span>P/E</span><strong id="peCard">-</strong><small id="peSub">-</small></article>
+      <article class="card"><span>成交量</span><strong id="volumeCard">-</strong><small id="volumeSub">-</small></article>
+    </section>
+
+    <main class="layout">
+      <section class="panel">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+          <h2>K 線與均線</h2>
+          <div class="badges"><span class="badge">MA20</span><span class="badge warn">MA60</span><span class="badge good">交叉標記</span></div>
+        </div>
+        <canvas id="chart"></canvas>
+        <div class="signal-box" id="signalBox">
+          <div><strong>-</strong><small>-</small></div>
+          <div class="metric"><span>Score</span><b>-</b></div>
+          <div class="metric"><span>RSI</span><b>-</b></div>
+          <div class="metric"><span>20D</span><b>-</b></div>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <h2>分類篩選</h2>
+        <div class="filters">
+          <label>市場<select id="marketFilter"><option value="US,TW">US + TW</option><option value="US">US</option><option value="TW">TW</option></select></label>
+          <label>型態<select id="setupFilter"></select></label>
+          <label>排序<select id="sortFilter"><option value="signal">訊號分數</option><option value="pe">低 P/E</option><option value="market_cap">市值</option><option value="risk">低風險</option><option value="change">漲跌幅</option><option value="volume">量能</option></select></label>
+          <label>上限<select id="limitFilter"><option>20</option><option selected>30</option><option>50</option></select></label>
+        </div>
+        <div class="industry-grid" id="industryGrid"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+          <button id="runScreener">更新篩選</button>
+          <button class="secondary" id="clearIndustry" type="button">清除產業</button>
+        </div>
+        <p class="note" id="screenMeta">等待篩選...</p>
+      </aside>
+    </main>
+
+    <section class="panel" style="margin-top:14px;">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
+        <h2>篩選結果</h2>
+        <span class="muted">同類型股票會排在一起，方便比較延續與反轉風險。</span>
+      </div>
+      <div class="rows" id="resultRows"></div>
+    </section>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const canvas = $("chart");
+    const ctx = canvas.getContext("2d");
+    let currentData = null;
+    let industries = [];
+
+    const toneClass = { bullish: "good", bearish: "bad", watch: "warn", neutral: "" };
+
+    $("searchForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      analyze($("symbol").value.trim() || "AAPL");
+    });
+    $("runScreener").addEventListener("click", runScreener);
+    $("clearIndustry").addEventListener("click", () => {
+      document.querySelectorAll("#industryGrid input").forEach((x) => x.checked = false);
+      runScreener();
+    });
+
+    async function boot() {
+      await loadOptions();
+      await analyze("AAPL");
+      await runScreener();
+    }
+
+    async function loadOptions() {
+      const data = await fetchJson("/api/screener/options");
+      $("setupFilter").innerHTML = data.setup_signals.map((x) => `<option value="${x.key}">${escapeHtml(x.label)}</option>`).join("");
+      industries = data.industries;
+      $("industryGrid").innerHTML = industries.map((name) => `<label class="chip"><input type="checkbox" value="${escapeHtml(name)}">${escapeHtml(name)}</label>`).join("");
+    }
+
+    async function analyze(symbol) {
+      $("analyzeBtn").disabled = true;
+      try {
+        const qs = new URLSearchParams({ symbol, period: $("period").value, interval: "1d" });
+        currentData = await fetchJson(`/api/analyze?${qs}`);
+        renderAnalysis(currentData);
+      } catch (error) {
+        $("headline").textContent = `讀取失敗：${error.message}`;
+      } finally {
+        $("analyzeBtn").disabled = false;
+      }
+    }
+
+    async function runScreener() {
+      $("screenMeta").textContent = "篩選中...";
+      $("runScreener").disabled = true;
+      try {
+        const selected = [...document.querySelectorAll("#industryGrid input:checked")].map((x) => x.value).join(",");
+        const qs = new URLSearchParams({
+          markets: $("marketFilter").value,
+          industries: selected,
+          setup: $("setupFilter").value,
+          sort_by: $("sortFilter").value,
+          limit: $("limitFilter").value
+        });
+        const data = await fetchJson(`/api/screener?${qs}`);
+        renderScreener(data);
+      } catch (error) {
+        $("screenMeta").textContent = `篩選失敗：${error.message}`;
+      } finally {
+        $("runScreener").disabled = false;
+      }
+    }
+
+    async function fetchJson(url) {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok || data.ok === false) throw new Error(data.detail || "request failed");
+      return data;
+    }
+
+    function renderAnalysis(data) {
+      const pct = Number(data.change?.pct || 0);
+      const setup = data.setup_signal || {};
+      $("headline").textContent = `${data.symbol} ${data.name} · ${setup.label || "行情分類"}`;
+      $("summaryText").textContent = setup.reason || "等待更多行情資料。";
+      $("priceCard").textContent = fmt(data.latest.close);
+      $("changeCard").innerHTML = `<span class="${pct >= 0 ? "up" : "down"}">${pct >= 0 ? "▲" : "▼"} ${signed(pct, "%")}</span>`;
+      $("riskCard").textContent = `${data.risk.score}/100`;
+      $("riskSub").textContent = `${labelRisk(data.risk.level)} · ${labelTrend(data.risk.trend)}`;
+      $("setupCard").textContent = setup.label || "-";
+      $("setupSub").textContent = setup.bars_since_cross == null ? "無近期交叉" : `交叉後 ${setup.bars_since_cross} 根K`;
+      $("capCard").textContent = capText(data);
+      $("capSub").textContent = valuationSource(data);
+      $("peCard").textContent = peText(data);
+      $("peSub").textContent = data.valuation?.forward_pe ? `Forward ${fmt(data.valuation.forward_pe)}` : "Forward -";
+      $("volumeCard").textContent = `${fmt(data.latest.volume_ratio)}x`;
+      $("volumeSub").textContent = compact(data.latest.volume);
+      renderSignal(data);
+      drawChart(data);
+    }
+
+    function renderSignal(data) {
+      const setup = data.setup_signal || {};
+      $("signalBox").innerHTML = `
+        <div>
+          <span class="badge ${toneClass[setup.tone] || ""}">${escapeHtml(setup.label || "-")}</span>
+          <strong style="margin-top:8px;">${escapeHtml(setup.reason || "-")}</strong>
+          <small>${data.risk.reasons.map(escapeHtml).join(" · ")}</small>
+        </div>
+        <div class="metric"><span>Score</span><b>${data.score}</b></div>
+        <div class="metric"><span>RSI</span><b>${fmt(data.latest.rsi14)}</b></div>
+        <div class="metric"><span>20D</span><b>${signed(data.change.ret20, "%")}</b></div>`;
+    }
+
+    function renderScreener(data) {
+      $("screenMeta").textContent = `${data.count} 檔 · 型態：${setupLabel(data.setup)} · 排序：${$("sortFilter").selectedOptions[0].textContent}`;
+      const rows = data.rows || [];
+      $("resultRows").innerHTML = rows.length ? rows.map(rowTemplate).join("") : `<div class="panel muted">沒有符合條件的股票。</div>`;
+      $("focusList").innerHTML = rows.slice(0, 5).map((row, i) => `
+        <div class="row" style="grid-template-columns:auto minmax(0,1fr) auto;" onclick="analyze('${row.symbol}')">
+          <strong>#${i + 1}</strong><div><strong>${escapeHtml(row.symbol)}</strong><small>${escapeHtml(row.setup_signal.label)}</small></div><span class="badge ${toneClass[row.setup_signal.tone] || ""}">${row.score}</span>
+        </div>`).join("");
+    }
+
+    function rowTemplate(row) {
+      const pct = Number(row.change?.pct || 0);
+      return `<article class="row" onclick="analyze('${row.symbol}')">
+        <div><strong>${escapeHtml(row.symbol)} · ${escapeHtml(row.name)}</strong><small>${escapeHtml(row.industry)} · ${escapeHtml(row.setup_signal.label)}</small></div>
+        <div class="metric"><span>價格</span><b>${fmt(row.latest.close)}</b><small class="${pct >= 0 ? "up" : "down"}">${signed(pct, "%")}</small></div>
+        <div class="metric"><span>風險</span><b>${row.risk.score}</b><small>${labelTrend(row.risk.trend)}</small></div>
+        <div class="metric"><span>市值</span><b>${capText(row)}</b><small>${row.valuation?.currency || "USD"}</small></div>
+        <div class="metric"><span>P/E</span><b>${peText(row)}</b><small>${row.valuation?.forward_pe ? "Fwd " + fmt(row.valuation.forward_pe) : "-"}</small></div>
+      </article>`;
+    }
+
+    function drawChart(data) {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(320, Math.round(rect.width * dpr));
+      canvas.height = Math.max(320, Math.round(rect.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const w = rect.width, h = rect.height;
+      ctx.clearRect(0, 0, w, h);
+      const rows = data.chart || [];
+      if (!rows.length) return;
+      const pad = { l: 48, r: 18, t: 18, b: 42 };
+      const min = Math.min(...rows.map((r) => r.low));
+      const max = Math.max(...rows.map((r) => r.high));
+      const spread = Math.max(.0001, max - min);
+      const lo = min - spread * .04, hi = max + spread * .04;
+      const x = (i) => pad.l + i * ((w - pad.l - pad.r) / Math.max(1, rows.length - 1));
+      const y = (p) => pad.t + (hi - p) / (hi - lo) * (h - pad.t - pad.b);
+      ctx.strokeStyle = "#26345f"; ctx.lineWidth = 1;
+      for (let i = 0; i < 5; i++) {
+        const yy = pad.t + i * (h - pad.t - pad.b) / 4;
+        ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(w - pad.r, yy); ctx.stroke();
+        ctx.fillStyle = "#9aa8c7"; ctx.font = "12px Segoe UI"; ctx.fillText(fmt(hi - i * (hi - lo) / 4), 6, yy + 4);
+      }
+      const barW = Math.max(3, (w - pad.l - pad.r) / rows.length * .58);
+      rows.forEach((r, i) => {
+        const xx = x(i), color = r.close >= r.open ? "#22c55e" : "#ef4444";
+        ctx.strokeStyle = color; ctx.fillStyle = color;
+        ctx.beginPath(); ctx.moveTo(xx, y(r.high)); ctx.lineTo(xx, y(r.low)); ctx.stroke();
+        const top = y(Math.max(r.open, r.close)), bottom = y(Math.min(r.open, r.close));
+        ctx.fillRect(xx - barW / 2, top, barW, Math.max(1, bottom - top));
+      });
+      drawLine(rows, "ma20", "#fbbf24", x, y);
+      drawLine(rows, "ma60", "#76a9ff", x, y);
+      const cross = data.setup_signal?.latest_cross;
+      if (cross) {
+        const localIndex = cross.index - Math.max(0, (data.chart_full_length || rows.length) - rows.length);
+        if (localIndex >= 0 && localIndex < rows.length) {
+          const xx = x(localIndex);
+          ctx.setLineDash([4, 4]); ctx.strokeStyle = cross.type === "death_cross" ? "#ef4444" : "#22c55e";
+          ctx.beginPath(); ctx.moveTo(xx, pad.t); ctx.lineTo(xx, h - pad.b); ctx.stroke(); ctx.setLineDash([]);
+        }
+      }
+      ctx.fillStyle = "#9aa8c7"; ctx.fillText(rows[0].date, pad.l, h - 12); ctx.fillText(rows.at(-1).date, Math.max(pad.l, w - 92), h - 12);
+    }
+
+    function drawLine(rows, key, color, x, y) {
+      ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.beginPath();
+      rows.forEach((r, i) => { if (i === 0) ctx.moveTo(x(i), y(r[key])); else ctx.lineTo(x(i), y(r[key])); });
+      ctx.stroke();
+    }
+
+    function setupLabel(key) {
+      return $("setupFilter").querySelector(`option[value="${key}"]`)?.textContent || key;
+    }
+    function capText(row) {
+      const v = row.valuation || {};
+      return v.market_cap ? money(v.market_cap, v.currency || "USD") : "-";
+    }
+    function peText(row) {
+      const v = row.valuation || {};
+      const pe = v.trailing_pe || v.forward_pe;
+      return pe ? fmt(pe) : "-";
+    }
+    function valuationSource(row) {
+      return row.valuation?.fallback ? "估算 / 備援" : `${row.valuation?.currency || "USD"} · 即時估值`;
+    }
+    function money(n, currency) {
+      const locale = currency === "TWD" ? "zh-TW" : "en-US";
+      return new Intl.NumberFormat(locale, { style: "currency", currency, notation: "compact", maximumFractionDigits: 1 }).format(Number(n || 0));
+    }
+    function compact(n) {
+      return Number(n || 0).toLocaleString("zh-TW", { notation: "compact", maximumFractionDigits: 1 });
+    }
+    function fmt(n) { return Number(n || 0).toLocaleString("zh-TW", { maximumFractionDigits: 2 }); }
+    function signed(n, suffix = "") { return `${Number(n || 0) >= 0 ? "+" : ""}${fmt(n)}${suffix}`; }
+    function labelRisk(v) { return ({ low: "低", medium: "中", high: "高" })[v] || v; }
+    function labelTrend(v) { return ({ bullish: "偏多", bearish: "偏空", sideways: "盤整" })[v] || v; }
+    function escapeHtml(s) { return String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
+
+    window.addEventListener("resize", () => currentData && drawChart(currentData));
+    boot();
+  </script>
+</body>
+</html>
