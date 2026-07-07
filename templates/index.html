@@ -337,8 +337,51 @@
     .watch-alert p { margin: 0; color: #dbeafe; line-height: 1.45; font-size: 13px; }
     .watch-alert-close { width: 30px; height: 30px; padding: 0; background: transparent; border-color: var(--line); color: var(--muted); }
     .explain { margin-top: 10px; font-size: 13px; }
+    .daytrade-desk { display: grid; gap: 12px; background: #05070d; border: 1px solid #26304c; border-radius: 8px; padding: 12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.02); }
+    .desk-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .desk-title small { display: block; color: #88a2d8; font-size: 12px; margin-top: 3px; }
+    .desk-disclaimer { color: #ffd166; font-size: 12px; line-height: 1.45; }
+    .desk-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(330px, .95fr); gap: 12px; align-items: start; }
+    .desk-panel { background: #080d18; border: 1px solid #1f2a44; border-radius: 7px; padding: 10px; min-width: 0; }
+    .desk-panel h3 { font-size: 15px; margin-bottom: 8px; }
+    .desk-scroll { overflow-x: auto; border: 1px solid #1f2a44; border-radius: 6px; background: #030711; }
+    .desk-table { width: 100%; min-width: 760px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    .desk-table th { position: sticky; top: 0; z-index: 1; background: #0b1221; color: #9fb5df; font-size: 12px; text-align: right; padding: 8px; border-bottom: 1px solid #26304c; }
+    .desk-table th:first-child, .desk-table td:first-child { text-align: left; }
+    .desk-table td { padding: 8px; border-bottom: 1px solid rgba(38,48,76,.72); text-align: right; white-space: nowrap; }
+    .desk-table tr { transition: background .15s ease, box-shadow .15s ease; cursor: pointer; }
+    .desk-table tr:hover { background: rgba(59,130,246,.1); box-shadow: inset 3px 0 0 #76a9ff; }
+    .desk-table tr.flash-up { animation: deskFlashRed 1s ease-in-out 2; }
+    .desk-table tr.flash-down { animation: deskFlashGreen 1s ease-in-out 2; }
+    .desk-up { color: #ff5d5d; font-weight: 800; }
+    .desk-down { color: #39d98a; font-weight: 800; }
+    .desk-chip { display: inline-flex; align-items: center; min-height: 22px; padding: 2px 7px; border-radius: 999px; background: #141d32; border: 1px solid #2b3b62; color: #d7e3ff; font-size: 12px; }
+    .desk-chip.good { color: #ffb4b4; border-color: rgba(255,93,93,.45); background: rgba(255,93,93,.12); }
+    .desk-chip.bad { color: #a7f3d0; border-color: rgba(57,217,138,.45); background: rgba(57,217,138,.1); }
+    .desk-chip.warn { color: #fde68a; border-color: rgba(251,191,36,.45); background: rgba(251,191,36,.1); }
+    .desk-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: end; }
+    .desk-form label span { display: block; color: #9fb5df; font-size: 12px; margin-bottom: 4px; }
+    .desk-form input, .desk-form select { width: 100%; height: 38px; background: #030711; border-color: #2b3b62; }
+    .desk-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .desk-result-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+    .desk-kv { min-height: 66px; background: #0d1528; border: 1px solid #26304c; border-radius: 7px; padding: 9px; }
+    .desk-kv span { display: block; color: #9fb5df; font-size: 12px; }
+    .desk-kv b { display: block; margin-top: 5px; font-size: 18px; overflow-wrap: anywhere; }
+    .desk-callout { margin-top: 10px; padding: 10px; border: 1px solid rgba(251,191,36,.45); border-left: 4px solid #fbbf24; border-radius: 7px; background: rgba(251,191,36,.08); color: #ffe8a3; line-height: 1.5; }
+    .gate-card { display: grid; gap: 8px; margin-top: 10px; padding: 10px; border-radius: 7px; background: #0d1528; border: 1px solid #26304c; }
+    .gate-lamps { display: flex; gap: 8px; align-items: center; }
+    .lamp { width: 18px; height: 18px; border-radius: 50%; background: #334155; box-shadow: inset 0 0 0 2px rgba(255,255,255,.08); }
+    .gate-card.green .lamp.green { background: #22c55e; box-shadow: 0 0 16px rgba(34,197,94,.7); }
+    .gate-card.yellow .lamp.yellow { background: #fbbf24; box-shadow: 0 0 16px rgba(251,191,36,.7); }
+    .gate-card.red .lamp.red { background: #ef4444; box-shadow: 0 0 16px rgba(239,68,68,.7); }
+    .desk-playbook { display: grid; gap: 8px; margin-top: 10px; }
+    .desk-playbook .plainbox { background: #0d1528; }
+    @keyframes deskFlashRed { 50% { background: rgba(239,68,68,.18); } }
+    @keyframes deskFlashGreen { 50% { background: rgba(34,197,94,.18); } }
     @keyframes blinkUp { 50% { background: rgba(34,197,94,.18); } }
     @keyframes blinkDown { 50% { background: rgba(239,68,68,.18); } }
+    @media (max-width: 1120px) { .desk-grid { grid-template-columns: 1fr; } .desk-result-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { .daytrade-desk { padding: 9px; } .desk-form, .desk-result-grid { grid-template-columns: 1fr; } .desk-actions { display: grid; grid-template-columns: 1fr; } .desk-table { min-width: 720px; } .desk-kv b { font-size: 17px; } }
     @media (max-width: 1120px) { header, .main, .grid, .statusbar, .serenity-grid { grid-template-columns: 1fr; } .controls { justify-items: stretch; } .side { max-height: none; overflow: visible; padding-right: 0; } .cards, .screener-results, .watch-detail-grid { grid-template-columns: repeat(2, 1fr); } .watch-summary-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .watch-row-tools { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); } .screener-controls, .portfolio-form { grid-template-columns: repeat(3, 1fr); } .screener-row, .recommend-row, .allocation-row, .serenity-pick { grid-template-columns: 1fr 1fr; } .portfolio-summary, .interval-grid, .serenity-breakdown, .serenity-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); } .metric, .score-chip { text-align: left; } .shortcut-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 640px) {
       .wrap { width: min(100% - 18px, 1440px); }
@@ -439,6 +482,7 @@
     <section class="panel workspace-panel">
       <div class="workspace-tabs">
         <button class="workspace-tab active" type="button" data-workspace-tab="recommend" data-reco-i18n="tabRecommend">推薦</button>
+        <button class="workspace-tab" type="button" data-workspace-tab="daytrade" data-reco-i18n="tabDaytrade">T+0</button>
         <button class="workspace-tab" type="button" data-workspace-tab="screener" data-reco-i18n="tabScreener">篩選</button>
         <button class="workspace-tab" type="button" data-workspace-tab="news" data-reco-i18n="tabNews">要聞</button>
         <button class="workspace-tab" type="button" data-workspace-tab="serenity" data-reco-i18n="tabSerenity">Serenity</button>
@@ -457,6 +501,91 @@
           </div>
           <p class="explain" id="recoMeta">-</p>
           <div id="recommendList" class="recommend-list"></div>
+        </section>
+        <section class="workspace-pane" id="pane-daytrade">
+          <div class="daytrade-desk">
+            <div class="desk-head">
+              <div class="desk-title">
+                <h2 data-reco-i18n="daytradeTitle">T+0 台股日內戰情室</h2>
+                <small>Intraday Execution Desk</small>
+              </div>
+              <div class="desk-actions">
+                <button id="dtRefreshBtn" type="button" data-reco-i18n="daytradeRefresh">刷新 T+0</button>
+                <button id="dtAddCurrentBtn" class="secondary" type="button" data-reco-i18n="daytradeAddCurrent">加入目前股票</button>
+              </div>
+              <span class="desk-disclaimer" data-reco-i18n="daytradeDisclaimer">非投資建議，僅供風險與成本輔助判斷。</span>
+            </div>
+            <div class="desk-grid">
+              <div class="desk-panel">
+                <div class="section-head">
+                  <div>
+                    <h3 data-reco-i18n="marketPulseTitle">盤中市場脈動 Market Pulse</h3>
+                    <p class="explain" id="dtPulseMeta">-</p>
+                  </div>
+                  <span class="desk-chip warn" id="dtDataWarning">資料可能延遲</span>
+                </div>
+                <div class="desk-scroll">
+                  <table class="desk-table">
+                    <thead><tr><th data-reco-i18n="dtProduct">商品</th><th data-reco-i18n="dtLast">最新成交</th><th data-reco-i18n="dtChange">漲跌</th><th data-reco-i18n="dtChangePct">漲跌幅</th><th data-reco-i18n="dtVolumeState">量能狀態</th><th data-reco-i18n="dtMarketTag">盤勢標籤</th></tr></thead>
+                    <tbody id="dtPulseBody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="desk-panel">
+                <h3 data-reco-i18n="costRadarTitle">當沖成本雷達 Break-even Radar</h3>
+                <div class="desk-form">
+                  <label><span data-reco-i18n="dtSymbol">股票代號</span><input id="dtCostSymbol" value="2330" /></label>
+                  <label><span data-reco-i18n="dtBuyPrice">買進價格</span><input id="dtBuyPrice" type="number" step="0.01" value="68.4" /></label>
+                  <label><span data-reco-i18n="dtSellPrice">賣出價格</span><input id="dtSellPrice" type="number" step="0.01" value="69.4" /></label>
+                  <label><span data-reco-i18n="dtShares">股數</span><input id="dtShares" type="number" step="1" value="1000" /></label>
+                  <label><span data-reco-i18n="dtFeeRate">手續費率</span><input id="dtFeeRate" type="number" step="0.000001" value="0.001425" /></label>
+                  <label><span data-reco-i18n="dtFeeDiscount">手續費折扣</span><input id="dtFeeDiscount" type="number" step="0.01" value="1" /></label>
+                  <label><span data-reco-i18n="dtTaxRate">證交稅率</span><input id="dtTaxRate" type="number" step="0.000001" value="0.0015" /></label>
+                  <label><span data-reco-i18n="dtMinFee">最低手續費</span><input id="dtMinFee" type="number" step="1" value="20" /></label>
+                  <label><span data-reco-i18n="dtRounding">取整方式</span><select id="dtRounding"><option value="floor">floor</option><option value="round">round</option><option value="ceil">ceil</option></select></label>
+                </div>
+                <div class="desk-actions" style="margin-top:8px">
+                  <button id="dtCostBtn" type="button" data-reco-i18n="dtCalc">計算成本</button>
+                  <button id="dtUseLatestBtn" class="secondary" type="button" data-reco-i18n="dtUseLatest">帶入最新價</button>
+                </div>
+                <div id="dtCostResult" class="desk-result-grid"></div>
+                <div id="dtCostSummary" class="desk-callout">-</div>
+              </div>
+            </div>
+            <div class="desk-grid">
+              <div class="desk-panel">
+                <div class="section-head">
+                  <div>
+                    <h3 data-reco-i18n="quoteBoardTitle">台股日內報價榜 Quote Board</h3>
+                    <p class="explain" data-reco-i18n="quoteBoardHint">自選報價會存於本機 localStorage；台股顏色為漲紅跌綠。</p>
+                  </div>
+                  <div class="desk-actions">
+                    <input id="dtAddSymbolInput" placeholder="3481, 0050" />
+                    <button id="dtAddSymbolBtn" type="button" class="secondary" data-reco-i18n="dtAddSymbol">加入</button>
+                  </div>
+                </div>
+                <div class="desk-scroll">
+                  <table class="desk-table">
+                    <thead><tr><th data-reco-i18n="dtProduct">商品</th><th data-reco-i18n="dtLast">成交</th><th data-reco-i18n="dtChange">漲跌</th><th data-reco-i18n="dtChangePct">幅度</th><th data-reco-i18n="dtVolumeRatio">量比</th><th data-reco-i18n="dtRangePos">日內高低位置</th><th data-reco-i18n="dtHeat">當沖熱度</th></tr></thead>
+                    <tbody id="dtQuoteBody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="desk-panel">
+                <h3 data-reco-i18n="suitabilityTitle">當沖適性分數 Intraday Suitability Score</h3>
+                <div id="dtScoreBox" class="desk-result-grid"></div>
+                <div id="dtGateBox" class="gate-card yellow">
+                  <div class="gate-lamps"><span class="lamp green"></span><span class="lamp yellow"></span><span class="lamp red"></span><strong id="dtGateTitle">-</strong></div>
+                  <div id="dtGateReasons" class="theme-tags"></div>
+                </div>
+                <div class="desk-playbook">
+                  <h3 data-reco-i18n="dtPlaybookTitle">盤中觸發價 / 交易劇本</h3>
+                  <div id="dtLevels" class="desk-result-grid"></div>
+                  <div id="dtPlaybook" class="plainbox">-</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
         <section class="workspace-pane" id="pane-screener">
           <div id="screenerPaneMount"></div>
@@ -790,6 +919,11 @@
     let storyTimer = null;
     let forumPosts = [];
     let chatOpen = false;
+    let daytradeSymbols = JSON.parse(localStorage.getItem("okiri.daytradeSymbols") || '["2330","2317","2454","3481","2409","2002","1101","2303","2881","0050","006208"]');
+    let daytradeQuoteTimer = null;
+    let daytradeAnalyzeTimer = null;
+    let daytradeLastPrices = {};
+    let daytradeAnalyzeData = null;
     const STICKERS = ["👍", "🔥", "🚀", "📈", "📉", "⚠️", "💡", "✅", "🤔", "💎"];
     const WATCH_BUNDLE_PREFIX = "__SRR_WATCH__";
 
@@ -868,7 +1002,13 @@
     const st = (key) => (screenerCopy[lang] && screenerCopy[lang][key]) || screenerCopy.en[key] || key;
 
     Object.assign(recoCopy["zh-tw"], {
-      tabRecommend: "常用", tabScreener: "篩選", tabNews: "要聞", tabSerenity: "Serenity", tabForum: "討論", tabPortfolio: "組合", tabHelp: "說明",
+      tabRecommend: "常用", tabDaytrade: "T+0", tabScreener: "篩選", tabNews: "要聞", tabSerenity: "Serenity", tabForum: "討論", tabPortfolio: "組合", tabHelp: "說明",
+      daytradeTitle: "T+0 台股日內戰情室", daytradeRefresh: "刷新 T+0", daytradeAddCurrent: "加入目前股票", daytradeDisclaimer: "非投資建議，僅供風險與成本輔助判斷。",
+      marketPulseTitle: "盤中市場脈動 Market Pulse", quoteBoardTitle: "台股日內報價榜 Quote Board", quoteBoardHint: "自選報價會存於本機 localStorage；台股顏色為漲紅跌綠。",
+      costRadarTitle: "當沖成本雷達 Break-even Radar", suitabilityTitle: "當沖適性分數 Intraday Suitability Score",
+      dtProduct: "商品", dtLast: "最新成交", dtChange: "漲跌", dtChangePct: "漲跌幅", dtVolumeState: "量能狀態", dtMarketTag: "盤勢標籤",
+      dtSymbol: "股票代號", dtBuyPrice: "買進價格", dtSellPrice: "賣出價格", dtShares: "股數", dtFeeRate: "手續費率", dtFeeDiscount: "手續費折扣", dtTaxRate: "證交稅率", dtMinFee: "最低手續費", dtRounding: "取整方式",
+      dtCalc: "計算成本", dtUseLatest: "帶入最新價", dtAddSymbol: "加入", dtVolumeRatio: "量比", dtRangePos: "日內高低位置", dtHeat: "當沖熱度", dtPlaybookTitle: "盤中觸發價 / 交易劇本",
       title: "近期股票推薦", hint: "依回歸動能、技術面、消息面、基本面與流動性綜合評分排序。",
       refresh: "刷新推薦", loading: "讀取推薦中", ranking: "綜合排名", headlines: "財經要聞 / 直播入口",
       updated: "更新", scanned: "掃描", ranked: "排名", score: "總分", stats: "統計", tech: "技術", news: "消息", base: "基本面",
@@ -913,7 +1053,13 @@
       serenityIntelRefresh: "整理公開情報", serenityIntelLoading: "整理公開情報中", serenityIntelEmpty: "暫無公開情報", serenityIntelMeta: "公開情報", serenityDetected: "偵測股票", serenitySources: "來源", serenityPipeline: "底層邏輯"
     });
     Object.assign(recoCopy["zh-cn"], {
-      tabRecommend: "常用", tabScreener: "筛选", tabNews: "要闻", tabSerenity: "Serenity", tabForum: "讨论", tabPortfolio: "组合", tabHelp: "说明",
+      tabRecommend: "常用", tabDaytrade: "T+0", tabScreener: "筛选", tabNews: "要闻", tabSerenity: "Serenity", tabForum: "讨论", tabPortfolio: "组合", tabHelp: "说明",
+      daytradeTitle: "T+0 台股日内战情室", daytradeRefresh: "刷新 T+0", daytradeAddCurrent: "加入目前股票", daytradeDisclaimer: "非投资建议，仅供风险与成本辅助判断。",
+      marketPulseTitle: "盘中市场脉动 Market Pulse", quoteBoardTitle: "台股日内报价榜 Quote Board", quoteBoardHint: "自选报价会存于本机 localStorage；台股颜色为涨红跌绿。",
+      costRadarTitle: "当冲成本雷达 Break-even Radar", suitabilityTitle: "当冲适性分数 Intraday Suitability Score",
+      dtProduct: "商品", dtLast: "最新成交", dtChange: "涨跌", dtChangePct: "涨跌幅", dtVolumeState: "量能状态", dtMarketTag: "盘势标签",
+      dtSymbol: "股票代码", dtBuyPrice: "买进价格", dtSellPrice: "卖出价格", dtShares: "股数", dtFeeRate: "手续费率", dtFeeDiscount: "手续费折扣", dtTaxRate: "证交税率", dtMinFee: "最低手续费", dtRounding: "取整方式",
+      dtCalc: "计算成本", dtUseLatest: "带入最新价", dtAddSymbol: "加入", dtVolumeRatio: "量比", dtRangePos: "日内高低位置", dtHeat: "当冲热度", dtPlaybookTitle: "盘中触发价 / 交易剧本",
       title: "近期股票推荐", hint: "按回归动能、技术面、消息面、基本面与流动性综合评分排序。",
       refresh: "刷新推荐", loading: "读取推荐中", ranking: "综合排名", headlines: "财经要闻 / 直播入口",
       updated: "更新", scanned: "扫描", ranked: "排名", score: "总分", stats: "统计", tech: "技术", news: "消息", base: "基本面",
@@ -958,7 +1104,13 @@
       serenityIntelRefresh: "整理公开情报", serenityIntelLoading: "整理公开情报中", serenityIntelEmpty: "暂无公开情报", serenityIntelMeta: "公开情报", serenityDetected: "侦测股票", serenitySources: "来源", serenityPipeline: "底层逻辑"
     });
     Object.assign(recoCopy.en, {
-      tabRecommend: "Home", tabScreener: "Screener", tabNews: "News", tabSerenity: "Serenity", tabForum: "Forum", tabPortfolio: "Portfolio", tabHelp: "Help",
+      tabRecommend: "Home", tabDaytrade: "T+0", tabScreener: "Screener", tabNews: "News", tabSerenity: "Serenity", tabForum: "Forum", tabPortfolio: "Portfolio", tabHelp: "Help",
+      daytradeTitle: "T+0 Taiwan Intraday Desk", daytradeRefresh: "Refresh T+0", daytradeAddCurrent: "Add current ticker", daytradeDisclaimer: "Not investment advice. For risk and cost support only.",
+      marketPulseTitle: "Market Pulse", quoteBoardTitle: "Taiwan Quote Board", quoteBoardHint: "Custom quotes are stored in localStorage. Taiwan colors: up red, down green.",
+      costRadarTitle: "Break-even Radar", suitabilityTitle: "Intraday Suitability Score",
+      dtProduct: "Product", dtLast: "Last", dtChange: "Change", dtChangePct: "Change %", dtVolumeState: "Volume", dtMarketTag: "Market tag",
+      dtSymbol: "Symbol", dtBuyPrice: "Buy price", dtSellPrice: "Sell price", dtShares: "Shares", dtFeeRate: "Fee rate", dtFeeDiscount: "Fee discount", dtTaxRate: "Tax rate", dtMinFee: "Min fee", dtRounding: "Rounding",
+      dtCalc: "Calculate", dtUseLatest: "Use latest", dtAddSymbol: "Add", dtVolumeRatio: "Vol ratio", dtRangePos: "Range position", dtHeat: "Heat", dtPlaybookTitle: "Intraday levels / Playbook",
       forumPlaceholder: "Add intraday notes, links, or reminders. Enter posts, Shift+Enter adds a line.",
       shortcutScreenerTab: "Open screener", shortcutSerenity: "Open Serenity", shortcutPortfolio: "Open portfolio",
       moversTitle: "Live Movers", gainers: "Rising", losers: "Falling", moversHint: "Uses 1d/5m or recent 5-day Yahoo chart data.",
@@ -1377,6 +1529,12 @@
     $("portfolioForm").addEventListener("submit", (event) => { event.preventDefault(); runPortfolio(); });
     $("pfUseWatchBtn").addEventListener("click", () => applyWatchToPortfolio());
     $("pfRisk").addEventListener("input", updatePortfolioRiskLabel);
+    $("dtRefreshBtn").addEventListener("click", () => refreshDaytradeDesk(true));
+    $("dtCostBtn").addEventListener("click", () => calculateDaytradeCost());
+    $("dtUseLatestBtn").addEventListener("click", () => useLatestForDaytradeCost());
+    $("dtAddCurrentBtn").addEventListener("click", () => addDaytradeSymbol(lastData?.symbol || $("symbol").value.trim()));
+    $("dtAddSymbolBtn").addEventListener("click", () => addDaytradeSymbol($("dtAddSymbolInput").value.trim()));
+    ["dtBuyPrice", "dtSellPrice", "dtShares", "dtFeeRate", "dtFeeDiscount", "dtTaxRate", "dtMinFee", "dtRounding"].forEach((id) => $(id).addEventListener("input", () => calculateDaytradeCost(false)));
     document.querySelectorAll("[data-workspace-tab]").forEach((btn) => btn.addEventListener("click", () => switchWorkspaceTab(btn.dataset.workspaceTab)));
     document.addEventListener("keydown", handleShortcuts);
     window.addEventListener("resize", () => renderChart(lastData));
@@ -1423,6 +1581,7 @@
       document.querySelectorAll("[data-workspace-tab]").forEach((btn) => btn.classList.toggle("active", btn.dataset.workspaceTab === name));
       document.querySelectorAll(".workspace-pane").forEach((pane) => pane.classList.toggle("active", pane.id === `pane-${name}`));
       if (name === "screener" && !botData) runBots();
+      if (name === "daytrade") refreshDaytradeDesk(false);
       if (name === "serenity") {
         if (!serenityRecentData) loadSerenityRecent();
         if (!serenityIntelData) loadSerenityIntel();
@@ -1444,12 +1603,13 @@
       if (!event.altKey) return;
       const actions = {
         "1": () => switchWorkspaceTab("recommend"),
-        "2": () => switchWorkspaceTab("screener"),
-        "3": () => switchWorkspaceTab("news"),
-        "4": () => switchWorkspaceTab("serenity"),
-        "5": () => switchWorkspaceTab("forum"),
-        "6": () => switchWorkspaceTab("portfolio"),
-        "7": () => switchWorkspaceTab("help"),
+        "2": () => switchWorkspaceTab("daytrade"),
+        "3": () => switchWorkspaceTab("screener"),
+        "4": () => switchWorkspaceTab("news"),
+        "5": () => switchWorkspaceTab("serenity"),
+        "6": () => switchWorkspaceTab("forum"),
+        "7": () => switchWorkspaceTab("portfolio"),
+        "8": () => switchWorkspaceTab("help"),
         r: () => loadRecommendations(),
         f: () => runScreener(),
         w: () => addWatch(lastData?.symbol || $("symbol").value.trim()),
@@ -1465,12 +1625,13 @@
         ["Ctrl+K", rt("shortcutFocus")],
         ["Enter", rt("shortcutAnalyze")],
         ["Alt+1", rt("shortcutRecommend")],
-        ["Alt+2", rt("shortcutScreenerTab")],
-        ["Alt+3", rt("shortcutNews")],
-        ["Alt+4", rt("shortcutSerenity")],
-        ["Alt+5", rt("shortcutForum")],
-        ["Alt+6", rt("shortcutPortfolio")],
-        ["Alt+7", rt("shortcutHelp")],
+        ["Alt+2", rt("daytradeTitle")],
+        ["Alt+3", rt("shortcutScreenerTab")],
+        ["Alt+4", rt("shortcutNews")],
+        ["Alt+5", rt("shortcutSerenity")],
+        ["Alt+6", rt("shortcutForum")],
+        ["Alt+7", rt("shortcutPortfolio")],
+        ["Alt+8", rt("shortcutHelp")],
         ["Alt+R", rt("shortcutRefresh")],
         ["Alt+F", rt("shortcutScreener")],
         ["Alt+W", rt("shortcutWatch")],
@@ -1487,7 +1648,7 @@
     function touchGuideItems() {
       if (lang === "en") {
         return [
-          { title: "Swipe tabs", text: "The Home / Screener / News / Serenity / Forum / Portfolio tabs can scroll sideways. Start with Home, then jump to News or Portfolio when needed." },
+          { title: "Swipe tabs", text: "The Home / T+0 / Screener / News / Serenity / Forum / Portfolio tabs can scroll sideways. Use T+0 for Taiwan intraday execution checks." },
           { title: "Use large buttons", text: "On touch screens, use Analyze, Watch, Auto Refresh and the floating round buttons instead of memorizing keyboard shortcuts." },
           { title: "Chart and side drawer", text: "Tap the chart to open Google Finance. On desktop the right-side related/news area scrolls inside its own panel; on mobile it becomes normal stacked content." },
           { title: "Watch first", text: "Add holdings or watch candidates to the watchlist first. Alerts only work while the page is open and the symbol is being tracked." }
@@ -1495,14 +1656,14 @@
       }
       if (lang === "zh-cn") {
         return [
-          { title: "左右滑分页", text: "常用 / 筛选 / 要闻 / Serenity / 讨论 / 组合 / 说明 可横向滑动。先用常用看盘，需要时再切到要闻或组合。" },
+          { title: "左右滑分页", text: "常用 / T+0 / 筛选 / 要闻 / Serenity / 讨论 / 组合 / 说明 可横向滑动。T+0 用于台股盘中与成本检查。" },
           { title: "优先按大按钮", text: "手机和平板不用记快捷键，直接点分析、加入关注、自动刷新与右侧圆形工具。" },
           { title: "图表与右侧栏", text: "点 K 线图可开启 Google Finance。桌机右侧关联/新闻区会在自己的框内滚动，手机则改成上下堆叠。" },
           { title: "先加入关注", text: "把持股或观察股先加入关注；网页开着且股票被追踪时，才会出现急转提醒。" }
         ];
       }
       return [
-        { title: "左右滑頁籤", text: "常用 / 篩選 / 要聞 / Serenity / 討論 / 組合 / 說明 可橫向滑動。先用常用看盤，需要時再切到要聞或組合。" },
+        { title: "左右滑頁籤", text: "常用 / T+0 / 篩選 / 要聞 / Serenity / 討論 / 組合 / 說明 可橫向滑動。T+0 用於台股盤中與成本檢查。" },
         { title: "優先按大按鈕", text: "手機和平板不用記快捷鍵，直接點分析、加入關注、自動刷新與右側圓形工具。" },
         { title: "圖表與右側欄", text: "點 K 線圖可開啟 Google Finance。桌機右側關聯/新聞區會在自己的框內捲動，手機則改成上下堆疊。" },
         { title: "先加入關注", text: "把持股或觀察股先加入關注；網頁開著且股票被追蹤時，才會出現急轉提醒。" }
@@ -1513,6 +1674,7 @@
       if (lang === "en") {
         return [
           { title: "Analyze", text: "Enter a US or Taiwan ticker, choose Today/Day/Week, then run analysis. The main cards show price, move, risk and trend; the chart can open Google Finance in a new tab." },
+          { title: "T+0 Intraday Desk", text: "Taiwan intraday tools show market pulse, quote board, break-even cost, risk gate and playbook. It uses Yahoo chart fallback; real order book and tick-by-tick data are not available. Not investment advice." },
           { title: "Open-source design signals", text: "The signal area borrows ideas from FinMind, twstock, daily_stock_analysis and public narrative-risk research: source matrix, Taiwan-local buy/sell watch, decision checklist and governance-risk lens." },
           { title: "Serenity Tracker", text: "Open the Serenity tab to score the current ticker with public price/news data and supply-chain themes. Original X, GitHub and Capafy sources stay as external links." },
           { title: "Watchlist", text: "Click Watch to save the current ticker. Use the expand button under the summary cards to show watched-stock mini reports, query one ticker, or remove it." },
@@ -1525,6 +1687,7 @@
       if (lang === "zh-cn") {
         return [
           { title: "股票分析", text: "输入美股或台股代码，选择 Today/Day/Week 后分析。上方卡片显示价格、涨跌、风险与趋势；点 K 线图会另开 Google Finance。" },
+          { title: "T+0 台股日内战情室", text: "提供盘中市场脉动、报价榜、当冲成本、风险闸门与交易剧本。资料使用 Yahoo chart fallback；五档与逐笔目前不可用。非投资建议。" },
           { title: "开源设计信号", text: "新区域吸收 FinMind、twstock、daily_stock_analysis 与公开叙事风险研究的优点，拆成数据源矩阵、台股买卖点观察、决策检查表与治理风险。" },
           { title: "Serenity 追踪", text: "打开 Serenity 分页，可用公开价格/新闻资料与供应链主题替目前股票评分；原始 X、GitHub、Capafy 来源保留为外部链接。" },
           { title: "关注清单", text: "按加入关注可保存目前股票。摘要卡下方的展开按钮会显示已关注股票的小报告，也能单独查询或删除。" },
@@ -1536,6 +1699,7 @@
       }
       return [
         { title: "股票分析", text: "輸入美股或台股代號，選 Today/Day/Week 後分析。上方卡片顯示價格、漲跌、風險與趨勢；點 K 線圖會另開 Google Finance。" },
+        { title: "T+0 台股日內戰情室", text: "提供盤中市場脈動、報價榜、當沖成本、風險閘門與交易劇本。資料使用 Yahoo chart fallback；五檔與逐筆目前不可用。非投資建議。" },
         { title: "開源設計訊號", text: "新區塊吸收 FinMind、twstock、daily_stock_analysis 與公開敘事風險研究的優點，拆成資料源矩陣、台股買賣點觀察、決策檢查表與治理風險。" },
         { title: "Serenity 追蹤", text: "打開 Serenity 分頁，可用公開價格/新聞資料與供應鏈主題替目前股票評分；原始 X、GitHub、Capafy 來源保留為外部連結。" },
         { title: "關注清單", text: "按加入關注可保存目前股票。摘要卡下方的展開按鈕會顯示已關注股票的小報告，也能單獨查詢或刪除。" },
@@ -2674,6 +2838,217 @@
       return String(value || "").charAt(0).toUpperCase() + String(value || "").slice(1);
     }
 
+    function normalizeTwSymbolInput(value) {
+      const raw = String(value || "").trim().toUpperCase();
+      if (!raw) return "";
+      if (raw.endsWith(".TW") || raw.endsWith(".TWO") || raw.startsWith("^")) return raw;
+      if (/^\d{4,6}$/.test(raw)) return `${raw}.TW`;
+      return raw;
+    }
+
+    function addDaytradeSymbol(value) {
+      const symbol = normalizeTwSymbolInput(value);
+      if (!symbol) return;
+      if (!daytradeSymbols.includes(symbol)) daytradeSymbols.unshift(symbol);
+      daytradeSymbols = daytradeSymbols.slice(0, 28);
+      localStorage.setItem("okiri.daytradeSymbols", JSON.stringify(daytradeSymbols));
+      $("dtAddSymbolInput").value = "";
+      refreshDaytradeQuotes();
+    }
+
+    async function refreshDaytradeDesk(force = false) {
+      if (force || !$("dtPulseBody").dataset.loaded) loadDaytradePulse();
+      refreshDaytradeQuotes();
+      analyzeDaytradeSymbol(lastData?.symbol || $("symbol").value.trim() || "2330");
+      calculateDaytradeCost(false);
+      scheduleDaytradeTimers();
+    }
+
+    function scheduleDaytradeTimers() {
+      clearInterval(daytradeQuoteTimer);
+      clearInterval(daytradeAnalyzeTimer);
+      daytradeQuoteTimer = setInterval(() => {
+        if (isWorkspaceTabActive("daytrade")) refreshDaytradeQuotes();
+      }, 8000);
+      daytradeAnalyzeTimer = setInterval(() => {
+        if (isWorkspaceTabActive("daytrade")) analyzeDaytradeSymbol(lastData?.symbol || $("symbol").value.trim() || "2330");
+      }, 30000);
+    }
+
+    async function loadDaytradePulse() {
+      $("dtPulseMeta").textContent = rt("loading") + "...";
+      try {
+        const res = await fetch("/api/tw/market-pulse");
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "market pulse failed");
+        $("dtPulseBody").dataset.loaded = "1";
+        $("dtPulseMeta").textContent = `${rt("updated")} ${new Date(data.updated_at || Date.now()).toLocaleTimeString()}`;
+        $("dtDataWarning").textContent = data.data_warning || rt("daytradeDisclaimer");
+        $("dtPulseBody").innerHTML = (data.rows || []).map((row) => daytradePulseRow(row)).join("");
+      } catch (error) {
+        $("dtPulseMeta").textContent = error.message;
+        $("dtPulseBody").innerHTML = `<tr><td colspan="6"><span class="desk-chip warn">資料可能延遲 / 目前使用 fallback</span></td></tr>`;
+      }
+    }
+
+    function daytradePulseRow(row) {
+      const cls = twColorClass(row.change_pct);
+      const tagCls = row.tag?.includes("強勢") || row.tag?.includes("護盤") || row.tag?.includes("撐盤") ? "good" : row.tag?.includes("急跌") || row.tag?.includes("轉弱") ? "bad" : "warn";
+      return `<tr onclick="if('${escapeHtml(row.symbol || "")}' && !'${escapeHtml(row.symbol || "")}'.includes('/')) analyze('${escapeHtml(row.symbol || "")}')">
+        <td><strong>${escapeHtml(row.name || row.symbol || "-")}</strong><small class="muted">${escapeHtml(row.symbol || "")} · ${escapeHtml(row.source || "")}</small></td>
+        <td>${row.price == null ? "-" : fmt(row.price)}</td>
+        <td class="${cls}">${row.change == null ? "-" : signed(row.change)}</td>
+        <td class="${cls}">${row.change_pct == null ? "-" : `${arrow(row.change_pct)} ${signed(row.change_pct, "%")}`}</td>
+        <td><span class="desk-chip">${escapeHtml(row.volume_status || "-")}</span></td>
+        <td><span class="desk-chip ${tagCls}">${escapeHtml(row.tag || "-")}</span></td>
+      </tr>`;
+    }
+
+    async function refreshDaytradeQuotes() {
+      const symbols = [...new Set([...daytradeSymbols, ...watch.filter((s) => String(s).includes(".TW") || /^\d+$/.test(String(s)))])].slice(0, 32);
+      $("dtQuoteBody").innerHTML = $("dtQuoteBody").innerHTML || `<tr><td colspan="7">${rt("loading")}...</td></tr>`;
+      const rows = await Promise.all(symbols.map(async (symbol) => {
+        try {
+          const quoteRes = await fetch(`/api/quote/${encodeURIComponent(symbol)}`);
+          const quote = await quoteRes.json();
+          if (!quoteRes.ok || !quote.ok) throw new Error(quote.detail || "quote failed");
+          const analyzeRes = await fetch("/api/daytrade/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ symbol: quote.symbol, buy_price: Number($("dtBuyPrice").value || quote.price), sell_price: quote.price, shares: Number($("dtShares").value || 1000) })
+          });
+          const detail = await analyzeRes.json();
+          return { quote, detail: detail.ok ? detail : null };
+        } catch {
+          return { quote: { symbol, price: null, change_pct: null, change: null, volume_ratio: null }, detail: null, failed: true };
+        }
+      }));
+      $("dtQuoteBody").innerHTML = rows.map((row) => daytradeQuoteRow(row.quote, row.detail, row.failed)).join("");
+    }
+
+    function daytradeQuoteRow(quote, detail, failed = false) {
+      const symbol = quote.symbol || "-";
+      const cls = twColorClass(quote.change_pct);
+      const rangePos = detail?.metrics?.high_low_position;
+      const heat = detail?.score;
+      const prev = daytradeLastPrices[symbol];
+      const flash = prev && quote.price && quote.price !== prev ? (quote.price > prev ? "flash-up" : "flash-down") : "";
+      if (quote.price) daytradeLastPrices[symbol] = quote.price;
+      return `<tr class="${flash}" onclick="selectDaytradeSymbol('${escapeHtml(symbol)}', ${Number(quote.price || 0)})">
+        <td><strong>${escapeHtml(symbol)}</strong><small class="muted">${failed ? "fallback unavailable" : escapeHtml(quote.source || "")}</small></td>
+        <td>${quote.price == null ? "-" : fmt(quote.price)}</td>
+        <td class="${cls}">${quote.change == null ? "-" : signed(quote.change)}</td>
+        <td class="${cls}">${quote.change_pct == null ? "-" : `${arrow(quote.change_pct)} ${signed(quote.change_pct, "%")}`}</td>
+        <td>${quote.volume_ratio == null ? "-" : fmt(quote.volume_ratio)}</td>
+        <td>${rangePos == null ? "-" : `${fmt(rangePos)}%`}</td>
+        <td><span class="desk-chip ${heat >= 70 ? "good" : heat < 45 ? "bad" : "warn"}">${heat == null ? "-" : `${heat}/100`}</span></td>
+      </tr>`;
+    }
+
+    async function calculateDaytradeCost(renderErrors = true) {
+      try {
+        const payload = daytradeCostPayload();
+        if (!payload.buy_price || !payload.sell_price) return;
+        const res = await fetch("/api/daytrade/cost", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "cost failed");
+        renderDaytradeCost(data);
+      } catch (error) {
+        if (renderErrors) $("dtCostSummary").textContent = error.message;
+      }
+    }
+
+    function selectDaytradeSymbol(symbol, latestPrice = 0) {
+      $("dtCostSymbol").value = symbol;
+      if (latestPrice) $("dtSellPrice").value = latestPrice;
+      calculateDaytradeCost(false);
+      analyzeDaytradeSymbol(symbol);
+      analyze(symbol);
+    }
+
+    function daytradeCostPayload() {
+      return {
+        symbol: $("dtCostSymbol").value.trim() || lastData?.symbol || "2330",
+        buy_price: Number($("dtBuyPrice").value || 0),
+        sell_price: Number($("dtSellPrice").value || 0),
+        shares: Number($("dtShares").value || 1000),
+        fee_rate: Number($("dtFeeRate").value || 0.001425),
+        fee_discount: Number($("dtFeeDiscount").value || 1),
+        tax_rate: Number($("dtTaxRate").value || 0.0015),
+        min_fee: Number($("dtMinFee").value || 20),
+        rounding_mode: $("dtRounding").value || "floor",
+        is_daytrade: true
+      };
+    }
+
+    function renderDaytradeCost(data) {
+      const fields = [
+        ["買進成交金額", data.buy_amount], ["買進手續費", data.buy_fee], ["賣出成交金額", data.sell_amount],
+        ["賣出手續費", data.sell_fee], ["證交稅", data.tax], ["總交易成本", data.total_cost],
+        ["毛損益", data.gross_profit], ["淨損益", data.net_profit], ["淨報酬率", `${fmt(data.net_return_pct)}%`],
+        ["每股實際成本", data.per_share_actual_cost], ["損益兩平價", data.break_even_sell_price], ["至少獲利跳動", `${data.min_profit_ticks} ticks`]
+      ];
+      $("dtCostResult").innerHTML = fields.map(([labelText, value]) => `<div class="desk-kv"><span>${escapeHtml(labelText)}</span><b>${typeof value === "number" ? fmt(value) : escapeHtml(value)}</b></div>`).join("");
+      $("dtCostSummary").textContent = `${data.spread_text}${data.warning ? ` ${data.warning}。` : ""} ${data.disclaimer}`;
+    }
+
+    async function useLatestForDaytradeCost() {
+      const symbol = $("dtCostSymbol").value.trim() || lastData?.symbol || $("symbol").value.trim() || "2330";
+      try {
+        const res = await fetch(`/api/quote/${encodeURIComponent(symbol)}`);
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "quote failed");
+        $("dtCostSymbol").value = data.symbol;
+        $("dtSellPrice").value = data.price || "";
+        if (!$("dtBuyPrice").value || Number($("dtBuyPrice").value) <= 0) $("dtBuyPrice").value = data.price || "";
+        calculateDaytradeCost();
+      } catch (error) {
+        $("dtCostSummary").textContent = `資料可能延遲 / 目前使用 fallback：${error.message}`;
+      }
+    }
+
+    async function analyzeDaytradeSymbol(symbol) {
+      const normalized = normalizeTwSymbolInput(symbol || "2330");
+      $("dtCostSymbol").value = normalized;
+      try {
+        const payload = { ...daytradeCostPayload(), symbol: normalized };
+        const res = await fetch("/api/daytrade/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "daytrade analyze failed");
+        daytradeAnalyzeData = data;
+        if (data.latest?.price) {
+          if (!$("dtBuyPrice").value || Number($("dtBuyPrice").value) <= 0) $("dtBuyPrice").value = data.latest.price;
+          if (!$("dtSellPrice").value || Number($("dtSellPrice").value) <= 0) $("dtSellPrice").value = data.latest.price;
+        }
+        renderDaytradeAnalyze(data);
+      } catch (error) {
+        $("dtPlaybook").textContent = `資料可能延遲 / 目前使用 fallback：${error.message}`;
+      }
+    }
+
+    function renderDaytradeAnalyze(data) {
+      const m = data.metrics || {};
+      $("dtScoreBox").innerHTML = [
+        ["當沖分數", `${data.score}/100`], ["專業判斷", data.posture], ["量比", m.volume_ratio],
+        ["1/5 根動能", `${fmt(m.momentum_1bar_pct)}% / ${fmt(m.momentum_5bar_pct)}%`], ["日內位置", `${fmt(m.high_low_position)}%`], ["滑價風險", m.spread_slippage_risk],
+      ].map(([labelText, value]) => `<div class="desk-kv"><span>${escapeHtml(labelText)}</span><b>${escapeHtml(value)}</b></div>`).join("");
+      const gate = data.risk_gate || { state: "yellow", green: [], yellow: [], red: [] };
+      $("dtGateBox").className = `gate-card ${gate.state || "yellow"}`;
+      $("dtGateTitle").textContent = gate.state === "green" ? "綠燈：可觀察執行" : gate.state === "red" ? "紅燈：先避開" : "黃燈：降低部位";
+      $("dtGateReasons").innerHTML = [...(gate.red || []), ...(gate.yellow || []), ...(gate.green || [])].slice(0, 8).map((x) => `<span class="desk-chip ${gate.state === "red" ? "bad" : gate.state === "green" ? "good" : "warn"}">${escapeHtml(x)}</span>`).join("");
+      const l = data.levels || {};
+      $("dtLevels").innerHTML = [
+        ["突破觸發價", l.breakout_trigger], ["回測承接區", l.pullback_support], ["停損參考價", l.stop_reference],
+        ["損益兩平價", l.break_even], ["追價風險區", l.chase_risk_zone], ["盤中 VWAP", l.vwap],
+      ].map(([labelText, value]) => `<div class="desk-kv"><span>${escapeHtml(labelText)}</span><b>${fmt(value)}</b></div>`).join("");
+      $("dtPlaybook").textContent = `${data.playbook} ${data.disclaimer}`;
+      renderDaytradeCost(data.cost);
+    }
+
+    function twColorClass(value) {
+      return Number(value || 0) >= 0 ? "desk-up" : "desk-down";
+    }
+
     async function analyze(symbol, silent = false) {
       const button = $("runBtn");
       if (!silent) { button.disabled = true; button.textContent = "Loading"; }
@@ -2706,6 +3081,7 @@
     function render(data) {
       lastData = data;
       if ($("serenitySymbol")) $("serenitySymbol").value = data.symbol;
+      if ($("dtCostSymbol")) $("dtCostSymbol").value = data.symbol;
       if (serenityData && serenityData.symbol !== data.symbol) serenityData = null;
       const isTW = data.market === "TW";
       $("ticker").textContent = data.symbol;
@@ -2745,6 +3121,7 @@
       renderChart(data);
       $("refreshMeta").textContent = `${t("updated")} ${new Date().toLocaleTimeString()}`;
       if (!watch.includes(data.symbol)) renderWatchlist();
+      if (isWorkspaceTabActive("daytrade")) analyzeDaytradeSymbol(data.symbol);
     }
 
     function renderNewsEventFlags(context) {
@@ -3052,6 +3429,7 @@
       if (!watch.includes(clean)) watch.push(clean);
       localStorage.setItem("srr.watch", JSON.stringify(watch));
       renderWatchlist(); renderWatchDetailPanel(); refreshWatchlist();
+      if (isWorkspaceTabActive("daytrade")) refreshDaytradeQuotes();
       saveProfile();
     }
     function removeWatch(symbol, event = null) {
@@ -3215,7 +3593,7 @@
     function compactCap(n) { return "$" + compact(n); }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
 
-    mountScreenerPanel(); applyLang(); initProfile(); loadForum(); renderWatchlist(); tickClocks(); loadContext(); loadRecommendations(); loadMovers(); loadScreenerOptions(); analyze($("symbol").value); refreshWatchlist();
+    mountScreenerPanel(); applyLang(); initProfile(); loadForum(); renderWatchlist(); tickClocks(); loadContext(); loadRecommendations(); loadMovers(); loadScreenerOptions(); calculateDaytradeCost(false); analyze($("symbol").value); refreshWatchlist();
     setInterval(tickClocks, 1000);
     setInterval(loadContext, 60000);
     setInterval(refreshQuote, 10000);

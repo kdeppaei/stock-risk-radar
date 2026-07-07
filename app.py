@@ -36,6 +36,30 @@ EVENT_ALERTS_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 SERENITY_CACHE: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
 SERENITY_RECENT_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 SERENITY_INTEL_CACHE: dict[tuple[int], tuple[float, dict[str, Any]]] = {}
+QUOTE_CACHE: dict[tuple[str], tuple[float, dict[str, Any]]] = {}
+MARKET_PULSE_CACHE: dict[tuple[int], tuple[float, dict[str, Any]]] = {}
+
+DAYTRADE_DEFAULT_SYMBOLS = [
+    "2330.TW", "2317.TW", "2454.TW", "3481.TW", "2409.TW", "2002.TW",
+    "1101.TW", "2303.TW", "2881.TW", "0050.TW", "006208.TW",
+]
+
+TW_MARKET_PULSE_ITEMS = [
+    {"symbol": "^TWII", "name": "加權指數 TAIEX", "kind": "index", "theme": "大盤"},
+    {"symbol": "^TWOII", "name": "櫃買指數 OTC", "kind": "index", "theme": "中小型"},
+    {"symbol": "TXF=F", "name": "台指近月 / 替代資料", "kind": "future", "theme": "期貨"},
+    {"symbol": "0050.TW", "name": "0050 元大台灣50", "kind": "etf", "theme": "台灣50"},
+    {"symbol": "006208.TW", "name": "006208 富邦台50", "kind": "etf", "theme": "台灣50"},
+]
+
+TW_THEME_GROUPS = [
+    {"key": "electronics", "name": "電子類股", "symbols": ["2330.TW", "2454.TW", "2308.TW", "2303.TW"]},
+    {"key": "financials", "name": "金融類股", "symbols": ["2881.TW", "2882.TW", "2891.TW"]},
+    {"key": "semiconductor", "name": "半導體", "symbols": ["2330.TW", "2454.TW", "2303.TW", "3711.TW"]},
+    {"key": "ai", "name": "AI 伺服器", "symbols": ["2382.TW", "6669.TW", "3231.TW", "2356.TW"]},
+    {"key": "shipping", "name": "航運", "symbols": ["2603.TW", "2609.TW", "2615.TW"]},
+    {"key": "steel", "name": "鋼鐵", "symbols": ["2002.TW"]},
+]
 
 BOT_DEFS: list[dict[str, Any]] = [
     {"id": "steady_turtle", "name": "Steady Turtle", "style": "conservative", "risk": 26, "idea": "Trend + low drawdown filter. Good for users who hate big swings."},
@@ -106,12 +130,15 @@ STOCK_UNIVERSE = [
     {"symbol": "2881.TW", "name": "Fubon Financial", "market": "TW", "industry": "Financials", "market_cap_usd": 30000000000},
     {"symbol": "2882.TW", "name": "Cathay Financial", "market": "TW", "industry": "Financials", "market_cap_usd": 28000000000},
     {"symbol": "2303.TW", "name": "UMC", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 18000000000},
+    {"symbol": "0050.TW", "name": "Yuanta Taiwan 50 ETF", "market": "TW", "industry": "Technology", "market_cap_usd": 16000000000},
+    {"symbol": "006208.TW", "name": "Fubon Taiwan 50 ETF", "market": "TW", "industry": "Technology", "market_cap_usd": 9000000000},
     {"symbol": "3711.TW", "name": "ASE Technology", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 22000000000},
     {"symbol": "2886.TW", "name": "Mega Financial", "market": "TW", "industry": "Financials", "market_cap_usd": 19000000000},
     {"symbol": "2891.TW", "name": "CTBC Financial", "market": "TW", "industry": "Financials", "market_cap_usd": 22000000000},
     {"symbol": "1303.TW", "name": "Nan Ya Plastics", "market": "TW", "industry": "Materials", "market_cap_usd": 12000000000},
     {"symbol": "1301.TW", "name": "Formosa Plastics", "market": "TW", "industry": "Materials", "market_cap_usd": 13000000000},
     {"symbol": "2002.TW", "name": "China Steel", "market": "TW", "industry": "Materials", "market_cap_usd": 11000000000},
+    {"symbol": "1101.TW", "name": "Taiwan Cement", "market": "TW", "industry": "Materials", "market_cap_usd": 8000000000},
     {"symbol": "1216.TW", "name": "Uni-President", "market": "TW", "industry": "Consumer", "market_cap_usd": 14000000000},
     {"symbol": "2207.TW", "name": "Hotai Motor", "market": "TW", "industry": "Automotive", "market_cap_usd": 11000000000},
     {"symbol": "2603.TW", "name": "Evergreen Marine", "market": "TW", "industry": "Shipping", "market_cap_usd": 15000000000},
@@ -124,6 +151,8 @@ STOCK_UNIVERSE = [
     {"symbol": "3260.TWO", "name": "ADATA", "market": "TW", "industry": "Technology", "market_cap_usd": 1800000000},
     {"symbol": "3034.TW", "name": "Novatek", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 9000000000},
     {"symbol": "2379.TW", "name": "Realtek", "market": "TW", "industry": "Semiconductors", "market_cap_usd": 9000000000},
+    {"symbol": "3481.TW", "name": "Innolux", "market": "TW", "industry": "Technology", "market_cap_usd": 4500000000},
+    {"symbol": "2409.TW", "name": "AUO", "market": "TW", "industry": "Technology", "market_cap_usd": 4200000000},
     {"symbol": "6669.TW", "name": "Wiwynn", "market": "TW", "industry": "Technology", "market_cap_usd": 14000000000},
     {"symbol": "3231.TW", "name": "Wistron", "market": "TW", "industry": "Technology", "market_cap_usd": 11000000000},
     {"symbol": "2356.TW", "name": "Inventec", "market": "TW", "industry": "Technology", "market_cap_usd": 6500000000},
@@ -571,23 +600,59 @@ def serenity_intel(limit: int = Query(8, ge=3, le=16)) -> dict[str, Any]:
 
 @app.get("/api/quote")
 def quote(symbol: str = Query(..., min_length=1, max_length=32)) -> dict[str, Any]:
+    return latest_quote_payload(symbol)
+
+
+@app.get("/api/quote/{symbol}")
+def quote_path(symbol: str) -> dict[str, Any]:
+    return latest_quote_payload(symbol)
+
+
+@app.get("/api/intraday/{symbol}")
+def intraday(symbol: str, interval: str = Query("1m", pattern="^(1m|5m)$")) -> dict[str, Any]:
     raw = symbol.strip().upper()
     normalized, market = normalize_symbol(raw)
+    tried: list[str] = []
     for candidate in candidate_symbols(normalized, raw):
-        rows = fetch_price_history(candidate, "1d", "5m") or fetch_price_history(candidate, "5d", "1d")
-        if len(rows) >= 2:
-            latest, previous = rows[-1], rows[-2]
+        rows = fetch_price_history(candidate, "1d", interval)
+        source = f"1d/{interval}"
+        if not rows and interval == "1m":
+            rows = fetch_price_history(candidate, "1d", "5m")
+            source = "1d/5m fallback"
+        if not rows:
+            rows = fetch_price_history(candidate, "5d", "1d")
+            source = "5d/1d fallback"
+        tried.append(candidate)
+        if rows:
             return {
                 "ok": True,
                 "symbol": candidate,
                 "market": market,
-                "date": latest["date_label"],
-                "price": number(latest["close"]),
-                "change": number(latest["close"] - previous["close"]),
-                "change_pct": number((latest["close"] / previous["close"] - 1) * 100) if previous["close"] else 0,
-                "source": "1d/5m" if len(rows) > 10 else "5d/1d",
+                "interval": interval,
+                "source": source,
+                "fallback": "fallback" in source,
+                "data_warning": "五檔 / 逐筆資料目前不可用；本區使用 Yahoo chart K 線估算。" if "fallback" in source else "五檔 / 逐筆資料目前不可用；本區使用 Yahoo chart intraday K 線。",
+                "rows": [intraday_row_payload(row) for row in rows[-240:]],
             }
-    raise HTTPException(status_code=404, detail="No quote data found.")
+    raise HTTPException(status_code=404, detail=f"No intraday data found for {', '.join(tried) or raw}.")
+
+
+@app.get("/api/tw/market-pulse")
+def tw_market_pulse() -> dict[str, Any]:
+    return market_pulse_payload()
+
+
+@app.post("/api/daytrade/cost")
+async def daytrade_cost(request: Request) -> dict[str, Any]:
+    payload = await safe_json(request)
+    return {"ok": True, **daytrade_cost_from_payload(payload)}
+
+
+@app.post("/api/daytrade/analyze")
+async def daytrade_analyze(request: Request) -> dict[str, Any]:
+    payload = await safe_json(request)
+    symbol = str(payload.get("symbol") or "2330").strip().upper()
+    return daytrade_analyze_payload(symbol, payload)
 
 
 @app.get("/api/screener/options")
@@ -1065,7 +1130,7 @@ def fetch_price_history(symbol: str, period: str, interval: str) -> list[dict[st
                 rows.append(
                     {
                         "date": dt,
-                        "date_label": dt.strftime("%Y-%m-%d %H:%M") if interval in {"5m", "15m", "1h"} else dt.strftime("%Y-%m-%d"),
+                        "date_label": dt.strftime("%Y-%m-%d %H:%M") if interval in {"1m", "5m", "15m", "1h"} else dt.strftime("%Y-%m-%d"),
                         "open": float(open_),
                         "high": float(high),
                         "low": float(low),
@@ -1078,6 +1143,524 @@ def fetch_price_history(symbol: str, period: str, interval: str) -> list[dict[st
         return rows
     except Exception:
         return []
+
+
+def intraday_row_payload(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "time": row["date_label"],
+        "open": number(row["open"]),
+        "high": number(row["high"]),
+        "low": number(row["low"]),
+        "close": number(row["close"]),
+        "volume": int(row.get("volume") or 0),
+    }
+
+
+def latest_quote_payload(symbol: str) -> dict[str, Any]:
+    raw = symbol.strip().upper()
+    normalized, market = normalize_symbol(raw)
+    cache_key = (normalized,)
+    now = time.time()
+    cached = QUOTE_CACHE.get(cache_key)
+    if cached and now - cached[0] < 6:
+        return cached[1]
+
+    tried: list[str] = []
+    for candidate in candidate_symbols(normalized, raw):
+        tried.append(candidate)
+        intraday_rows = fetch_price_history(candidate, "1d", "1m")
+        source = "1d/1m"
+        if not intraday_rows:
+            intraday_rows = fetch_price_history(candidate, "1d", "5m")
+            source = "1d/5m fallback"
+        daily_rows = fetch_price_history(candidate, "5d", "1d")
+        rows = intraday_rows or daily_rows
+        if not rows:
+            continue
+        latest = rows[-1]
+        previous_close = None
+        if len(daily_rows) >= 2:
+            previous_close = daily_rows[-2]["close"]
+        elif len(rows) >= 2:
+            previous_close = rows[-2]["close"]
+        elif rows:
+            previous_close = rows[0]["open"]
+        change = latest["close"] - previous_close if previous_close else 0
+        change_pct = (latest["close"] / previous_close - 1) * 100 if previous_close else 0
+        volumes = [row["volume"] for row in rows[-20:] if row.get("volume") is not None]
+        avg_volume = mean(volumes[:-1]) if len(volumes) >= 2 else 0
+        volume_ratio = latest["volume"] / avg_volume if avg_volume else 1
+        payload = {
+            "ok": True,
+            "symbol": candidate,
+            "input_symbol": raw,
+            "market": market,
+            "date": latest["date_label"],
+            "price": number(latest["close"]),
+            "open": number(latest["open"]),
+            "high": number(latest["high"]),
+            "low": number(latest["low"]),
+            "change": number(change),
+            "change_pct": number(change_pct),
+            "volume": int(latest["volume"] or 0),
+            "volume_ratio": number(volume_ratio),
+            "source": source if intraday_rows else "5d/1d fallback",
+            "fallback": (not intraday_rows) or "fallback" in source,
+            "data_warning": "資料可能延遲 / 目前使用 fallback；五檔 / 逐筆資料目前不可用。" if (not intraday_rows or "fallback" in source) else "Yahoo chart intraday；五檔 / 逐筆資料目前不可用。",
+        }
+        QUOTE_CACHE[cache_key] = (now, payload)
+        return payload
+    raise HTTPException(status_code=404, detail=f"No quote data found for {', '.join(tried) or raw}.")
+
+
+def fee_round(value: float, mode: str) -> int:
+    if mode == "ceil":
+        return int(math.ceil(value))
+    if mode == "round":
+        return int(round(value))
+    return int(math.floor(value))
+
+
+def tw_price_tick(price: float) -> float:
+    if price < 10:
+        return 0.01
+    if price < 50:
+        return 0.05
+    if price < 100:
+        return 0.1
+    if price < 500:
+        return 0.5
+    if price < 1000:
+        return 1.0
+    return 5.0
+
+
+def round_to_tick(price: float, mode: str = "ceil") -> float:
+    tick = tw_price_tick(max(price, 0.01))
+    scaled = price / tick
+    if mode == "floor":
+        rounded = math.floor(scaled) * tick
+    elif mode == "round":
+        rounded = round(scaled) * tick
+    else:
+        rounded = math.ceil(scaled) * tick
+    return number(max(tick, rounded), 2)
+
+
+def daytrade_cost_values(
+    buy_price: float,
+    sell_price: float,
+    shares: int,
+    fee_rate: float,
+    fee_discount: float,
+    tax_rate: float,
+    min_fee: int,
+    rounding_mode: str,
+    is_daytrade: bool = True,
+) -> dict[str, Any]:
+    buy_amount = buy_price * shares
+    sell_amount = sell_price * shares
+    raw_buy_fee = buy_amount * fee_rate * fee_discount
+    raw_sell_fee = sell_amount * fee_rate * fee_discount
+    buy_fee = max(min_fee, fee_round(raw_buy_fee, rounding_mode)) if buy_amount else 0
+    sell_fee = max(min_fee, fee_round(raw_sell_fee, rounding_mode)) if sell_amount else 0
+    sell_tax = fee_round(sell_amount * tax_rate, rounding_mode) if is_daytrade else 0
+    total_cost = buy_fee + sell_fee + sell_tax
+    gross_profit = sell_amount - buy_amount
+    net_profit = gross_profit - total_cost
+    net_return_pct = (net_profit / buy_amount * 100) if buy_amount else 0
+    per_share_cost = (buy_amount + total_cost) / shares if shares else 0
+
+    tick = tw_price_tick(buy_price)
+    break_even = round_to_tick(buy_price, "ceil")
+    for step in range(0, 4000):
+        candidate = round_to_tick(buy_price + tick * step, "ceil")
+        test = daytrade_cost_values_no_breakeven(
+            buy_price, candidate, shares, fee_rate, fee_discount, tax_rate, min_fee, rounding_mode, is_daytrade
+        )
+        if test["net_profit"] >= 0:
+            break_even = candidate
+            break
+    min_profit_ticks = max(0, round((break_even - buy_price) / tick))
+    warning = ""
+    if sell_price < break_even:
+        warning = "價差看似獲利，但扣除稅費後仍可能虧損"
+    return {
+        "buy_amount": int(round(buy_amount)),
+        "buy_fee": buy_fee,
+        "sell_amount": int(round(sell_amount)),
+        "sell_fee": sell_fee,
+        "tax": sell_tax,
+        "total_cost": total_cost,
+        "gross_profit": int(round(gross_profit)),
+        "net_profit": int(round(net_profit)),
+        "net_return_pct": number(net_return_pct),
+        "per_share_actual_cost": number(per_share_cost),
+        "break_even_sell_price": break_even,
+        "min_profit_ticks": min_profit_ticks,
+        "tick_size": tick,
+        "spread_text": f"價差 {signed_number(sell_price - buy_price)} 元，毛利 {signed_number(gross_profit, 0)}，但扣除稅費約 {total_cost} 後，淨利約 {signed_number(net_profit, 0)}。",
+        "warning": warning,
+        "disclaimer": "非投資建議，僅供風險與成本輔助判斷。",
+    }
+
+
+def daytrade_cost_values_no_breakeven(
+    buy_price: float,
+    sell_price: float,
+    shares: int,
+    fee_rate: float,
+    fee_discount: float,
+    tax_rate: float,
+    min_fee: int,
+    rounding_mode: str,
+    is_daytrade: bool,
+) -> dict[str, Any]:
+    buy_amount = buy_price * shares
+    sell_amount = sell_price * shares
+    buy_fee = max(min_fee, fee_round(buy_amount * fee_rate * fee_discount, rounding_mode)) if buy_amount else 0
+    sell_fee = max(min_fee, fee_round(sell_amount * fee_rate * fee_discount, rounding_mode)) if sell_amount else 0
+    sell_tax = fee_round(sell_amount * tax_rate, rounding_mode) if is_daytrade else 0
+    total_cost = buy_fee + sell_fee + sell_tax
+    return {"net_profit": int(round(sell_amount - buy_amount - total_cost)), "total_cost": total_cost}
+
+
+def signed_number(value: float, digits: int = 1) -> str:
+    rounded = number(value, digits)
+    return f"+{rounded:,.{digits}f}" if rounded >= 0 else f"{rounded:,.{digits}f}"
+
+
+def daytrade_cost_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    buy_price = float(payload.get("buy_price") or 0)
+    sell_price = float(payload.get("sell_price") or buy_price)
+    shares = int(float(payload.get("shares") or 1000))
+    fee_rate = float(payload.get("fee_rate") or 0.001425)
+    fee_discount = float(payload.get("fee_discount") or 1)
+    tax_rate = float(payload.get("tax_rate") or 0.0015)
+    min_fee = int(float(payload.get("min_fee") or 20))
+    rounding_mode = str(payload.get("rounding_mode") or "floor")
+    if rounding_mode not in {"floor", "round", "ceil"}:
+        rounding_mode = "floor"
+    is_daytrade = bool(payload.get("is_daytrade", True))
+    return daytrade_cost_values(buy_price, sell_price, shares, fee_rate, fee_discount, tax_rate, min_fee, rounding_mode, is_daytrade)
+
+
+def market_pulse_payload() -> dict[str, Any]:
+    now = time.time()
+    cached = MARKET_PULSE_CACHE.get((1,))
+    if cached and now - cached[0] < 8:
+        return cached[1]
+    rows: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(safe_quote_or_none, item["symbol"]): item for item in TW_MARKET_PULSE_ITEMS}
+        for future in as_completed(futures):
+            item = futures[future]
+            quote = future.result()
+            rows.append(market_pulse_row(item["name"], item["symbol"], quote, item["theme"], item["kind"]))
+    for group in TW_THEME_GROUPS:
+        rows.append(theme_group_pulse(group))
+    rows.sort(key=lambda row: row.get("order", 99))
+    payload = {
+        "ok": True,
+        "updated_at": datetime.now(ZoneInfo("Asia/Taipei")).isoformat(timespec="seconds"),
+        "rows": rows,
+        "data_warning": "資料可能延遲；台指期若來源不可用會顯示 fallback/不可用。五檔 / 逐筆資料目前不可用。",
+        "disclaimer": "非投資建議，僅供風險與成本輔助判斷。",
+    }
+    MARKET_PULSE_CACHE[(1,)] = (now, payload)
+    return payload
+
+
+def safe_quote_or_none(symbol: str) -> dict[str, Any] | None:
+    try:
+        return latest_quote_payload(symbol)
+    except Exception:
+        return None
+
+
+def market_pulse_row(name: str, symbol: str, quote: dict[str, Any] | None, theme: str, kind: str) -> dict[str, Any]:
+    if not quote:
+        return {
+            "order": len(symbol),
+            "name": name,
+            "symbol": symbol,
+            "kind": kind,
+            "price": None,
+            "change": None,
+            "change_pct": None,
+            "volume_status": "資料來源不可用",
+            "tag": "資料不足",
+            "source": "unavailable",
+            "available": False,
+        }
+    pct = float(quote.get("change_pct") or 0)
+    volume_ratio = float(quote.get("volume_ratio") or 1)
+    return {
+        "order": 0 if symbol == "^TWII" else 1 if symbol == "^TWOII" else 2 if kind == "future" else 3,
+        "name": name,
+        "symbol": quote["symbol"],
+        "kind": kind,
+        "theme": theme,
+        "price": quote["price"],
+        "change": quote["change"],
+        "change_pct": quote["change_pct"],
+        "volume": quote["volume"],
+        "volume_status": volume_status(volume_ratio),
+        "tag": pulse_tag(pct, volume_ratio, theme),
+        "source": quote["source"],
+        "available": True,
+    }
+
+
+def theme_group_pulse(group: dict[str, Any]) -> dict[str, Any]:
+    quotes = [safe_quote_or_none(symbol) for symbol in group["symbols"]]
+    quotes = [quote for quote in quotes if quote]
+    if not quotes:
+        return market_pulse_row(group["name"], ",".join(group["symbols"]), None, group["name"], "theme")
+    avg_pct = mean(float(quote.get("change_pct") or 0) for quote in quotes)
+    avg_volume_ratio = mean(float(quote.get("volume_ratio") or 1) for quote in quotes)
+    leaders = sorted(quotes, key=lambda quote: float(quote.get("change_pct") or 0), reverse=True)[:2]
+    return {
+        "order": 10,
+        "name": group["name"],
+        "symbol": " / ".join(quote["symbol"] for quote in leaders),
+        "kind": "theme",
+        "theme": group["name"],
+        "price": None,
+        "change": None,
+        "change_pct": number(avg_pct),
+        "volume": sum(int(quote.get("volume") or 0) for quote in quotes),
+        "volume_status": volume_status(avg_volume_ratio),
+        "tag": pulse_tag(avg_pct, avg_volume_ratio, group["name"]),
+        "source": "representative basket",
+        "available": True,
+    }
+
+
+def volume_status(volume_ratio: float) -> str:
+    if volume_ratio >= 1.8:
+        return "爆量"
+    if volume_ratio >= 1.25:
+        return "量能放大"
+    if volume_ratio <= 0.75:
+        return "量縮"
+    return "正常"
+
+
+def pulse_tag(change_pct: float, volume_ratio: float, theme: str = "") -> str:
+    if change_pct <= -2.2:
+        return "急跌警戒"
+    if change_pct >= 1.4 and volume_ratio >= 1.25:
+        return "強勢擴散"
+    if "金融" in theme and change_pct >= 0.2:
+        return "金融護盤"
+    if "電子" in theme and change_pct < -0.8:
+        return "電子轉弱"
+    if abs(change_pct) < 0.35 and volume_ratio <= 0.9:
+        return "量縮盤整"
+    if change_pct >= 1.1 and volume_ratio >= 1.8:
+        return "拉高出貨疑慮"
+    if change_pct >= 0:
+        return "指數撐盤"
+    return "偏弱觀察"
+
+
+def daytrade_analyze_payload(symbol: str, payload: dict[str, Any]) -> dict[str, Any]:
+    raw = symbol.strip().upper()
+    normalized, market = normalize_symbol(raw)
+    resolved = normalized
+    rows: list[dict[str, Any]] = []
+    source = "1d/1m"
+    for candidate in candidate_symbols(normalized, raw):
+        rows = fetch_price_history(candidate, "1d", "1m")
+        if not rows:
+            rows = fetch_price_history(candidate, "1d", "5m")
+            source = "1d/5m fallback"
+        if rows:
+            resolved = candidate
+            break
+    if len(rows) < 3:
+        quote = latest_quote_payload(raw)
+        rows = [{
+            "date": datetime.now(timezone.utc),
+            "date_label": quote.get("date", ""),
+            "open": quote.get("open") or quote.get("price") or 0,
+            "high": quote.get("high") or quote.get("price") or 0,
+            "low": quote.get("low") or quote.get("price") or 0,
+            "close": quote.get("price") or 0,
+            "volume": quote.get("volume") or 0,
+        }]
+        source = "quote fallback"
+        resolved = quote.get("symbol", resolved)
+    latest = rows[-1]
+    closes = [float(row["close"]) for row in rows if row.get("close")]
+    volumes = [float(row["volume"] or 0) for row in rows]
+    day_high = max(row["high"] for row in rows)
+    day_low = min(row["low"] for row in rows)
+    avg_price = mean(closes) if closes else latest["close"]
+    vwap = sum(row["close"] * row["volume"] for row in rows if row["volume"]) / sum(volumes) if sum(volumes) else avg_price
+    ref_index = safe_quote_or_none("^TWII") or {"change_pct": 0}
+    quote = latest_quote_payload(resolved)
+    buy_price = float(payload.get("buy_price") or latest["close"])
+    sell_price = float(payload.get("sell_price") or latest["close"])
+    cost = daytrade_cost_from_payload({**payload, "buy_price": buy_price, "sell_price": sell_price})
+    metrics = intraday_metrics(rows, ref_index, cost)
+    score = daytrade_score(metrics)
+    gate = risk_gate(metrics, cost, score)
+    playbook = daytrade_playbook(latest["close"], metrics, cost)
+    return {
+        "ok": True,
+        "symbol": resolved,
+        "market": market,
+        "latest": quote,
+        "source": source,
+        "fallback": "fallback" in source,
+        "data_warning": "資料可能延遲 / 目前使用 fallback；五檔 / 逐筆資料目前不可用。" if "fallback" in source else "Yahoo chart intraday；五檔 / 逐筆資料目前不可用。",
+        "score": score,
+        "posture": daytrade_posture(score, metrics, cost),
+        "risk_gate": gate,
+        "metrics": metrics,
+        "levels": {
+            "breakout_trigger": number(day_high),
+            "pullback_support": number(max(day_low, min(closes[-20:]) if len(closes) >= 20 else day_low)),
+            "stop_reference": number(min(closes[-20:]) if len(closes) >= 20 else day_low),
+            "break_even": cost["break_even_sell_price"],
+            "chase_risk_zone": number(day_high - tw_price_tick(day_high)),
+            "selling_pressure_zone": number(day_high),
+            "minimum_profit_ticks": cost["min_profit_ticks"],
+            "vwap": number(vwap),
+            "average_price_source": "VWAP" if sum(volumes) else "intraday average price fallback",
+        },
+        "cost": cost,
+        "playbook": playbook,
+        "disclaimer": "非投資建議，僅供風險與成本輔助判斷。",
+    }
+
+
+def intraday_metrics(rows: list[dict[str, Any]], ref_index: dict[str, Any], cost: dict[str, Any]) -> dict[str, Any]:
+    closes = [float(row["close"]) for row in rows if row.get("close")]
+    highs = [float(row["high"]) for row in rows if row.get("high")]
+    lows = [float(row["low"]) for row in rows if row.get("low")]
+    volumes = [float(row["volume"] or 0) for row in rows]
+    latest = closes[-1]
+    previous = closes[-2] if len(closes) >= 2 else latest
+    five_back = closes[-6] if len(closes) >= 6 else closes[0]
+    day_high = max(highs)
+    day_low = min(lows)
+    day_range = max(0.01, day_high - day_low)
+    high_low_position = (latest - day_low) / day_range * 100
+    avg_vol = mean(volumes[-21:-1]) if len(volumes) > 21 else mean(volumes[:-1]) if len(volumes) > 1 else 0
+    volume_ratio = volumes[-1] / avg_vol if avg_vol else 1
+    avg_price = mean(closes[-20:]) if len(closes) >= 3 else latest
+    amplitude_pct = day_range / latest * 100 if latest else 0
+    momentum_1 = (latest / previous - 1) * 100 if previous else 0
+    momentum_5 = (latest / five_back - 1) * 100 if five_back else 0
+    near_pressure_pct = (day_high / latest - 1) * 100 if latest else 0
+    near_support_pct = (latest / day_low - 1) * 100 if day_low else 0
+    consecutive_volume = len(volumes) >= 4 and all(volumes[-i] > volumes[-i - 1] for i in range(1, 4))
+    return {
+        "momentum_1bar_pct": number(momentum_1),
+        "momentum_5bar_pct": number(momentum_5),
+        "volume_ratio": number(volume_ratio),
+        "amplitude_pct": number(amplitude_pct),
+        "high_low_position": number(high_low_position),
+        "above_intraday_average": latest >= avg_price,
+        "breaks_intraday_high": latest >= day_high,
+        "breaks_intraday_average": latest < avg_price,
+        "near_pressure_pct": number(near_pressure_pct),
+        "near_support_pct": number(near_support_pct),
+        "consecutive_volume": consecutive_volume,
+        "index_change_pct": number(float(ref_index.get("change_pct") or 0)),
+        "cost_covered": cost["net_profit"] >= 0,
+        "cost_drag_pct": number(cost["total_cost"] / max(1, abs(cost["gross_profit"])) * 100) if cost["gross_profit"] else 999,
+        "spread_slippage_risk": "high" if volume_ratio < 0.8 or amplitude_pct < 0.6 else "medium" if volume_ratio < 1.2 else "low",
+    }
+
+
+def daytrade_score(metrics: dict[str, Any]) -> int:
+    score = 45
+    score += min(18, max(-18, metrics["momentum_5bar_pct"] * 5))
+    score += min(15, max(-8, (metrics["volume_ratio"] - 1) * 18))
+    score += min(10, metrics["amplitude_pct"] * 2)
+    score += 8 if 35 <= metrics["high_low_position"] <= 82 else -7 if metrics["high_low_position"] > 92 else -3
+    score += 8 if metrics["above_intraday_average"] else -9
+    score += 6 if metrics["consecutive_volume"] else 0
+    score += 8 if metrics["index_change_pct"] >= 0.25 else -12 if metrics["index_change_pct"] <= -0.8 else 0
+    score += 10 if metrics["cost_covered"] else -18
+    score -= 8 if metrics["near_pressure_pct"] < 0.35 else 0
+    score -= 7 if metrics["spread_slippage_risk"] == "high" else 3 if metrics["spread_slippage_risk"] == "medium" else 0
+    return int(max(0, min(100, round(score))))
+
+
+def risk_gate(metrics: dict[str, Any], cost: dict[str, Any], score: int) -> dict[str, Any]:
+    red = []
+    yellow = []
+    green = []
+    if not cost["net_profit"] >= 0:
+        red.append("毛利不足以覆蓋稅費")
+    if metrics["index_change_pct"] <= -0.8:
+        red.append("大盤急跌")
+    if metrics["breaks_intraday_average"]:
+        red.append("跌破盤中均線")
+    if metrics["volume_ratio"] < 0.8 and metrics["high_low_position"] > 75:
+        red.append("量縮追高")
+    if metrics["near_pressure_pct"] < 0.25:
+        red.append("距離壓力太近")
+    if metrics["volume_ratio"] >= 1.25:
+        green.append("量能放大")
+    if metrics["above_intraday_average"]:
+        green.append("價格站上短均")
+    if metrics["index_change_pct"] > -0.35:
+        green.append("指數未明顯轉弱")
+    if cost["net_profit"] >= 0:
+        green.append("目標價超過損益兩平")
+    if metrics["near_pressure_pct"] >= 0.6:
+        green.append("壓力區距離足夠")
+    if not red and score >= 68:
+        state = "green"
+    elif red or score < 42:
+        state = "red"
+    else:
+        state = "yellow"
+        if metrics["near_pressure_pct"] < 0.6:
+            yellow.append("有動能但接近壓力")
+        if cost["cost_drag_pct"] > 45:
+            yellow.append("成本吃掉大部分獲利")
+        if abs(metrics["index_change_pct"]) < 0.3:
+            yellow.append("指數盤整")
+        if 0.8 <= metrics["volume_ratio"] < 1.25:
+            yellow.append("量能普通")
+    return {"state": state, "green": green, "yellow": yellow, "red": red}
+
+
+def daytrade_posture(score: int, metrics: dict[str, Any], cost: dict[str, Any]) -> str:
+    if not cost["net_profit"] >= 0:
+        return "成本不利，價差不足"
+    if metrics["volume_ratio"] < 0.8:
+        return "量縮不宜硬沖"
+    if metrics["index_change_pct"] < -0.5:
+        return "指數逆風，降低部位"
+    if metrics["near_pressure_pct"] < 0.35:
+        return "賣壓接近，追價風險高"
+    if metrics["high_low_position"] > 90:
+        return "已過熱，適合等回測"
+    if score >= 75:
+        return "高流動日內標的"
+    if score >= 58:
+        return "可觀察突破追價"
+    return "僅適合回測低吸"
+
+
+def daytrade_playbook(price: float, metrics: dict[str, Any], cost: dict[str, Any]) -> str:
+    trigger = round_to_tick(price + tw_price_tick(price), "ceil")
+    pullback = round_to_tick(price * 0.996, "floor")
+    stop = round_to_tick(price * 0.992, "floor")
+    target = round_to_tick(trigger + tw_price_tick(trigger), "ceil")
+    incentive = "誘因足夠" if target > cost["break_even_sell_price"] else "扣稅費後誘因不足"
+    return (
+        f"若價格站回 {trigger} 且量比 > 1.5，可觀察突破；但因損益兩平約 {cost['break_even_sell_price']}，"
+        f"若目標只看到 {target}，{incentive}。若跌破 {stop}，代表盤中承接轉弱，避免硬沖。"
+    )
 
 
 def quote_last(symbol: str) -> dict[str, Any]:

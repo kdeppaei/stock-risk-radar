@@ -17,11 +17,32 @@ https://stock-risk-radar.onrender.com/#
 - 1-day, 5-day, and 20-day returns
 - 60-day support/resistance, breakout call point, backtest zone, stop-loss reference
 - Live quote refresh, watchlist alerts, and market context
+- T+0 Taiwan Intraday Execution Desk for Taiwan cash day-trade cost checks, quote board, market pulse, intraday score, risk gate, and execution playbook
 - Stock screener for US/Taiwan markets with price range, industry filters, and quality/market-cap/volume sorting
 - Recent recommendation board with regression, technical, news-sentiment, and liquidity/market-cap scoring
 - Finance headline ticker and YouTube finance live-search shortcuts
 - Excel-style workspace tabs for picks, finance news, anonymous local discussion, and shortcut help
 - Local anonymous discussion board with random ID, delete controls, and daily Taiwan-date reset
+
+## T+0 台股日內戰情室
+
+The `T+0 台股日內戰情室 / Intraday Execution Desk` tab is built for Taiwan intraday monitoring and cost awareness.
+
+It includes:
+
+- Market Pulse: TAIEX, OTC, Taiwan 50 ETFs, Taiwan futures fallback, and representative sector/theme groups.
+- Quote Board: default Taiwan watch symbols such as `2330`, `2317`, `2454`, `3481`, `2409`, `2002`, `1101`, `2303`, `2881`, `0050`, and `006208`, plus user-added localStorage symbols.
+- Break-even Radar: buy/sell amount, brokerage fee, transaction tax, total cost, gross P/L, net P/L, net return, break-even sell price, and minimum profitable tick.
+- Intraday Suitability Score: momentum, volume ratio, intraday range position, support/pressure distance, index direction, cost coverage, and estimated spread/slippage risk.
+- Risk Gate: green/yellow/red execution gate with explicit reasons.
+- Intraday playbook: breakout trigger, pullback support, stop reference, break-even, chase-risk zone, selling-pressure zone, and VWAP or intraday-average fallback.
+
+Important limits:
+
+- Not investment advice. This is only for risk and cost support.
+- Taiwan colors are up red and down green. US colors remain up green and down red.
+- Yahoo chart data can be delayed. If intraday data fails, the UI marks fallback status.
+- Real order book, best bid/ask, and tick-by-tick trade data are currently unavailable and are not simulated as real data.
 
 ## Local Run
 
@@ -84,6 +105,11 @@ GitHub Pages is for static HTML/CSS/JavaScript. This project needs a Python serv
 
 ```text
 GET /api/analyze?symbol=AAPL&period=1y&interval=1d
+GET /api/quote/{symbol}
+GET /api/intraday/{symbol}
+GET /api/tw/market-pulse
+POST /api/daytrade/cost
+POST /api/daytrade/analyze
 GET /api/screener?markets=US,TW&industries=Semiconductors,Technology&min_price=10&max_price=1000&sort_by=quality
 GET /api/recommendations?markets=US,TW&limit=8
 ```
