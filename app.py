@@ -3488,7 +3488,9 @@ def calculate_indicators(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         closes.append(close)
         row["MA5"] = avg(closes[-5:])
         row["MA20"] = avg(closes[-20:])
+        row["MA25"] = avg(closes[-25:])
         row["MA60"] = avg(closes[-60:])
+        row["BIAS25"] = (close - row["MA25"]) / row["MA25"] * 100 if row["MA25"] else 0
         ema12 = ema_next(close, ema12, 12)
         ema26 = ema_next(close, ema26, 26)
         row["MACD"] = ema12 - ema26
@@ -3517,7 +3519,9 @@ def technical_payload(latest: dict[str, Any]) -> dict[str, float]:
     return {
         "ma5": number(latest["MA5"]),
         "ma20": number(latest["MA20"]),
+        "ma25": number(latest["MA25"]),
         "ma60": number(latest["MA60"]),
+        "bias25_pct": number(latest["BIAS25"]),
         "rsi14": number(latest["RSI14"]),
         "macd": number(latest["MACD"]),
         "macd_signal": number(latest["MACD_SIGNAL"]),
@@ -3640,6 +3644,8 @@ def build_chart_math(
     ma20_slope = ma_slope_pct(rows, "MA20", close, 10)
     ma60_slope = ma_slope_pct(rows, "MA60", close, 20)
     spread_pct = (ma20 - ma60) / close * 100 if close else 0
+    ma25 = float(latest.get("MA25") or close)
+    bias25_pct = (close - ma25) / ma25 * 100 if ma25 else 0
     volatility_pct = stddev([row["RET1"] * 100 for row in recent[-20:] if row.get("RET1") is not None])
 
     topology = ma_topology(close, ma5, ma20, ma60)
@@ -3705,6 +3711,8 @@ def build_chart_math(
             "ma20_slope_pct": number(ma20_slope, 4),
             "ma60_slope_pct": number(ma60_slope, 4),
             "ma20_ma60_spread_pct": number(spread_pct, 4),
+            "ma25": number(ma25),
+            "bias25_pct": number(bias25_pct, 2),
             "volatility_20d_pct": number(volatility_pct, 2),
             "risk_score": int(risk.get("score") or 0),
             "prediction_bias": prediction.get("bias", "neutral"),
@@ -3986,7 +3994,20 @@ def build_chart_rows(rows: list[dict[str, Any]], market: str) -> list[dict[str, 
     out = []
     for row in rows:
         up = row["close"] >= row["open"]
-        out.append({"date": row["date_label"], "open": number(row["open"]), "high": number(row["high"]), "low": number(row["low"]), "close": number(row["close"]), "volume": int(row["volume"] or 0), "ma5": number(row["MA5"]), "ma20": number(row["MA20"]), "ma60": number(row["MA60"]), "color": candle_color(up, market)})
+        out.append({
+            "date": row["date_label"],
+            "open": number(row["open"]),
+            "high": number(row["high"]),
+            "low": number(row["low"]),
+            "close": number(row["close"]),
+            "volume": int(row["volume"] or 0),
+            "ma5": number(row["MA5"]),
+            "ma20": number(row["MA20"]),
+            "ma25": number(row["MA25"]),
+            "ma60": number(row["MA60"]),
+            "bias25": number(row["BIAS25"]),
+            "color": candle_color(up, market),
+        })
     return out
 
 
