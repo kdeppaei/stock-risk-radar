@@ -4085,3 +4085,11 @@ def optional_number(value: Any, digits: int = 2) -> float | None:
         return round(value, digits)
     except Exception:
         return None
+
+
+# Keep existing Render services that still launch `uvicorn app:app` on the
+# live OpenKiri overlay routes.
+try:
+    import openkiri_live as _openkiri_live  # noqa: F401
+except Exception as exc:
+    print(f"OpenKiri live overlay skipped: {exc}")
