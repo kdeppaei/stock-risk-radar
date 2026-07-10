@@ -4,9 +4,6 @@ OpenKiri is a FastAPI stock-risk dashboard for Taiwan and US stocks. It groups t
 
 Public website: https://stock-risk-radar.onrender.com/#
 
-```text
-https://stock-risk-radar.onrender.com/#
-```
 
 ## Features
 
