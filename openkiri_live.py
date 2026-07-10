@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import math
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Thread
 from typing import Any
 
 import requests
@@ -17,6 +19,10 @@ app = base.app
 BASE_DIR = Path(__file__).resolve().parent
 ALERT_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 USD_TWD_CACHE: tuple[float, float] | None = None
+LIVE_BOOTED_AT = datetime.now(timezone.utc)
+BACKGROUND_WARMER_STARTED = False
+TWSE_QUOTE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+OPENKIRI_VERSION = "2026.07.11-tplus0"
 
 
 def remove_route(path: str, methods: set[str] | None = None) -> None:
@@ -31,13 +37,40 @@ for route_path in {"/", "/api/analyze", "/api/quote/{symbol}", "/api/movers"}:
     remove_route(route_path)
 
 
+@app.on_event("startup")
+def start_live_cache_warmer() -> None:
+    global BACKGROUND_WARMER_STARTED
+    if BACKGROUND_WARMER_STARTED:
+        return
+    BACKGROUND_WARMER_STARTED = True
+    Thread(target=warm_live_caches, name="openkiri-live-cache", daemon=True).start()
+
+
 @app.get("/", response_class=HTMLResponse)
 def home() -> HTMLResponse:
     html = (BASE_DIR / "templates" / "index.html").read_text(encoding="utf-8")
-    script = '<script src="/static/openkiri-live.js?v=20260709"></script>'
+    script = '<script src="/static/openkiri-live.js?v=20260711"></script>'
     if script not in html:
         html = html.replace("</body>", f"{script}\n</body>")
     return HTMLResponse(html)
+
+
+@app.get("/api/version")
+def version() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "name": "OpenKiri",
+        "version": OPENKIRI_VERSION,
+        "render_commit": os.getenv("RENDER_GIT_COMMIT") or os.getenv("COMMIT_SHA") or "unknown",
+        "booted_at": LIVE_BOOTED_AT.isoformat(timespec="seconds"),
+        "routes": {
+            "alerts": True,
+            "live_5m_fallback": True,
+            "twse_tpex_quote_fallback": True,
+            "background_cache_warmer": BACKGROUND_WARMER_STARTED,
+        },
+        "source_note": "Quotes use Yahoo data first, with TWSE/TPEX official MIS fallback for Taiwan symbols when available.",
+    }
 
 
 @app.get("/api/analyze")
@@ -157,12 +190,15 @@ def movers(
         "ok": True,
         "mode": mode,
         "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "ttl_seconds": ttl,
+        "cache": "request cache + startup background warmer",
         "markets": sorted(selected),
         "scanned": len(rows),
         "gainers": rows[:limit],
         "losers": sorted(rows, key=lambda row: row["change_pct"])[:limit],
         "long_candidates": sorted([r for r in rows if r["model_score"] > 0], key=lambda r: r["model_score"], reverse=True)[:limit],
         "short_candidates": sorted([r for r in rows if r["model_score"] < 0], key=lambda r: r["model_score"])[:limit],
+        "model_note": "Long/short labels are screening posture only, not trade instructions.",
     }
     base.MOVERS_CACHE[cache_key] = (now_ts, payload)
     return payload
@@ -195,6 +231,7 @@ def alerts(markets: str = Query("TW", max_length=16), limit: int = Query(8, ge=3
         "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "items": pool[:limit],
         "model": "5m MA cross + moving-average topology + live quote pulse",
+        "disclaimer": "Signals are watch-list alerts, not investment advice or direct entry orders.",
     }
     ALERT_CACHE[cache_key] = (now, payload)
     return payload
@@ -260,6 +297,81 @@ def market_cap_fallback(symbol: str, market: str, live_price: float | None, curr
     return None, resolved_currency, shares, valuation.get("source"), valuation
 
 
+def twse_channel(symbol: str) -> str | None:
+    value = symbol.strip().upper()
+    if value.endswith(".TWO"):
+        digits = value[:-4]
+        return f"otc_{digits}.tw" if digits.isdigit() else None
+    if value.endswith(".TW"):
+        digits = value[:-3]
+        return f"tse_{digits}.tw" if digits.isdigit() else None
+    if value.isdigit() and 4 <= len(value) <= 6:
+        return f"tse_{value}.tw"
+    return None
+
+
+def twse_number(value: Any) -> float | None:
+    if value in (None, "", "-", "--"):
+        return None
+    try:
+        return float(str(value).replace(",", ""))
+    except Exception:
+        return None
+
+
+def fetch_twse_quote_snapshot(symbol: str) -> dict[str, Any]:
+    channel = twse_channel(symbol)
+    if not channel:
+        return {}
+    now = time.time()
+    cached = TWSE_QUOTE_CACHE.get(channel)
+    if cached and now - cached[0] < 5:
+        return cached[1]
+    try:
+        resp = requests.get(
+            "https://mis.twse.com.tw/stock/api/getStockInfo.jsp",
+            params={"ex_ch": channel, "json": "1", "delay": "0", "_": int(now * 1000)},
+            headers={
+                "User-Agent": "Mozilla/5.0 OpenKiri/4.9",
+                "Referer": "https://mis.twse.com.tw/stock/fibest.jsp",
+            },
+            timeout=6,
+        )
+        resp.raise_for_status()
+        row = ((resp.json().get("msgArray") or [None])[0] or {})
+        price = twse_number(row.get("z"))
+        previous = twse_number(row.get("y"))
+        if price is None:
+            bids = [twse_number(x) for x in str(row.get("b") or "").split("_")]
+            asks = [twse_number(x) for x in str(row.get("a") or "").split("_")]
+            prices = [x for x in bids + asks if x]
+            price = sum(prices) / len(prices) if prices else previous
+        if price is None:
+            return {}
+        change = price - previous if previous else None
+        pct = (change / previous * 100) if previous and change is not None else None
+        volume = twse_number(row.get("v"))
+        date_text = " ".join(part for part in [row.get("d"), row.get("t")] if part)
+        payload = {
+            "symbol": symbol,
+            "currency": "TWD",
+            "price": base.optional_number(price),
+            "open": base.optional_number(twse_number(row.get("o"))),
+            "high": base.optional_number(twse_number(row.get("h"))),
+            "low": base.optional_number(twse_number(row.get("l"))),
+            "change": base.optional_number(change),
+            "change_pct": base.optional_number(pct),
+            "volume": int(volume * 1000) if volume else None,
+            "date": date_text,
+            "market_state": "TWSE/TPEX",
+            "source": "TWSE/TPEX official MIS",
+        }
+        TWSE_QUOTE_CACHE[channel] = (now, payload)
+        return payload
+    except Exception:
+        return {}
+
+
 def fetch_yahoo_quote_snapshot(symbol: str) -> dict[str, Any]:
     try:
         resp = requests.get(
@@ -313,7 +425,11 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
     tried: list[str] = []
     for candidate in base.candidate_symbols(normalized, raw):
         tried.append(candidate)
-        snapshot = fetch_yahoo_quote_snapshot(candidate)
+        official_snapshot = fetch_twse_quote_snapshot(candidate) if market == "TW" else {}
+        yahoo_snapshot = fetch_yahoo_quote_snapshot(candidate)
+        snapshot = yahoo_snapshot
+        if official_snapshot:
+            snapshot = {**yahoo_snapshot, **{k: v for k, v in official_snapshot.items() if v not in (None, "", 0)}}
         intraday_rows = base.fetch_price_history(candidate, "1d", "1m")
         source = "1d/1m"
         if not intraday_rows:
@@ -357,7 +473,8 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
         avg_volume = base.mean([row["volume"] for row in rows[-20:-1] if row.get("volume") is not None]) if len(rows) >= 2 else 0
         volume_ratio = latest["volume"] / avg_volume if avg_volume else 1
         cap_previous = int(live_market_cap / (1 + change_pct / 100)) if live_market_cap and change_pct > -99 else None
-        source_label = "Yahoo quote live + " + (source if intraday_rows else "5d/1d fallback") if snapshot else source if intraday_rows else "5d/1d fallback"
+        quote_source = snapshot.get("source") or "Yahoo quote live"
+        source_label = f"{quote_source} + " + (source if intraday_rows else "5d/1d fallback") if snapshot else source if intraday_rows else "5d/1d fallback"
         if cap_source and cap_source not in source_label:
             source_label += f" + {cap_source}"
         payload = {
@@ -392,6 +509,10 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
 
 def improve_valuation_with_quote(symbol: str, market: str, valuation: dict[str, Any]) -> dict[str, Any]:
     quote = fetch_yahoo_quote_snapshot(symbol)
+    if market == "TW":
+        official = fetch_twse_quote_snapshot(symbol)
+        if official:
+            quote = {**quote, **{k: v for k, v in official.items() if v not in (None, "", 0)}}
     live_price = quote.get("price") or valuation.get("price")
     currency = quote.get("currency") or valuation.get("currency") or ("TWD" if market == "TW" else "USD")
     cap = base.optional_number(quote.get("market_cap"), 0)
@@ -434,6 +555,25 @@ def daytrade_mover_score(row: dict[str, Any]) -> float:
     return base.number(score, 2)
 
 
+def warm_live_caches() -> None:
+    time.sleep(6)
+    jobs = [
+        lambda: movers("TW", 6, "live"),
+        lambda: movers("US", 6, "live"),
+        lambda: movers("US,TW", 6, "live"),
+        lambda: alerts("TW", 10),
+        lambda: alerts("US,TW", 10),
+    ]
+    while True:
+        for job in jobs:
+            try:
+                job()
+            except Exception:
+                pass
+            time.sleep(2)
+        time.sleep(18)
+
+
 def stock_alert_signal(item: dict[str, Any]) -> dict[str, Any] | None:
     rows = base.fetch_price_history(item["symbol"], "5d", "5m")
     interval = "5m"
@@ -472,6 +612,20 @@ def stock_alert_signal(item: dict[str, Any]) -> dict[str, Any] | None:
         action = "偏空分類：適合觀察轉弱或避開追高。"
     if not kind:
         return None
+    clean_titles = {
+        "golden_cross": "黃金交叉觀察",
+        "death_cross": "死亡交叉警戒",
+        "bullish_continuation": "偏多延續",
+        "bearish_continuation": "偏空延續",
+    }
+    clean_actions = {
+        "golden_cross": "偏多觀察：短均線重新站上長均線，先確認量能與是否守住 MA20/MA25。",
+        "death_cross": "偏空警戒：短均線跌破長均線，先觀察是否有反彈失敗或放量賣壓。",
+        "bullish_continuation": "偏多分類：可放入 T+0 觀察名單，但不等於直接買進。",
+        "bearish_continuation": "偏空分類：先視為風險名單，觀察是否站回均線或賣壓減弱。",
+    }
+    title = clean_titles.get(kind, title)
+    action = clean_actions.get(kind, action)
     return {
         "symbol": item["symbol"],
         "name": item.get("name"),
@@ -481,6 +635,8 @@ def stock_alert_signal(item: dict[str, Any]) -> dict[str, Any] | None:
         "action": action,
         "score": score,
         "priority": priority,
+        "severity": "high" if priority >= 4 else "medium",
+        "tone": "bullish" if kind in {"golden_cross", "bullish_continuation"} else "bearish",
         "interval": interval,
         "bars_since_cross": bars,
         "price": base.number(latest["close"]),
