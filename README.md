@@ -2,8 +2,11 @@
 
 OpenKiri is a FastAPI stock-risk dashboard for Taiwan and US stocks. It groups tickers by trend-continuation setups, shows technical risk, and displays floating market-cap and P/E valuation when Yahoo data is available.
 
-Public website: https://stock-risk-radar.onrender.com/#
+Public website:
 
+```text
+https://stock-risk-radar.onrender.com/#
+```
 
 ## Features
 
@@ -26,7 +29,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 pip install -r requirements.txt
-uvicorn openkiri_app:app --reload --host 127.0.0.1 --port 8000
+uvicorn openkiri_live:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Open locally:
@@ -46,10 +49,10 @@ pip install -r requirements.txt
 Start Command:
 
 ```text
-uvicorn openkiri_app:app --host 0.0.0.0 --port $PORT
+uvicorn openkiri_live:app --host 0.0.0.0 --port $PORT
 ```
 
-The included `render.yaml` keeps the existing `stock-risk-radar` Render service name while using the OpenKiri app entry point.
+The included `render.yaml` keeps the existing `stock-risk-radar` Render service name while using the `openkiri_live:app` OpenKiri entry point. `openkiri_app.py` is an older compact prototype kept only as reference; Render does not call it.
 
 ## API
 

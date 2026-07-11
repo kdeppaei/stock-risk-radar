@@ -38,6 +38,7 @@ SERENITY_RECENT_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 SERENITY_INTEL_CACHE: dict[tuple[int], tuple[float, dict[str, Any]]] = {}
 QUOTE_CACHE: dict[tuple[str], tuple[float, dict[str, Any]]] = {}
 MARKET_PULSE_CACHE: dict[tuple[int], tuple[float, dict[str, Any]]] = {}
+ALERT_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 VALUATION_CACHE: dict[tuple[str], tuple[float, dict[str, Any]]] = {}
 
 DAYTRADE_DEFAULT_SYMBOLS = [
@@ -965,6 +966,9 @@ def movers(
             if result:
                 rows.append(result)
     rows.sort(key=lambda item: item["change_pct"], reverse=True)
+    for row in rows:
+        row["model_score"] = daytrade_mover_score(row)
+        row["side"] = "long" if row["model_score"] >= 8 else "short" if row["model_score"] <= -8 else "watch"
     payload = {
         "ok": True,
         "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -973,8 +977,44 @@ def movers(
         "scanned": len(pool),
         "gainers": rows[:limit],
         "losers": sorted(rows, key=lambda item: item["change_pct"])[:limit],
+        "long_candidates": sorted([row for row in rows if row["model_score"] > 0], key=lambda item: item["model_score"], reverse=True)[:limit],
+        "short_candidates": sorted([row for row in rows if row["model_score"] < 0], key=lambda item: item["model_score"])[:limit],
     }
     MOVERS_CACHE[cache_key] = (now_ts, payload)
+    return payload
+
+
+@app.get("/api/alerts")
+def alerts(
+    markets: str = Query("TW", max_length=16),
+    limit: int = Query(8, ge=3, le=20),
+) -> dict[str, Any]:
+    selected_markets = {part.strip().upper() for part in markets.split(",") if part.strip()}
+    cache_key = (",".join(sorted(selected_markets)), limit)
+    now = time.time()
+    cached = ALERT_CACHE.get(cache_key)
+    if cached and now - cached[0] < 45:
+        return cached[1]
+    pool: list[dict[str, Any]] = []
+    for market in sorted(selected_markets):
+        market_rows = [item for item in STOCK_UNIVERSE if item["market"] == market]
+        pool.extend(sorted(market_rows, key=lambda item: item["market_cap_usd"], reverse=True)[:36])
+    items: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        future_map = {executor.submit(stock_alert_signal, item): item for item in pool}
+        for future in as_completed(future_map):
+            row = future.result()
+            if row:
+                items.append(row)
+    items.sort(key=lambda item: (item["priority"], item["score"]), reverse=True)
+    payload = {
+        "ok": True,
+        "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "scanned": len(pool),
+        "items": items[:limit],
+        "model": "5m MA cross + moving-average topology + live quote pulse",
+    }
+    ALERT_CACHE[cache_key] = (now, payload)
     return payload
 
 
@@ -1050,14 +1090,21 @@ def analyze(
     raw = symbol.strip().upper()
     normalized, market = normalize_symbol(raw)
 
+    requested_period, requested_interval = period, interval
     rows: list[dict[str, Any]] = []
     resolved = normalized
     for candidate in candidate_symbols(normalized, raw):
-        rows = fetch_price_history(candidate, period, interval)
+        for try_period, try_interval in history_variants(period, interval):
+            rows = fetch_price_history(candidate, try_period, try_interval)
+            if len(rows) >= minimum_history_bars(try_interval):
+                resolved = candidate
+                period, interval = try_period, try_interval
+                break
         if rows:
             resolved = candidate
-            break
-    if len(rows) < 20:
+            if len(rows) >= minimum_history_bars(interval):
+                break
+    if len(rows) < minimum_history_bars(interval):
         raise HTTPException(status_code=422, detail="Not enough price data.")
 
     rows = calculate_indicators(rows)
@@ -1082,6 +1129,9 @@ def analyze(
         "market": market,
         "period": period,
         "interval": interval,
+        "requested_period": requested_period,
+        "requested_interval": requested_interval,
+        "data_fallback": period != requested_period or interval != requested_interval,
         "latest": {
             "date": latest["date_label"],
             "open": number(latest["open"]),
@@ -1118,6 +1168,27 @@ def normalize_period_interval(period: str, interval: str) -> tuple[str, str]:
     if interval in {"5m", "15m", "1h"} and period not in {"1d", "5d", "1mo"}:
         return "5d", interval
     return period, interval
+
+
+def minimum_history_bars(interval: str) -> int:
+    return 6 if interval in {"1m", "5m", "15m", "1h"} else 20
+
+
+def history_variants(period: str, interval: str) -> list[tuple[str, str]]:
+    variants = [(period, interval)]
+    if interval == "5m":
+        variants.extend([("5d", "5m"), ("1mo", "15m"), ("5d", "1d")])
+    elif interval == "15m":
+        variants.extend([("5d", "15m"), ("1mo", "15m"), ("5d", "1d")])
+    elif interval == "1h":
+        variants.extend([("1mo", "1h"), ("5d", "1d")])
+    elif period == "1d":
+        variants.append(("5d", "1d"))
+    out: list[tuple[str, str]] = []
+    for item in variants:
+        if item not in out:
+            out.append(item)
+    return out
 
 
 def normalize_symbol(text: str) -> tuple[str, str]:
@@ -1200,6 +1271,7 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
     tried: list[str] = []
     for candidate in candidate_symbols(normalized, raw):
         tried.append(candidate)
+        snapshot = fetch_yahoo_quote_snapshot(candidate)
         intraday_rows = fetch_price_history(candidate, "1d", "1m")
         source = "1d/1m"
         if not intraday_rows:
@@ -1208,7 +1280,17 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
         daily_rows = fetch_price_history(candidate, "5d", "1d")
         rows = intraday_rows or daily_rows
         if not rows:
-            continue
+            if not snapshot:
+                continue
+            rows = [{
+                "date": datetime.now(timezone.utc),
+                "date_label": snapshot.get("date") or datetime.now(timezone.utc).isoformat(timespec="minutes"),
+                "open": snapshot.get("open") or snapshot.get("price") or 0,
+                "high": snapshot.get("high") or snapshot.get("price") or 0,
+                "low": snapshot.get("low") or snapshot.get("price") or 0,
+                "close": snapshot.get("price") or 0,
+                "volume": snapshot.get("volume") or 0,
+            }]
         latest = rows[-1]
         previous_close = None
         if len(daily_rows) >= 2:
@@ -1217,8 +1299,18 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
             previous_close = rows[-2]["close"]
         elif rows:
             previous_close = rows[0]["open"]
-        change = latest["close"] - previous_close if previous_close else 0
-        change_pct = (latest["close"] / previous_close - 1) * 100 if previous_close else 0
+        live_price = optional_number(snapshot.get("price")) if snapshot else None
+        live_change = optional_number(snapshot.get("change")) if snapshot else None
+        live_change_pct = optional_number(snapshot.get("change_pct")) if snapshot else None
+        live_market_cap = optional_number(snapshot.get("market_cap"), 0) if snapshot else None
+        shares_outstanding = optional_number(snapshot.get("shares_outstanding"), 0) if snapshot else None
+        if not live_market_cap and shares_outstanding and live_price:
+            live_market_cap = shares_outstanding * live_price
+        market_cap_previous = int(live_market_cap / (1 + live_change_pct / 100)) if live_market_cap and live_change_pct is not None and live_change_pct > -99 else None
+        if live_price:
+            latest["close"] = live_price
+        change = live_change if live_change is not None else latest["close"] - previous_close if previous_close else 0
+        change_pct = live_change_pct if live_change_pct is not None else (latest["close"] / previous_close - 1) * 100 if previous_close else 0
         volumes = [row["volume"] for row in rows[-20:] if row.get("volume") is not None]
         avg_volume = mean(volumes[:-1]) if len(volumes) >= 2 else 0
         volume_ratio = latest["volume"] / avg_volume if avg_volume else 1
@@ -1236,7 +1328,11 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
             "change_pct": number(change_pct),
             "volume": int(latest["volume"] or 0),
             "volume_ratio": number(volume_ratio),
-            "source": source if intraday_rows else "5d/1d fallback",
+            "currency": snapshot.get("currency") if snapshot else ("TWD" if market == "TW" else "USD"),
+            "market_cap": int(live_market_cap) if live_market_cap else None,
+            "market_cap_previous": market_cap_previous,
+            "market_cap_change_pct": number(live_change_pct) if live_change_pct is not None else number(change_pct),
+            "source": "Yahoo quote live + " + (source if intraday_rows else "5d/1d fallback") if snapshot else source if intraday_rows else "5d/1d fallback",
             "fallback": (not intraday_rows) or "fallback" in source,
             "data_warning": "資料可能延遲 / 目前使用 fallback；五檔 / 逐筆資料目前不可用。" if (not intraday_rows or "fallback" in source) else "Yahoo chart intraday；五檔 / 逐筆資料目前不可用。",
         }
@@ -1734,6 +1830,80 @@ def mover_quote(item: dict[str, Any], mode: str = "recent") -> dict[str, Any] | 
     }
 
 
+def daytrade_mover_score(row: dict[str, Any]) -> float:
+    change = float(row.get("change_pct") or 0)
+    pattern = str(row.get("pattern") or "")
+    pattern_score = float(row.get("pattern_score") or 0)
+    score = change * 8
+    if pattern in {"breakout", "v_rebound"}:
+        score += min(18, abs(pattern_score) * 1.8)
+    if pattern in {"selloff", "inverse_v"}:
+        score -= min(18, abs(pattern_score) * 1.8)
+    if row.get("volume"):
+        score += min(6, math.log10(max(10, float(row["volume"]))) - 4)
+    return number(score, 2)
+
+
+def stock_alert_signal(item: dict[str, Any]) -> dict[str, Any] | None:
+    rows = fetch_price_history(item["symbol"], "5d", "5m")
+    interval = "5m"
+    if len(rows) < 20:
+        rows = fetch_price_history(item["symbol"], "6mo", "1d")
+        interval = "1d"
+    if len(rows) < 20:
+        return None
+    rows = calculate_indicators(rows)
+    latest = rows[-1]
+    neutral_news = {"label": "neutral", "positive": 0, "negative": 0, "score": 0, "items": []}
+    levels = support_resistance(rows)
+    risk = build_risk(latest, levels, neutral_news)
+    prediction = build_prediction(rows, latest, risk, neutral_news)
+    chart_math = build_chart_math(rows[-180:], latest, risk, prediction)
+    latest_cross = chart_math.get("latest_cross") or {}
+    bars = chart_math.get("bars_since_cross")
+    score = int(chart_math.get("confidence") or 0)
+    quote = safe_quote_or_none(item["symbol"])
+    priority = 0
+    title = ""
+    action = ""
+    kind = "watch"
+    if latest_cross and bars is not None and bars <= (12 if interval == "5m" else 2):
+        if latest_cross.get("type") == "golden_cross":
+            kind = "golden_cross"
+            title = "黃金交叉"
+            action = "偏多觀察：等回測不破或量能放大再提高信心。"
+            priority = 90
+        elif latest_cross.get("type") == "death_cross":
+            kind = "death_cross"
+            title = "死亡交叉"
+            action = "偏空警示：避免追多，若跌破短均可先降低部位。"
+            priority = 88
+    elif chart_math.get("verdict") in {"bullish_continuation", "bearish_continuation"}:
+        bullish = chart_math.get("verdict") == "bullish_continuation"
+        kind = "bullish_continuation" if bullish else "bearish_continuation"
+        title = "多頭延續" if bullish else "空頭延續"
+        action = "偏多觀察：找回測支撐與量價確認。" if bullish else "偏空觀察：反彈接近均線需留意賣壓。"
+        priority = 70 if bullish else 68
+    if not title:
+        return None
+    return {
+        "symbol": item["symbol"],
+        "name": item["name"],
+        "market": item["market"],
+        "industry": item["industry"],
+        "kind": kind,
+        "title": title,
+        "action": action,
+        "score": score,
+        "priority": priority,
+        "interval": interval,
+        "bars_since_cross": bars,
+        "price": quote.get("price") if quote else number(latest["close"]),
+        "change_pct": quote.get("change_pct") if quote else 0,
+        "date": latest.get("date_label", ""),
+    }
+
+
 def detect_price_pattern(closes: list[float]) -> dict[str, Any]:
     values = [float(value) for value in closes if value]
     if len(values) < 6:
@@ -1950,6 +2120,47 @@ def yahoo_raw_value(value: Any) -> Any:
     return value
 
 
+def fetch_yahoo_quote_snapshot(symbol: str) -> dict[str, Any]:
+    try:
+        resp = requests.get(
+            "https://query1.finance.yahoo.com/v7/finance/quote",
+            params={"symbols": symbol, "formatted": "false"},
+            headers={"User-Agent": "Mozilla/5.0 OpenKiri/4.7"},
+            timeout=8,
+        )
+        resp.raise_for_status()
+        row = ((resp.json().get("quoteResponse") or {}).get("result") or [None])[0] or {}
+        if not row:
+            return {}
+        ts = row.get("regularMarketTime")
+        date_text = ""
+        if ts:
+            try:
+                date_text = datetime.fromtimestamp(int(ts), timezone.utc).strftime("%Y-%m-%d %H:%M")
+            except Exception:
+                date_text = ""
+        return {
+            "symbol": row.get("symbol") or symbol,
+            "currency": row.get("currency"),
+            "price": optional_number(row.get("regularMarketPrice")),
+            "open": optional_number(row.get("regularMarketOpen")),
+            "high": optional_number(row.get("regularMarketDayHigh")),
+            "low": optional_number(row.get("regularMarketDayLow")),
+            "change": optional_number(row.get("regularMarketChange")),
+            "change_pct": optional_number(row.get("regularMarketChangePercent")),
+            "volume": optional_number(row.get("regularMarketVolume")),
+            "market_cap": optional_number(row.get("marketCap")),
+            "shares_outstanding": optional_number(row.get("sharesOutstanding")) or optional_number(row.get("impliedSharesOutstanding")),
+            "trailing_pe": optional_number(row.get("trailingPE")),
+            "forward_pe": optional_number(row.get("forwardPE")),
+            "date": date_text,
+            "market_state": row.get("marketState"),
+            "source": "Yahoo quote",
+        }
+    except Exception:
+        return {}
+
+
 def fetch_yahoo_valuation(symbol: str) -> dict[str, Any]:
     key = (symbol.upper(),)
     now = time.time()
@@ -1957,9 +2168,15 @@ def fetch_yahoo_valuation(symbol: str) -> dict[str, Any]:
     if cached and now - cached[0] < 1800:
         return cached[1]
 
+    quote = fetch_yahoo_quote_snapshot(symbol)
     summary = yahoo_quote_summary(symbol, "price,summaryDetail,defaultKeyStatistics,financialData")
     if not summary:
-        payload: dict[str, Any] = {}
+        payload: dict[str, Any] = quote.copy() if quote else {}
+        if payload:
+            pct = optional_number(payload.get("change_pct"), 0) or 0
+            cap = optional_number(payload.get("market_cap"), 0)
+            payload["market_cap_previous"] = int(cap / (1 + pct / 100)) if cap and pct > -99 else None
+            payload["market_cap_change_pct"] = number(pct)
         VALUATION_CACHE[key] = (now, payload)
         return payload
 
@@ -1967,14 +2184,19 @@ def fetch_yahoo_valuation(symbol: str) -> dict[str, Any]:
     detail = summary.get("summaryDetail") or {}
     stats = summary.get("defaultKeyStatistics") or {}
     financial = summary.get("financialData") or {}
+    market_cap = quote.get("market_cap") or yahoo_raw_value(price.get("marketCap"))
+    change_pct = optional_number(quote.get("change_pct"), 0) or 0
     payload = {
-        "currency": price.get("currency") or detail.get("currency"),
-        "market_cap": yahoo_raw_value(price.get("marketCap")),
-        "trailing_pe": yahoo_raw_value(detail.get("trailingPE")) or yahoo_raw_value(stats.get("trailingPE")),
-        "forward_pe": yahoo_raw_value(stats.get("forwardPE")) or yahoo_raw_value(detail.get("forwardPE")),
+        "currency": quote.get("currency") or price.get("currency") or detail.get("currency"),
+        "market_cap": market_cap,
+        "market_cap_previous": int(market_cap / (1 + change_pct / 100)) if market_cap and change_pct > -99 else None,
+        "market_cap_change_pct": number(change_pct),
+        "shares_outstanding": quote.get("shares_outstanding") or yahoo_raw_value(stats.get("sharesOutstanding")),
+        "trailing_pe": quote.get("trailing_pe") or yahoo_raw_value(detail.get("trailingPE")) or yahoo_raw_value(stats.get("trailingPE")),
+        "forward_pe": quote.get("forward_pe") or yahoo_raw_value(stats.get("forwardPE")) or yahoo_raw_value(detail.get("forwardPE")),
         "eps_ttm": yahoo_raw_value(stats.get("trailingEps")) or yahoo_raw_value(financial.get("trailingEps")),
-        "regular_market_price": yahoo_raw_value(price.get("regularMarketPrice")),
-        "source": "Yahoo quoteSummary",
+        "regular_market_price": quote.get("price") or yahoo_raw_value(price.get("regularMarketPrice")),
+        "source": "Yahoo quote + quoteSummary",
     }
     VALUATION_CACHE[key] = (now, payload)
     return payload
@@ -1992,6 +2214,9 @@ def stock_valuation_payload(item: dict[str, Any], latest_price: float) -> dict[s
         "market_cap": int(live_market_cap or market_cap_usd),
         "market_cap_usd": market_cap_usd,
         "currency": currency.upper(),
+        "market_cap_previous": optional_number(fetched.get("market_cap_previous"), 0),
+        "market_cap_change_pct": optional_number(fetched.get("market_cap_change_pct")),
+        "shares_outstanding": optional_number(fetched.get("shares_outstanding"), 0),
         "trailing_pe": optional_number(fetched.get("trailing_pe")),
         "forward_pe": optional_number(fetched.get("forward_pe")),
         "eps_ttm": optional_number(fetched.get("eps_ttm")),
@@ -4085,11 +4310,3 @@ def optional_number(value: Any, digits: int = 2) -> float | None:
         return round(value, digits)
     except Exception:
         return None
-
-
-# Keep existing Render services that still launch `uvicorn app:app` on the
-# live OpenKiri overlay routes.
-try:
-    import openkiri_live as _openkiri_live  # noqa: F401
-except Exception as exc:
-    print(f"OpenKiri live overlay skipped: {exc}")

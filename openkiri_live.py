@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import math
-import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
-from threading import Thread
 from typing import Any
 
 import requests
@@ -19,10 +17,29 @@ app = base.app
 BASE_DIR = Path(__file__).resolve().parent
 ALERT_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 USD_TWD_CACHE: tuple[float, float] | None = None
-LIVE_BOOTED_AT = datetime.now(timezone.utc)
-BACKGROUND_WARMER_STARTED = False
-TWSE_QUOTE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-OPENKIRI_VERSION = "2026.07.11-tplus0"
+ANALYZE_CACHE: dict[tuple[str, str, str], tuple[float, dict[str, Any]]] = {}
+
+NEUTRAL_NEWS: dict[str, Any] = {
+    "query": "intraday-fast-mode",
+    "label": "neutral",
+    "score": 0,
+    "positive": 0,
+    "negative": 0,
+    "items": [],
+}
+
+NEUTRAL_EVENT_CONTEXT: dict[str, Any] = {
+    "risk_points": 0,
+    "confidence_penalty": 0,
+    "direction_edge": 0,
+    "summary": "Intraday fast mode skips slow earnings and macro lookups.",
+    "flags": [],
+    "earnings": [],
+    "macro": [],
+    "earnings_news": [],
+}
+
+NEUTRAL_MACRO: dict[str, Any] = {"label": "mixed", "items": {}}
 
 
 def remove_route(path: str, methods: set[str] | None = None) -> None:
@@ -37,40 +54,13 @@ for route_path in {"/", "/api/analyze", "/api/quote/{symbol}", "/api/movers"}:
     remove_route(route_path)
 
 
-@app.on_event("startup")
-def start_live_cache_warmer() -> None:
-    global BACKGROUND_WARMER_STARTED
-    if BACKGROUND_WARMER_STARTED:
-        return
-    BACKGROUND_WARMER_STARTED = True
-    Thread(target=warm_live_caches, name="openkiri-live-cache", daemon=True).start()
-
-
 @app.get("/", response_class=HTMLResponse)
 def home() -> HTMLResponse:
     html = (BASE_DIR / "templates" / "index.html").read_text(encoding="utf-8")
-    script = '<script src="/static/openkiri-live.js?v=20260711"></script>'
+    script = '<script src="/static/openkiri-live.js?v=20260709"></script>'
     if script not in html:
         html = html.replace("</body>", f"{script}\n</body>")
     return HTMLResponse(html)
-
-
-@app.get("/api/version")
-def version() -> dict[str, Any]:
-    return {
-        "ok": True,
-        "name": "OpenKiri",
-        "version": OPENKIRI_VERSION,
-        "render_commit": os.getenv("RENDER_GIT_COMMIT") or os.getenv("COMMIT_SHA") or "unknown",
-        "booted_at": LIVE_BOOTED_AT.isoformat(timespec="seconds"),
-        "routes": {
-            "alerts": True,
-            "live_5m_fallback": True,
-            "twse_tpex_quote_fallback": True,
-            "background_cache_warmer": BACKGROUND_WARMER_STARTED,
-        },
-        "source_note": "Quotes use Yahoo data first, with TWSE/TPEX official MIS fallback for Taiwan symbols when available.",
-    }
 
 
 @app.get("/api/analyze")
@@ -83,6 +73,13 @@ def analyze(
     raw = symbol.strip().upper()
     normalized, market = base.normalize_symbol(raw)
     requested_period, requested_interval = period, interval
+    fast_intraday = period in {"1d", "5d"} and interval in {"5m", "15m", "1h"}
+    cache_key = (normalized, period, interval)
+    now = time.time()
+    cached = ANALYZE_CACHE.get(cache_key)
+    if fast_intraday and cached and now - cached[0] < 10:
+        return cached[1]
+
     rows: list[dict[str, Any]] = []
     resolved = normalized
 
@@ -100,12 +97,17 @@ def analyze(
     rows = base.calculate_indicators(rows)
     latest, previous = rows[-1], rows[-2]
     levels = base.support_resistance(rows)
-    news = base.fetch_news(resolved, market)
-    event_context = base.build_event_context(resolved, market, news)
+    if fast_intraday:
+        news = dict(NEUTRAL_NEWS)
+        event_context = dict(NEUTRAL_EVENT_CONTEXT)
+        macro = dict(NEUTRAL_MACRO)
+    else:
+        news = base.fetch_news(resolved, market)
+        event_context = base.build_event_context(resolved, market, news)
+        macro = base.fetch_macro_snapshot()
     risk = base.build_risk(latest, levels, news, event_context)
     suitability = base.build_suitability(latest, risk, news)
     prediction = base.build_prediction(rows, latest, risk, news, event_context)
-    macro = base.fetch_macro_snapshot()
     visible_rows = rows[-180:]
     chart_math = base.build_chart_math(visible_rows, latest, risk, prediction)
     design_signals = base.build_design_signals(resolved, market, rows, latest, levels, risk, prediction, news, macro)
@@ -123,6 +125,7 @@ def analyze(
         "requested_period": requested_period,
         "requested_interval": requested_interval,
         "data_fallback": period != requested_period or interval != requested_interval,
+        "fast_intraday": fast_intraday,
         "latest": {
             "date": latest["date_label"],
             "open": base.number(latest["open"]),
@@ -148,7 +151,10 @@ def analyze(
         "valuation": valuation,
         "chart": base.build_chart_rows(visible_rows, market),
     }
-    base.save_log(raw, resolved, market, response)
+    if fast_intraday:
+        ANALYZE_CACHE[cache_key] = (now, response)
+    else:
+        base.save_log(raw, resolved, market, response)
     return response
 
 
@@ -190,15 +196,12 @@ def movers(
         "ok": True,
         "mode": mode,
         "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "ttl_seconds": ttl,
-        "cache": "request cache + startup background warmer",
         "markets": sorted(selected),
         "scanned": len(rows),
         "gainers": rows[:limit],
         "losers": sorted(rows, key=lambda row: row["change_pct"])[:limit],
         "long_candidates": sorted([r for r in rows if r["model_score"] > 0], key=lambda r: r["model_score"], reverse=True)[:limit],
         "short_candidates": sorted([r for r in rows if r["model_score"] < 0], key=lambda r: r["model_score"])[:limit],
-        "model_note": "Long/short labels are screening posture only, not trade instructions.",
     }
     base.MOVERS_CACHE[cache_key] = (now_ts, payload)
     return payload
@@ -231,7 +234,6 @@ def alerts(markets: str = Query("TW", max_length=16), limit: int = Query(8, ge=3
         "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "items": pool[:limit],
         "model": "5m MA cross + moving-average topology + live quote pulse",
-        "disclaimer": "Signals are watch-list alerts, not investment advice or direct entry orders.",
     }
     ALERT_CACHE[cache_key] = (now, payload)
     return payload
@@ -297,81 +299,6 @@ def market_cap_fallback(symbol: str, market: str, live_price: float | None, curr
     return None, resolved_currency, shares, valuation.get("source"), valuation
 
 
-def twse_channel(symbol: str) -> str | None:
-    value = symbol.strip().upper()
-    if value.endswith(".TWO"):
-        digits = value[:-4]
-        return f"otc_{digits}.tw" if digits.isdigit() else None
-    if value.endswith(".TW"):
-        digits = value[:-3]
-        return f"tse_{digits}.tw" if digits.isdigit() else None
-    if value.isdigit() and 4 <= len(value) <= 6:
-        return f"tse_{value}.tw"
-    return None
-
-
-def twse_number(value: Any) -> float | None:
-    if value in (None, "", "-", "--"):
-        return None
-    try:
-        return float(str(value).replace(",", ""))
-    except Exception:
-        return None
-
-
-def fetch_twse_quote_snapshot(symbol: str) -> dict[str, Any]:
-    channel = twse_channel(symbol)
-    if not channel:
-        return {}
-    now = time.time()
-    cached = TWSE_QUOTE_CACHE.get(channel)
-    if cached and now - cached[0] < 5:
-        return cached[1]
-    try:
-        resp = requests.get(
-            "https://mis.twse.com.tw/stock/api/getStockInfo.jsp",
-            params={"ex_ch": channel, "json": "1", "delay": "0", "_": int(now * 1000)},
-            headers={
-                "User-Agent": "Mozilla/5.0 OpenKiri/4.9",
-                "Referer": "https://mis.twse.com.tw/stock/fibest.jsp",
-            },
-            timeout=6,
-        )
-        resp.raise_for_status()
-        row = ((resp.json().get("msgArray") or [None])[0] or {})
-        price = twse_number(row.get("z"))
-        previous = twse_number(row.get("y"))
-        if price is None:
-            bids = [twse_number(x) for x in str(row.get("b") or "").split("_")]
-            asks = [twse_number(x) for x in str(row.get("a") or "").split("_")]
-            prices = [x for x in bids + asks if x]
-            price = sum(prices) / len(prices) if prices else previous
-        if price is None:
-            return {}
-        change = price - previous if previous else None
-        pct = (change / previous * 100) if previous and change is not None else None
-        volume = twse_number(row.get("v"))
-        date_text = " ".join(part for part in [row.get("d"), row.get("t")] if part)
-        payload = {
-            "symbol": symbol,
-            "currency": "TWD",
-            "price": base.optional_number(price),
-            "open": base.optional_number(twse_number(row.get("o"))),
-            "high": base.optional_number(twse_number(row.get("h"))),
-            "low": base.optional_number(twse_number(row.get("l"))),
-            "change": base.optional_number(change),
-            "change_pct": base.optional_number(pct),
-            "volume": int(volume * 1000) if volume else None,
-            "date": date_text,
-            "market_state": "TWSE/TPEX",
-            "source": "TWSE/TPEX official MIS",
-        }
-        TWSE_QUOTE_CACHE[channel] = (now, payload)
-        return payload
-    except Exception:
-        return {}
-
-
 def fetch_yahoo_quote_snapshot(symbol: str) -> dict[str, Any]:
     try:
         resp = requests.get(
@@ -425,11 +352,7 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
     tried: list[str] = []
     for candidate in base.candidate_symbols(normalized, raw):
         tried.append(candidate)
-        official_snapshot = fetch_twse_quote_snapshot(candidate) if market == "TW" else {}
-        yahoo_snapshot = fetch_yahoo_quote_snapshot(candidate)
-        snapshot = yahoo_snapshot
-        if official_snapshot:
-            snapshot = {**yahoo_snapshot, **{k: v for k, v in official_snapshot.items() if v not in (None, "", 0)}}
+        snapshot = fetch_yahoo_quote_snapshot(candidate)
         intraday_rows = base.fetch_price_history(candidate, "1d", "1m")
         source = "1d/1m"
         if not intraday_rows:
@@ -473,8 +396,7 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
         avg_volume = base.mean([row["volume"] for row in rows[-20:-1] if row.get("volume") is not None]) if len(rows) >= 2 else 0
         volume_ratio = latest["volume"] / avg_volume if avg_volume else 1
         cap_previous = int(live_market_cap / (1 + change_pct / 100)) if live_market_cap and change_pct > -99 else None
-        quote_source = snapshot.get("source") or "Yahoo quote live"
-        source_label = f"{quote_source} + " + (source if intraday_rows else "5d/1d fallback") if snapshot else source if intraday_rows else "5d/1d fallback"
+        source_label = "Yahoo quote live + " + (source if intraday_rows else "5d/1d fallback") if snapshot else source if intraday_rows else "5d/1d fallback"
         if cap_source and cap_source not in source_label:
             source_label += f" + {cap_source}"
         payload = {
@@ -509,10 +431,6 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
 
 def improve_valuation_with_quote(symbol: str, market: str, valuation: dict[str, Any]) -> dict[str, Any]:
     quote = fetch_yahoo_quote_snapshot(symbol)
-    if market == "TW":
-        official = fetch_twse_quote_snapshot(symbol)
-        if official:
-            quote = {**quote, **{k: v for k, v in official.items() if v not in (None, "", 0)}}
     live_price = quote.get("price") or valuation.get("price")
     currency = quote.get("currency") or valuation.get("currency") or ("TWD" if market == "TW" else "USD")
     cap = base.optional_number(quote.get("market_cap"), 0)
@@ -555,25 +473,6 @@ def daytrade_mover_score(row: dict[str, Any]) -> float:
     return base.number(score, 2)
 
 
-def warm_live_caches() -> None:
-    time.sleep(6)
-    jobs = [
-        lambda: movers("TW", 6, "live"),
-        lambda: movers("US", 6, "live"),
-        lambda: movers("US,TW", 6, "live"),
-        lambda: alerts("TW", 10),
-        lambda: alerts("US,TW", 10),
-    ]
-    while True:
-        for job in jobs:
-            try:
-                job()
-            except Exception:
-                pass
-            time.sleep(2)
-        time.sleep(18)
-
-
 def stock_alert_signal(item: dict[str, Any]) -> dict[str, Any] | None:
     rows = base.fetch_price_history(item["symbol"], "5d", "5m")
     interval = "5m"
@@ -612,20 +511,20 @@ def stock_alert_signal(item: dict[str, Any]) -> dict[str, Any] | None:
         action = "偏空分類：適合觀察轉弱或避開追高。"
     if not kind:
         return None
-    clean_titles = {
-        "golden_cross": "黃金交叉觀察",
-        "death_cross": "死亡交叉警戒",
-        "bullish_continuation": "偏多延續",
-        "bearish_continuation": "偏空延續",
+    clean_copy = {
+        "golden_cross": ("黃金交叉", "偏多觀察：先確認價格站穩 MA20/MA25，量能同步放大再考慮。"),
+        "death_cross": ("死亡交叉", "偏空警示：避免追價，等重新站回短均或賣壓縮小再評估。"),
+        "bullish_continuation": ("多頭延續", "偏多候選：留意回測均線不破與成交量是否延續。"),
+        "bearish_continuation": ("空頭延續", "偏空候選：留意反彈無力與跌破日內支撐。"),
     }
-    clean_actions = {
-        "golden_cross": "偏多觀察：短均線重新站上長均線，先確認量能與是否守住 MA20/MA25。",
-        "death_cross": "偏空警戒：短均線跌破長均線，先觀察是否有反彈失敗或放量賣壓。",
-        "bullish_continuation": "偏多分類：可放入 T+0 觀察名單，但不等於直接買進。",
-        "bearish_continuation": "偏空分類：先視為風險名單，觀察是否站回均線或賣壓減弱。",
+    title, action = clean_copy.get(kind, (title, action))
+    ascii_safe_copy = {
+        "golden_cross": ("\u9ec3\u91d1\u4ea4\u53c9", "\u504f\u591a\u89c0\u5bdf\uff1a\u5148\u78ba\u8a8d\u50f9\u683c\u7ad9\u7a69 MA20/MA25\uff0c\u91cf\u80fd\u540c\u6b65\u653e\u5927\u518d\u8003\u616e\u3002"),
+        "death_cross": ("\u6b7b\u4ea1\u4ea4\u53c9", "\u504f\u7a7a\u8b66\u793a\uff1a\u907f\u514d\u8ffd\u50f9\uff0c\u7b49\u91cd\u65b0\u7ad9\u56de\u77ed\u5747\u6216\u8ce3\u58d3\u7e2e\u5c0f\u518d\u8a55\u4f30\u3002"),
+        "bullish_continuation": ("\u591a\u982d\u5ef6\u7e8c", "\u504f\u591a\u5019\u9078\uff1a\u7559\u610f\u56de\u6e2c\u5747\u7dda\u4e0d\u7834\u8207\u6210\u4ea4\u91cf\u662f\u5426\u5ef6\u7e8c\u3002"),
+        "bearish_continuation": ("\u7a7a\u982d\u5ef6\u7e8c", "\u504f\u7a7a\u5019\u9078\uff1a\u7559\u610f\u53cd\u5f48\u7121\u529b\u8207\u8dcc\u7834\u65e5\u5167\u652f\u6490\u3002"),
     }
-    title = clean_titles.get(kind, title)
-    action = clean_actions.get(kind, action)
+    title, action = ascii_safe_copy.get(kind, (title, action))
     return {
         "symbol": item["symbol"],
         "name": item.get("name"),
@@ -635,8 +534,6 @@ def stock_alert_signal(item: dict[str, Any]) -> dict[str, Any] | None:
         "action": action,
         "score": score,
         "priority": priority,
-        "severity": "high" if priority >= 4 else "medium",
-        "tone": "bullish" if kind in {"golden_cross", "bullish_continuation"} else "bearish",
         "interval": interval,
         "bars_since_cross": bars,
         "price": base.number(latest["close"]),

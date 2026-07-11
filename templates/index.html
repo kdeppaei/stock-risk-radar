@@ -118,8 +118,17 @@
     .event-date span { display: block; }
     .event-date span, .event-card small { color: var(--muted); font-size: 12px; }
     .event-card p { margin: 6px 0 0; color: #dbeafe; font-size: 13px; line-height: 1.4; }
+    .alert-bell { position: relative; width: 46px; min-width: 46px; padding: 0; font-size: 20px; }
+    .alert-count { position: absolute; top: -7px; right: -7px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--red); color: white; font-size: 11px; display: grid; place-items: center; }
+    .alert-drawer { display: none; position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: min(420px, calc(100vw - 28px)); max-height: 420px; overflow-y: auto; background: #0f172f; border: 1px solid var(--line); border-radius: 8px; padding: 10px; box-shadow: 0 18px 45px rgba(0,0,0,.34); }
+    .alert-drawer.open { display: grid; gap: 8px; }
+    .alert-item { display: grid; gap: 5px; border: 1px solid var(--line); border-radius: 7px; padding: 9px; background: var(--card); cursor: pointer; }
+    .alert-item.good { border-color: rgba(34,197,94,.5); }
+    .alert-item.bad { border-color: rgba(239,68,68,.5); }
+    .alert-item small { color: var(--muted); }
+    .alert-shell { position: relative; }
     .mover-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
-    .mover-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: end; margin: 12px 0; }
+    .mover-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 10px; align-items: end; margin: 12px 0; }
     .mover-tools label { min-width: 180px; }
     .mover-column { background: #0f172f; border: 1px solid var(--line); border-radius: 7px; padding: 10px; min-width: 0; }
     .mover-list { display: grid; gap: 7px; margin-top: 8px; }
@@ -448,6 +457,10 @@
           <button class="secondary" type="button" data-lang="zh-tw">繁體</button>
           <button class="secondary" type="button" data-lang="zh-cn">简体</button>
           <button class="secondary" type="button" data-lang="en">English</button>
+          <div class="alert-shell">
+            <button id="alertBellBtn" class="secondary alert-bell" type="button" title="Alerts">🔔<span id="alertCount" class="alert-count">0</span></button>
+            <div id="alertDrawer" class="alert-drawer"></div>
+          </div>
         </div>
         <form id="form" class="search">
           <input id="symbol" value="2330" autocomplete="off" />
@@ -528,6 +541,7 @@
                 <small>Intraday Execution Desk</small>
               </div>
               <div class="desk-actions">
+                <label><span class="muted" data-reco-i18n="marketSwitch">市場</span><select id="dtMarketMode"><option value="TW">台股</option><option value="US">美股</option><option value="US,TW">台美</option></select></label>
                 <button id="dtRefreshBtn" type="button" data-reco-i18n="daytradeRefresh">刷新 T+0</button>
                 <button id="dtAddCurrentBtn" class="secondary" type="button" data-reco-i18n="daytradeAddCurrent">加入目前股票</button>
               </div>
@@ -548,6 +562,16 @@
                     <tbody id="dtPulseBody"></tbody>
                   </table>
                 </div>
+              </div>
+              <div class="desk-panel">
+                <div class="section-head">
+                  <div>
+                    <h3 data-reco-i18n="dtModelTitle">T+0 模型多空分類</h3>
+                    <p class="explain" id="dtModelMeta">-</p>
+                  </div>
+                  <span class="desk-chip good" id="dtModelCadence">8s</span>
+                </div>
+                <div id="dtModelBoard" class="mover-board"></div>
               </div>
               <div class="desk-panel">
                 <h3 data-reco-i18n="costRadarTitle">當沖成本雷達 Break-even Radar</h3>
@@ -584,7 +608,7 @@
                 </div>
                 <div class="desk-scroll">
                   <table class="desk-table">
-                    <thead><tr><th data-reco-i18n="dtProduct">商品</th><th data-reco-i18n="dtLast">成交</th><th data-reco-i18n="dtChange">漲跌</th><th data-reco-i18n="dtChangePct">幅度</th><th data-reco-i18n="dtVolumeRatio">量比</th><th data-reco-i18n="dtRangePos">日內高低位置</th><th data-reco-i18n="dtHeat">當沖熱度</th></tr></thead>
+                    <thead><tr><th data-reco-i18n="dtProduct">商品</th><th data-reco-i18n="dtLast">成交</th><th data-reco-i18n="dtMarketCap">市值</th><th data-reco-i18n="dtChange">漲跌</th><th data-reco-i18n="dtChangePct">幅度</th><th data-reco-i18n="dtVolumeRatio">量比</th><th data-reco-i18n="dtRangePos">日內高低位置</th><th data-reco-i18n="dtHeat">當沖熱度</th></tr></thead>
                     <tbody id="dtQuoteBody"></tbody>
                   </table>
                 </div>
@@ -617,6 +641,7 @@
               <h3 data-reco-i18n="moversTitle">即時漲跌報牌</h3>
               <p class="explain" id="moverMeta">-</p>
             </div>
+            <label><span class="muted" data-reco-i18n="marketSwitch">市場</span><select id="moverMarkets"><option value="US,TW">台美</option><option value="TW">台股</option><option value="US">美股</option></select></label>
             <label><span class="muted" data-reco-i18n="moverMode">報牌模式</span><select id="moverMode"><option value="recent" data-reco-i18n="moverRecent">近期 5 日</option><option value="live" data-reco-i18n="moverLive">即時動態</option></select></label>
             <button id="moverRefreshBtn" type="button" class="secondary" data-reco-i18n="moverRefresh">刷新報牌</button>
           </div>
@@ -931,6 +956,7 @@
     let screenerOptionsData = null;
     let screenerData = null;
     let moversData = null;
+    let alertData = null;
     let eventAlertsData = null;
     let serenityData = null;
     let serenityRecentData = null;
@@ -948,6 +974,7 @@
     let forumPosts = [];
     let chatOpen = false;
     let daytradeSymbols = JSON.parse(localStorage.getItem("okiri.daytradeSymbols") || '["2330","2317","2454","3481","2409","2002","1101","2303","2881","0050","006208"]');
+    let daytradeMarketMode = localStorage.getItem("okiri.daytradeMarket") || "TW";
     let daytradeQuoteTimer = null;
     let daytradeAnalyzeTimer = null;
     let daytradeLastPrices = {};
@@ -1048,7 +1075,7 @@
       shortcutScreenerTab: "開啟篩選", shortcutNews: "開啟要聞", shortcutSerenity: "開啟 Serenity", shortcutForum: "開啟討論", shortcutPortfolio: "開啟組合", shortcutHelp: "開啟說明",
       shortcutRefresh: "刷新推薦", shortcutScreener: "執行股票篩選", shortcutWatch: "加入關注",
       moversTitle: "即時漲跌報牌", gainers: "正在漲", losers: "正在跌", moversHint: "以 1d/5m 或近 5 日資料估算，依 Yahoo chart 更新。",
-      moverMode: "報牌模式", moverRecent: "近期 5 日", moverLive: "即時動態", moverRefresh: "刷新報牌", moverLiveHint: "即時模式約 8 秒刷新；Yahoo 有新 5 分鐘 bar 才會變動。", moverRecentHint: "預設比較近 5 日漲跌，較適合看最近資金方向。",
+      moverMode: "報牌模式", moverRecent: "近期 5 日", moverLive: "即時動態", moverRefresh: "刷新報牌", moverLiveHint: "即時模式約 8 秒刷新；Yahoo 有新 5 分鐘 bar 才會變動。", moverRecentHint: "預設比較近 5 日漲跌，較適合看最近資金方向。", marketSwitch: "市場", marketBoth: "台美", marketTWOnly: "台股", marketUSOnly: "美股", dtModelTitle: "T+0 模型多空分類", dtLong: "偏做多", dtShort: "偏做空", alertTitle: "重大訊號",
       relatedType: "關係", relatedStrength: "相關性", relatedStructure: "結構", noRelated: "暫無關聯標的",
       eventTitle: "重大日期提醒", eventHint: "總經/央行抓未來 45 日；目前股票財報盡量抓未來 90 日。來源抓不到時會標註為新聞線索。",
       eventEmpty: "近期沒有找到重大事件或財報日期", eventLoading: "讀取事件提醒中", eventMacro: "總經/央行", eventEarnings: "財報", eventNewsWatch: "新聞線索", eventDaysLeft: "天後", eventToday: "今天",
@@ -1099,7 +1126,7 @@
       shortcutScreenerTab: "开启筛选", shortcutNews: "开启要闻", shortcutSerenity: "开启 Serenity", shortcutForum: "开启讨论", shortcutPortfolio: "开启组合", shortcutHelp: "开启说明",
       shortcutRefresh: "刷新推荐", shortcutScreener: "执行股票筛选", shortcutWatch: "加入关注",
       moversTitle: "即时涨跌报价", gainers: "正在涨", losers: "正在跌", moversHint: "以 1d/5m 或近 5 日资料估算，按 Yahoo chart 更新。",
-      moverMode: "报价模式", moverRecent: "近期 5 日", moverLive: "即时动态", moverRefresh: "刷新报价", moverLiveHint: "即时模式约 8 秒刷新；Yahoo 有新 5 分钟 bar 才会变动。", moverRecentHint: "默认比较近 5 日涨跌，较适合看最近资金方向。",
+      moverMode: "报价模式", moverRecent: "近期 5 日", moverLive: "即时动态", moverRefresh: "刷新报价", moverLiveHint: "即时模式约 8 秒刷新；Yahoo 有新 5 分钟 bar 才会变动。", moverRecentHint: "默认比较近 5 日涨跌，较适合看最近资金方向。", marketSwitch: "市场", marketBoth: "台美", marketTWOnly: "台股", marketUSOnly: "美股", dtModelTitle: "T+0 模型多空分类", dtLong: "偏做多", dtShort: "偏做空", alertTitle: "重大信号",
       relatedType: "关系", relatedStrength: "相关性", relatedStructure: "结构", noRelated: "暂无关联标的",
       eventTitle: "重大日期提醒", eventHint: "总经/央行抓未来 45 日；目前股票财报尽量抓未来 90 日。来源抓不到时会标注为新闻线索。",
       eventEmpty: "近期没有找到重大事件或财报日期", eventLoading: "读取事件提醒中", eventMacro: "总经/央行", eventEarnings: "财报", eventNewsWatch: "新闻线索", eventDaysLeft: "天后", eventToday: "今天",
@@ -1143,7 +1170,7 @@
       forumPlaceholder: "Add intraday notes, links, or reminders. Enter posts, Shift+Enter adds a line.",
       shortcutScreenerTab: "Open screener", shortcutSerenity: "Open Serenity", shortcutPortfolio: "Open portfolio",
       moversTitle: "Live Movers", gainers: "Rising", losers: "Falling", moversHint: "Uses 1d/5m or recent 5-day Yahoo chart data.",
-      moverMode: "Mover mode", moverRecent: "Recent 5D", moverLive: "Live pulse", moverRefresh: "Refresh movers", moverLiveHint: "Live pulse refreshes about every 8 seconds; values change when Yahoo has a new 5-minute bar.", moverRecentHint: "Default view compares recent 5-day moves to show short-term capital direction.",
+      moverMode: "Mover mode", moverRecent: "Recent 5D", moverLive: "Live pulse", moverRefresh: "Refresh movers", moverLiveHint: "Live pulse refreshes about every 8 seconds; values change when Yahoo has a new 5-minute bar.", moverRecentHint: "Default view compares recent 5-day moves to show short-term capital direction.", marketSwitch: "Market", marketBoth: "TW + US", marketTWOnly: "Taiwan", marketUSOnly: "US", dtModelTitle: "T+0 long/short model", dtLong: "Long bias", dtShort: "Short bias", alertTitle: "Major signals",
       relatedType: "Type", relatedStrength: "Correlation", relatedStructure: "Structure", noRelated: "No related assets yet",
       eventTitle: "Major Date Alerts", eventHint: "Macro/central-bank events cover the next 45 days; current-stock earnings are checked up to 90 days. If structured data is unavailable, items are marked as news leads.",
       eventEmpty: "No major event or earnings date found nearby", eventLoading: "Loading event alerts", eventMacro: "Macro/Central Bank", eventEarnings: "Earnings", eventNewsWatch: "News lead", eventDaysLeft: "days", eventToday: "Today",
@@ -1175,6 +1202,19 @@
       serenityRecentLoading: "Loading recent Serenity list", serenityRecentEmpty: "No recent candidates yet", serenityRecentMeta: "Public proxy refresh", serenityRank: "Rank", serenityPublicProxy: "Public proxy",
       serenityExpand: "Expand list", serenityCollapse: "Collapse list", serenityIntelTitle: "Serenity Public Intel Collector", serenityIntelHint: "Reads GitHub/Capafy static pages and public RSS, extracts tickers, sources and the data pipeline. No login or cookie bypass.",
       serenityIntelRefresh: "Collect public intel", serenityIntelLoading: "Collecting public intel", serenityIntelEmpty: "No public intel yet", serenityIntelMeta: "Public intel", serenityDetected: "Detected stocks", serenitySources: "Sources", serenityPipeline: "System logic"
+    });
+
+    Object.assign(recoCopy["zh-tw"], {
+      daytradeTitle: "T+0 台美日內戰情室", quoteBoardTitle: "台美日內報價榜 Quote Board", marketSwitch: "市場", marketBoth: "台美", marketTWOnly: "台股", marketUSOnly: "美股",
+      dtMarketCap: "市值", dtModelTitle: "T+0 模型多空分類", dtLong: "偏做多", dtShort: "偏做空", dtScanned: "掃描", alertTitle: "當日重大訊號", noAlerts: "目前沒有重大交叉訊號"
+    });
+    Object.assign(recoCopy["zh-cn"], {
+      daytradeTitle: "T+0 台美日内战情室", quoteBoardTitle: "台美日内报价榜 Quote Board", marketSwitch: "市场", marketBoth: "台美", marketTWOnly: "台股", marketUSOnly: "美股",
+      dtMarketCap: "市值", dtModelTitle: "T+0 模型多空分类", dtLong: "偏做多", dtShort: "偏做空", dtScanned: "扫描", alertTitle: "当日重大信号", noAlerts: "目前没有重大交叉信号"
+    });
+    Object.assign(recoCopy.en, {
+      daytradeTitle: "T+0 TW/US Intraday Desk", quoteBoardTitle: "TW/US Quote Board", marketSwitch: "Market", marketBoth: "TW + US", marketTWOnly: "Taiwan", marketUSOnly: "US",
+      dtMarketCap: "Mkt cap", dtModelTitle: "T+0 long/short model", dtLong: "Long bias", dtShort: "Short bias", dtScanned: "Scanned", alertTitle: "Major signals", noAlerts: "No major cross signal right now"
     });
 
     Object.assign(recoCopy["zh-tw"], {
@@ -1362,7 +1402,7 @@
         periodHelpTitle: "Today / Day / Week 是什麼", refreshHelpTitle: "動態追蹤",
         periodHelp: "Today=當日 5 分鐘線，適合看盤中變化；Day=每日 K 線，適合看波段；Week=每週 K 線，適合看長線大方向。",
         refreshHelp: "頁面開著時時間每秒跳動，股價每 10 秒輪詢；Today 模式每 30 秒補新的 5 分鐘線。",
-        chartHint: "點擊 K 線圖可開啟 Google Finance；觀察標記是條件式參考訊號。",
+        chartHint: "點擊 K 線圖可開啟 Google Finance；BUY 是條件式參考訊號。",
         scoreHelp: "括弧內數字是 0-100 分適合度：70 以上較適合，50-69 觀察，低於 50 先避開。",
         marketTW: "台股：漲紅跌綠", marketUS: "美股：漲綠跌紅", noWatch: "尚未加入關注股票",
         bullish: "偏多", bearish: "偏空", neutral: "中性", sideways: "盤整", "risk-on": "偏樂觀", "risk-off": "偏保守", mixed: "混合",
@@ -1382,7 +1422,7 @@
         periodHelpTitle: "Today / Day / Week 是什么", refreshHelpTitle: "动态追踪",
         periodHelp: "Today=当日5分钟线，适合看盘中变化；Day=每日K线，适合看波段；Week=每周K线，适合看长线方向。",
         refreshHelp: "页面开着时时间每秒跳动，股价每10秒轮询；Today模式每30秒补新的5分钟线。",
-        chartHint: "点击K线图可开启 Google Finance；观察标记是条件式参考信号。",
+        chartHint: "点击K线图可开启 Google Finance；BUY 是条件式参考信号。",
         scoreHelp: "括号内数字是0-100分适合度：70以上较适合，50-69观察，低于50先避开。",
         marketTW: "台股：涨红跌绿", marketUS: "美股：涨绿跌红", noWatch: "尚未加入关注股票",
         bullish: "偏多", bearish: "偏空", neutral: "中性", sideways: "盘整", "risk-on": "偏乐观", "risk-off": "偏保守", mixed: "混合",
@@ -1402,7 +1442,7 @@
         periodHelpTitle: "What Today / Day / Week Mean", refreshHelpTitle: "Live Tracking",
         periodHelp: "Today uses 5-minute candles for intraday tracking. Day uses daily candles for swing analysis. Week uses weekly candles for long-term direction.",
         refreshHelp: "While the page is open, clocks tick every second, quotes poll every 10 seconds, and Today mode refreshes 5-minute candles every 30 seconds.",
-        chartHint: "Click the candle chart to open Google Finance. Watch markers are conditional reference signals.",
+        chartHint: "Click the candle chart to open Google Finance. BUY markers are conditional reference signals.",
         scoreHelp: "Numbers in brackets are 0-100 suitability scores: 70+ suitable, 50-69 watch, below 50 avoid.",
         marketTW: "Taiwan: up red / down green", marketUS: "US: up green / down red", noWatch: "No watched symbols yet",
         bullish: "Bullish", bearish: "Bearish", neutral: "Neutral", sideways: "Sideways", "risk-on": "Risk-on", "risk-off": "Risk-off", mixed: "Mixed",
@@ -1425,7 +1465,7 @@
         ma20: "MA20 黃線：短中期成本區，跌破後常代表賣壓變重。",
         ma60: "MA60 紫線：中期趨勢與主力成本區，越陡代表趨勢越明顯。",
         volume: "Volume 成交量：越高表示分歧或資金動能越大，需搭配價格方向判讀。",
-        buy: "觀察標記：條件式觀察點，不是保證買點；用於提醒站回均線、回測或量價條件。",
+        buy: "BUY 標記：條件式觀察點，不是保證買點；用於提醒站回均線、回測或量價條件。",
         cross: "交叉標記：MA20 下穿 MA60 為死亡交叉；上穿為黃金交叉。",
         chartDecision: "圖表判讀",
         model: "模型",
@@ -1459,7 +1499,7 @@
         ma20: "MA20 黄线：短中期成本区，跌破后常代表卖压变重。",
         ma60: "MA60 紫线：中期趋势与主力成本区，越陡代表趋势越明显。",
         volume: "Volume 成交量：越高表示分歧或资金动能越大，需搭配价格方向判读。",
-        buy: "观察标记：条件式观察点，不是保证买点；用于提醒站回均线、回测或量价条件。",
+        buy: "BUY 标记：条件式观察点，不是保证买点；用于提醒站回均线、回测或量价条件。",
         cross: "交叉标记：MA20 下穿 MA60 为死亡交叉；上穿为黄金交叉。",
         chartDecision: "图表判读",
         model: "模型",
@@ -1493,7 +1533,7 @@
         ma20: "MA20 yellow: short/mid cost zone; losing it often means heavier selling pressure.",
         ma60: "MA60 purple: mid-term trend and main cost zone.",
         volume: "Volume: higher bars mean stronger disagreement or capital flow; read with price direction.",
-        buy: "Watch markers: conditional watch points, not guaranteed entries.",
+        buy: "BUY markers: conditional watch points, not guaranteed entries.",
         cross: "Cross markers: MA20 below MA60 is a death cross; MA20 above MA60 is a golden cross.",
         chartDecision: "Chart Read",
         model: "Model",
@@ -1527,7 +1567,7 @@
         "zh-tw": {
           ma25: "MA25 黃線：BNF 常看的 25 日成本線，用來觀察短線乖離與回檔壓力。",
           bias25: "25 日乖離率：股價離 MA25 越遠，短線越容易出現回檔或反彈。",
-          layerMA5: "MA5", layerMA20: "MA20", layerMA25: "MA25", layerMA60: "MA60", layerVolume: "成交量", layerCrosses: "交叉", layerBuys: "觀察", layerBias25: "25 日乖離",
+          layerMA5: "MA5", layerMA20: "MA20", layerMA25: "MA25", layerMA60: "MA60", layerVolume: "成交量", layerCrosses: "交叉", layerBuys: "BUY", layerBias25: "25 日乖離",
           biasTitle: "BNF 25 日均線乖離率", biasNeutral: "貼近 MA25，短線沒有明顯過熱或過冷。",
           biasHot: "正乖離偏大，短線追價風險升高，留意賣壓或回檔。",
           biasWarm: "正乖離擴大，偏多但不宜忽略回檔風險。",
@@ -1538,7 +1578,7 @@
         "zh-cn": {
           ma25: "MA25 黄线：BNF 常看的 25 日成本线，用来观察短线乖离与回档压力。",
           bias25: "25 日乖离率：股价离 MA25 越远，短线越容易出现回档或反弹。",
-          layerMA5: "MA5", layerMA20: "MA20", layerMA25: "MA25", layerMA60: "MA60", layerVolume: "成交量", layerCrosses: "交叉", layerBuys: "观察", layerBias25: "25 日乖离",
+          layerMA5: "MA5", layerMA20: "MA20", layerMA25: "MA25", layerMA60: "MA60", layerVolume: "成交量", layerCrosses: "交叉", layerBuys: "BUY", layerBias25: "25 日乖离",
           biasTitle: "BNF 25 日均线乖离率", biasNeutral: "贴近 MA25，短线没有明显过热或过冷。",
           biasHot: "正乖离偏大，短线追价风险升高，留意卖压或回档。",
           biasWarm: "正乖离扩大，偏多但不宜忽略回档风险。",
@@ -1549,7 +1589,7 @@
         en: {
           ma25: "MA25: a BNF-style 25-day cost line for short-term distance and pullback risk.",
           bias25: "25-day deviation: the farther price moves from MA25, the higher the mean-reversion risk.",
-          layerMA5: "MA5", layerMA20: "MA20", layerMA25: "MA25", layerMA60: "MA60", layerVolume: "Volume", layerCrosses: "Crosses", layerBuys: "WATCH", layerBias25: "25D bias",
+          layerMA5: "MA5", layerMA20: "MA20", layerMA25: "MA25", layerMA60: "MA60", layerVolume: "Volume", layerCrosses: "Crosses", layerBuys: "BUY", layerBias25: "25D bias",
           biasTitle: "BNF 25-day MA deviation", biasNeutral: "Price is close to MA25; no strong short-term stretch.",
           biasHot: "Positive deviation is large; chase risk and pullback pressure are elevated.",
           biasWarm: "Positive deviation is expanding; trend is constructive but pullback risk matters.",
@@ -1572,7 +1612,7 @@
       periodHelpTitle: "Today / Day / Week 用途", refreshHelpTitle: "即時追蹤",
       periodHelp: "Today 使用 5 分 K 追蹤盤中；Day 使用日 K 看波段；Week 使用週 K 看長期方向。",
       refreshHelp: "頁面開著時，時間每秒跳動、目前股票報價約每 10 秒更新，Today 模式約每 30 秒重抓 5 分 K。",
-      chartHint: "點 K 線圖可另外開啟 Google Finance；觀察標記是條件式參考訊號，不是保證買點。",
+      chartHint: "點 K 線圖可另外開啟 Google Finance；BUY 是條件式參考訊號，不是保證買點。",
       scoreHelp: "括弧數字是 0-100 適合度分數：70 以上較適合，50-69 觀察，低於 50 避開或等待。",
       marketTW: "台股：漲紅 / 跌綠", marketUS: "美股：漲綠 / 跌紅", noWatch: "尚未加入關注股票",
       bullish: "偏多", bearish: "偏空", neutral: "中性", sideways: "盤整", "risk-on": "風險偏好", "risk-off": "避險", mixed: "混合",
@@ -1596,7 +1636,7 @@
       periodHelpTitle: "Today / Day / Week 用途", refreshHelpTitle: "即时追踪",
       periodHelp: "Today 使用 5 分 K 追踪盘中；Day 使用日 K 看波段；Week 使用周 K 看长期方向。",
       refreshHelp: "页面开着时，时间每秒跳动、目前股票报价约每 10 秒更新，Today 模式约每 30 秒重抓 5 分 K。",
-      chartHint: "点 K 线图可另外开启 Google Finance；观察标记是条件式参考信号，不是保证买点。",
+      chartHint: "点 K 线图可另外开启 Google Finance；BUY 是条件式参考信号，不是保证买点。",
       scoreHelp: "括号数字是 0-100 适合度分数：70 以上较适合，50-69 观察，低于 50 避开或等待。",
       marketTW: "台股：涨红 / 跌绿", marketUS: "美股：涨绿 / 跌红", noWatch: "尚未加入关注股票",
       bullish: "偏多", bearish: "偏空", neutral: "中性", sideways: "盘整", "risk-on": "风险偏好", "risk-off": "避险", mixed: "混合",
@@ -1638,6 +1678,8 @@
     $("recoRefreshBtn").addEventListener("click", () => loadRecommendations());
     $("moverRefreshBtn").addEventListener("click", () => loadMovers());
     $("moverMode").addEventListener("change", () => { moverLastPrices = {}; loadMovers(); scheduleMoverRefresh(); });
+    $("moverMarkets").addEventListener("change", () => { moverLastPrices = {}; loadMovers(); scheduleMoverRefresh(); });
+    $("alertBellBtn").addEventListener("click", () => toggleAlertDrawer());
     $("serenityRunBtn").addEventListener("click", () => runSerenity());
     $("serenityRecentBtn").addEventListener("click", () => loadSerenityRecent(true));
     $("serenityRecentToggleBtn").addEventListener("click", () => toggleSerenityRecent());
@@ -1652,6 +1694,7 @@
     $("pfUseWatchBtn").addEventListener("click", () => applyWatchToPortfolio());
     $("pfRisk").addEventListener("input", updatePortfolioRiskLabel);
     $("dtRefreshBtn").addEventListener("click", () => refreshDaytradeDesk(true));
+    $("dtMarketMode").addEventListener("change", () => { daytradeMarketMode = $("dtMarketMode").value; localStorage.setItem("okiri.daytradeMarket", daytradeMarketMode); refreshDaytradeDesk(true); loadAlerts(); });
     $("dtCostBtn").addEventListener("click", () => calculateDaytradeCost());
     $("dtUseLatestBtn").addEventListener("click", () => useLatestForDaytradeCost());
     $("dtAddCurrentBtn").addEventListener("click", () => addDaytradeSymbol(lastData?.symbol || $("symbol").value.trim()));
@@ -1699,6 +1742,18 @@
       if (serenityIntelData) renderSerenityIntel(serenityIntelData);
       applySerenityRecentCollapse();
       renderForum();
+      syncMarketSelectLabels();
+      if (alertData) renderAlerts(alertData);
+    }
+
+    function syncMarketSelectLabels() {
+      const labels = { "US,TW": rt("marketBoth"), TW: rt("marketTWOnly"), US: rt("marketUSOnly") };
+      ["moverMarkets", "dtMarketMode"].forEach((id) => {
+        const select = $(id);
+        if (!select) return;
+        [...select.options].forEach((option) => { option.textContent = labels[option.value] || option.textContent; });
+      });
+      if ($("dtMarketMode")) $("dtMarketMode").value = daytradeMarketMode;
     }
 
     function switchWorkspaceTab(name) {
@@ -2290,7 +2345,8 @@
     async function loadMovers() {
       try {
         const mode = $("moverMode")?.value || "recent";
-        const res = await fetch(`/api/movers?markets=US,TW&limit=6&mode=${encodeURIComponent(mode)}`);
+        const markets = $("moverMarkets")?.value || "US,TW";
+        const res = await fetch(`/api/movers?markets=${encodeURIComponent(markets)}&limit=6&mode=${encodeURIComponent(mode)}`);
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.detail || "Movers failed");
         moversData = data;
@@ -2357,6 +2413,49 @@
       if (moverTimer) clearInterval(moverTimer);
       const mode = $("moverMode")?.value || "recent";
       moverTimer = setInterval(loadMovers, mode === "live" ? 8000 : 60000);
+    }
+
+    async function loadAlerts() {
+      if (!$("alertDrawer")) return;
+      try {
+        const markets = daytradeMarketMode || "TW";
+        const res = await fetch(`/api/alerts?markets=${encodeURIComponent(markets)}&limit=10`);
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "alerts failed");
+        alertData = data;
+        renderAlerts(data);
+      } catch (error) {
+        $("alertDrawer").innerHTML = `<div class="muted">${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    function renderAlerts(data) {
+      const items = data?.items || [];
+      if ($("alertCount")) {
+        $("alertCount").textContent = String(items.length);
+        $("alertCount").style.display = items.length ? "grid" : "none";
+      }
+      if (!$("alertDrawer")) return;
+      $("alertDrawer").innerHTML = items.length ? `
+        <div class="section-head"><h2>${escapeHtml(rt("alertTitle"))}</h2><span class="tag">${items.length}</span></div>
+        ${items.map((item) => {
+          const good = String(item.kind || "").includes("golden") || String(item.kind || "").includes("bullish");
+          const cls = good ? "good" : "bad";
+          return `<div class="alert-item ${cls}" onclick="toggleAlertDrawer(false); analyze('${escapeHtml(item.symbol)}')">
+            <strong>${escapeHtml(item.symbol)} · ${escapeHtml(item.title || "")}</strong>
+            <small>${escapeHtml(item.name || "")} · ${arrow(item.change_pct)} ${signed(item.change_pct, "%")} · ${escapeHtml(item.interval || "")} · score ${escapeHtml(item.score ?? "-")}</small>
+            <span>${escapeHtml(item.action || "")}</span>
+          </div>`;
+        }).join("")}
+      ` : `<div class="muted">${escapeHtml(rt("noAlerts"))}</div>`;
+    }
+
+    function toggleAlertDrawer(force) {
+      const drawer = $("alertDrawer");
+      if (!drawer) return;
+      const open = force == null ? !drawer.classList.contains("open") : !!force;
+      drawer.classList.toggle("open", open);
+      if (open) loadAlerts();
     }
 
     async function loadEventAlerts(symbol = "") {
@@ -2989,11 +3088,28 @@
       localStorage.setItem("okiri.daytradeSymbols", JSON.stringify(daytradeSymbols));
       $("dtAddSymbolInput").value = "";
       refreshDaytradeQuotes();
+      loadDaytradeModelBoard();
+    }
+
+    function symbolMarket(symbol) {
+      const value = String(symbol || "").trim().toUpperCase();
+      if (value.endsWith(".TW") || value.endsWith(".TWO") || /^\d{4,6}$/.test(value)) return "TW";
+      return "US";
+    }
+
+    function selectedDaytradeMarkets() {
+      return new Set(String(daytradeMarketMode || "TW").split(",").map((part) => part.trim()).filter(Boolean));
+    }
+
+    function marketFilterSymbol(symbol) {
+      return selectedDaytradeMarkets().has(symbolMarket(symbol));
     }
 
     async function refreshDaytradeDesk(force = false) {
+      if ($("dtMarketMode")) $("dtMarketMode").value = daytradeMarketMode;
       if (force || !$("dtPulseBody").dataset.loaded) loadDaytradePulse();
       refreshDaytradeQuotes();
+      loadDaytradeModelBoard();
       analyzeDaytradeSymbol(lastData?.symbol || $("symbol").value.trim() || "2330");
       calculateDaytradeCost(false);
       scheduleDaytradeTimers();
@@ -3003,7 +3119,10 @@
       clearInterval(daytradeQuoteTimer);
       clearInterval(daytradeAnalyzeTimer);
       daytradeQuoteTimer = setInterval(() => {
-        if (isWorkspaceTabActive("daytrade")) refreshDaytradeQuotes();
+        if (isWorkspaceTabActive("daytrade")) {
+          refreshDaytradeQuotes();
+          loadDaytradeModelBoard();
+        }
       }, 8000);
       daytradeAnalyzeTimer = setInterval(() => {
         if (isWorkspaceTabActive("daytrade")) analyzeDaytradeSymbol(lastData?.symbol || $("symbol").value.trim() || "2330");
@@ -3040,8 +3159,12 @@
     }
 
     async function refreshDaytradeQuotes() {
-      const symbols = [...new Set([...daytradeSymbols, ...watch.filter((s) => String(s).includes(".TW") || /^\d+$/.test(String(s)))])].slice(0, 32);
-      $("dtQuoteBody").innerHTML = $("dtQuoteBody").innerHTML || `<tr><td colspan="7">${rt("loading")}...</td></tr>`;
+      const symbols = [...new Set([...daytradeSymbols, ...watch])].filter(marketFilterSymbol).slice(0, 32);
+      if (!symbols.length) {
+        $("dtQuoteBody").innerHTML = `<tr><td colspan="8">${rt("noData")}</td></tr>`;
+        return;
+      }
+      $("dtQuoteBody").innerHTML = $("dtQuoteBody").innerHTML || `<tr><td colspan="8">${rt("loading")}...</td></tr>`;
       const rows = await Promise.all(symbols.map(async (symbol) => {
         try {
           const quoteRes = await fetch(`/api/quote/${encodeURIComponent(symbol)}`);
@@ -3061,6 +3184,36 @@
       $("dtQuoteBody").innerHTML = rows.map((row) => daytradeQuoteRow(row.quote, row.detail, row.failed)).join("");
     }
 
+    async function loadDaytradeModelBoard() {
+      if (!$("dtModelBoard")) return;
+      try {
+        const markets = daytradeMarketMode || "TW";
+        const res = await fetch(`/api/movers?markets=${encodeURIComponent(markets)}&limit=6&mode=live`);
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.detail || "model failed");
+        const updated = new Date(data.updated_at || Date.now()).toLocaleTimeString();
+        $("dtModelMeta").textContent = `${rt("updated")} ${updated} · ${rt("dtScanned")} ${data.scanned || 0}`;
+        $("dtModelBoard").innerHTML =
+          renderMoverModelColumn(rt("dtLong"), data.long_candidates || data.gainers || [], "good") +
+          renderMoverModelColumn(rt("dtShort"), data.short_candidates || data.losers || [], "bad");
+      } catch (error) {
+        $("dtModelMeta").textContent = error.message;
+      }
+    }
+
+    function renderMoverModelColumn(title, rows, tone) {
+      return `<div class="mover-column">
+        <div class="section-head"><h2>${escapeHtml(title)}</h2><span class="tag ${tone}">${rows.length}</span></div>
+        <div class="mover-list">${(rows || []).map((row) => {
+          const cls = Number(row.change_pct || 0) >= 0 ? "up" : "down";
+          return `<div class="mover-item" onclick="analyze('${escapeHtml(row.symbol)}')">
+            <div><strong>${escapeHtml(row.symbol)}</strong><small class="muted">${escapeHtml(row.name || "")} · ${escapeHtml(row.pattern || "pulse")}</small></div>
+            <div class="${cls}"><strong>${arrow(row.change_pct)} ${signed(row.change_pct, "%")}</strong><small>${fmt(row.price)} · score ${escapeHtml(row.model_score ?? "-")}</small></div>
+          </div>`;
+        }).join("") || `<div class="muted">${rt("noData")}</div>`}</div>
+      </div>`;
+    }
+
     function daytradeQuoteRow(quote, detail, failed = false) {
       const symbol = quote.symbol || "-";
       const cls = twColorClass(quote.change_pct);
@@ -3072,12 +3225,20 @@
       return `<tr class="${flash}" onclick="selectDaytradeSymbol('${escapeHtml(symbol)}', ${Number(quote.price || 0)})">
         <td><strong>${escapeHtml(symbol)}</strong><small class="muted">${failed ? "fallback unavailable" : escapeHtml(quote.source || "")}</small></td>
         <td>${quote.price == null ? "-" : fmt(quote.price)}</td>
+        <td>${quoteMarketCapText(quote)}</td>
         <td class="${cls}">${quote.change == null ? "-" : signed(quote.change)}</td>
         <td class="${cls}">${quote.change_pct == null ? "-" : `${arrow(quote.change_pct)} ${signed(quote.change_pct, "%")}`}</td>
         <td>${quote.volume_ratio == null ? "-" : fmt(quote.volume_ratio)}</td>
         <td>${rangePos == null ? "-" : `${fmt(rangePos)}%`}</td>
         <td><span class="desk-chip ${heat >= 70 ? "good" : heat < 45 ? "bad" : "warn"}">${heat == null ? "-" : `${heat}/100`}</span></td>
       </tr>`;
+    }
+
+    function quoteMarketCapText(quote) {
+      if (!quote?.market_cap) return "-";
+      const cls = Number(quote.market_cap_change_pct || quote.change_pct || 0) >= 0 ? "up" : "down";
+      const pct = quote.market_cap_change_pct == null ? quote.change_pct : quote.market_cap_change_pct;
+      return `<span>${compactMoney(quote.market_cap, quote.currency || "USD")}</span><small class="${cls}">${arrow(pct)} ${signed(pct, "%")}</small>`;
     }
 
     async function calculateDaytradeCost(renderErrors = true) {
@@ -3346,7 +3507,7 @@
 
     function translateAdvice(bias) {
       if (lang === "en") return lastData.prediction.advice;
-      if (bias === "bullish") return lang === "zh-cn" ? "偏多，但更适合等回测确认；守住均线才偏向延续。" : "偏多，但更適合等回測確認；守住均線才偏向延續。";
+      if (bias === "bullish") return lang === "zh-cn" ? "偏多，但更适合等回测再进；守住均线才适合放长。" : "偏多，但更適合等回測再進；守住均線才適合放長。";
       if (bias === "bearish") return lang === "zh-cn" ? "偏空，先别追价；等站回 MA20 或卖压减弱。" : "偏空，先別追價；等站回 MA20 或賣壓減弱。";
       return lang === "zh-cn" ? "盘整，用支撑压力操作，不要预设单边。" : "盤整，用支撐壓力操作，不要預設單邊。";
     }
@@ -3809,7 +3970,7 @@
     function drawBuySignals(data, rows, x, y) {
       findBuySignals(data, rows).slice(-5).forEach((signal) => {
         const row = rows[signal.index]; const xx = x(signal.index); const yy = Math.max(28, y(row.low) - 18);
-        ctx.save(); ctx.fillStyle = "rgba(34,197,94,.16)"; ctx.strokeStyle = "#22c55e"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(xx, yy + 4, 14, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#86efac"; ctx.font = "700 10px Segoe UI"; ctx.textAlign = "center"; ctx.fillText("OBS", xx, yy + 8); ctx.fillStyle = "#22c55e"; ctx.beginPath(); ctx.moveTo(xx, yy + 20); ctx.lineTo(xx - 5, yy + 30); ctx.lineTo(xx + 5, yy + 30); ctx.closePath(); ctx.fill(); ctx.restore();
+        ctx.save(); ctx.fillStyle = "rgba(34,197,94,.16)"; ctx.strokeStyle = "#22c55e"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(xx, yy + 4, 13, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#86efac"; ctx.font = "700 11px Segoe UI"; ctx.textAlign = "center"; ctx.fillText("BUY", xx, yy + 8); ctx.fillStyle = "#22c55e"; ctx.beginPath(); ctx.moveTo(xx, yy + 19); ctx.lineTo(xx - 5, yy + 29); ctx.lineTo(xx + 5, yy + 29); ctx.closePath(); ctx.fill(); ctx.restore();
       });
     }
     function drawCrossSignals(data, rows, x, y, pad, h) {
@@ -3866,7 +4027,9 @@
       const cap = v.market_cap || row?.market_cap_usd || 0;
       if (!cap) return "-";
       const fallback = v.fallback ? ` ${t("valuationFallback")}` : "";
-      return `${compactMoney(cap, v.currency || "USD")}${fallback}`;
+      const pct = v.market_cap_change_pct;
+      const move = pct == null ? "" : ` ${arrow(pct)} ${signed(pct, "%")}`;
+      return `${compactMoney(cap, v.currency || "USD")}${move}${fallback}`;
     }
     function peText(row) {
       const v = row?.valuation || {};
@@ -3879,7 +4042,7 @@
     }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
 
-    mountScreenerPanel(); applyLang(); initProfile(); loadForum(); renderWatchlist(); tickClocks(); loadContext(); loadRecommendations(); loadMovers(); loadScreenerOptions(); calculateDaytradeCost(false); analyze($("symbol").value); refreshWatchlist();
+    mountScreenerPanel(); applyLang(); initProfile(); loadForum(); renderWatchlist(); tickClocks(); loadContext(); loadRecommendations(); loadMovers(); loadAlerts(); loadScreenerOptions(); calculateDaytradeCost(false); analyze($("symbol").value); refreshWatchlist();
     setInterval(tickClocks, 1000);
     setInterval(loadContext, 60000);
     setInterval(refreshQuote, 10000);
@@ -3887,6 +4050,7 @@
     serenityRecentTimer = setInterval(() => { if (isWorkspaceTabActive("serenity")) loadSerenityRecent(); }, 120000);
     setInterval(() => { if (autoRefresh && lastData && ($("period").value === "1d" || $("interval").value === "5m")) analyze(lastData.symbol, true); }, 30000);
     setInterval(() => { if (autoRefresh) refreshWatchlist(); }, 30000);
+    setInterval(loadAlerts, 60000);
     setInterval(loadForum, 600000);
   </script>
 </body>

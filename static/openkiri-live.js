@@ -1,42 +1,50 @@
 (() => {
   const $ = (id) => document.getElementById(id);
-  const lang = document.documentElement.lang || "zh-tw";
-  const zh = lang !== "en";
+  const tw = document.documentElement.lang !== "en";
   const text = {
-    market: zh ? "市場" : "Market",
-    both: zh ? "台美" : "TW + US",
-    tw: zh ? "台股" : "Taiwan",
-    us: zh ? "美股" : "US",
-    cap: zh ? "市值" : "Mkt cap",
-    long: zh ? "偏做多" : "Long bias",
-    short: zh ? "偏做空" : "Short bias",
-    model: zh ? "T+0 多空模型" : "T+0 long/short model",
-    alerts: zh ? "當日重大訊號" : "Major signals",
-    empty: zh ? "暫無重大交叉或延續訊號" : "No major cross or continuation signal",
-    loading: zh ? "讀取中" : "Loading",
-    scanned: zh ? "掃描" : "Scanned",
-    source: zh ? "來源" : "Source",
-    version: zh ? "版本" : "Version",
-    notAdvice: zh ? "觀察訊號，不是投資建議" : "Watch signal, not investment advice",
-    openGoogle: zh ? "Google Finance" : "Google Finance",
+    market: tw ? "市場" : "Market",
+    both: tw ? "台美" : "TW + US",
+    tw: tw ? "台股" : "Taiwan",
+    us: tw ? "美股" : "US",
+    cap: tw ? "市值" : "Mkt cap",
+    long: tw ? "偏做多" : "Long bias",
+    short: tw ? "偏做空" : "Short bias",
+    model: tw ? "T+0 模型多空分類" : "T+0 long/short model",
+    alerts: tw ? "當日重大訊號" : "Major signals",
+    empty: tw ? "目前沒有重大交叉訊號" : "No major cross signal right now",
+    loading: tw ? "載入中" : "Loading",
+    scanned: tw ? "掃描" : "Scanned",
   };
+  Object.assign(text, {
+    market: tw ? "\u5e02\u5834" : "Market",
+    both: tw ? "\u53f0\u7f8e" : "TW + US",
+    tw: tw ? "\u53f0\u80a1" : "Taiwan",
+    us: tw ? "\u7f8e\u80a1" : "US",
+    cap: tw ? "\u5e02\u503c" : "Mkt cap",
+    long: tw ? "\u504f\u591a" : "Long bias",
+    short: tw ? "\u504f\u7a7a" : "Short bias",
+    model: tw ? "T+0 \u591a\u7a7a\u6a21\u578b" : "T+0 long/short model",
+    alerts: tw ? "\u91cd\u5927\u8a0a\u865f" : "Major signals",
+    empty: tw ? "\u76ee\u524d\u6c92\u6709\u91cd\u5927\u4ea4\u53c9\u8a0a\u865f" : "No major cross signal right now",
+    loading: tw ? "\u8f09\u5165\u4e2d" : "Loading",
+    scanned: tw ? "\u6383\u63cf" : "Scanned",
+  });
   const defaults = ["2330.TW", "2317.TW", "2454.TW", "3481.TW", "2409.TW", "2002.TW", "1101.TW", "2303.TW", "2881.TW", "0050.TW", "006208.TW"];
   let marketMode = localStorage.getItem("okiri.daytradeMarket") || "TW";
   let moverTimer = null;
 
   function fmt(n) {
     if (n == null || Number.isNaN(Number(n))) return "-";
-    return Number(n).toLocaleString(zh ? "zh-TW" : "en-US", { maximumFractionDigits: 2 });
-  }
-  function compact(n) {
-    return Number(n || 0).toLocaleString(zh ? "zh-TW" : "en-US", { notation: "compact", maximumFractionDigits: 1 });
+    return Number(n).toLocaleString(tw ? "zh-TW" : "en-US", { maximumFractionDigits: 2 });
   }
   function signed(n, suffix = "") {
     const value = Number(n || 0);
     return `${value >= 0 ? "+" : ""}${fmt(value)}${suffix}`;
   }
   function arrow(n) { return Number(n || 0) >= 0 ? "▲" : "▼"; }
+  arrow = (n) => Number(n || 0) >= 0 ? "\u25b2" : "\u25bc";
   function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
+  function compact(n) { return Number(n || 0).toLocaleString(tw ? "zh-TW" : "en-US", { notation: "compact", maximumFractionDigits: 1 }); }
   function money(n, currency = "USD") {
     const code = String(currency || "USD").toUpperCase();
     return `${code === "USD" ? "$" : code === "TWD" ? "NT$" : `${code} `}${compact(n)}`;
@@ -60,24 +68,14 @@
       .okiri-alert-shell{position:relative;display:inline-flex}
       .okiri-alert-bell{position:relative;width:42px;padding:0}
       .okiri-alert-count{position:absolute;right:-5px;top:-6px;min-width:18px;height:18px;border-radius:999px;background:#ef4444;color:#fff;font-size:11px;display:none;place-items:center}
-      .okiri-alert-drawer{display:none;position:absolute;right:0;top:48px;z-index:120;width:min(430px,92vw);max-height:470px;overflow:auto;background:#101a35;border:1px solid var(--line);border-radius:8px;box-shadow:0 24px 70px rgba(0,0,0,.45);padding:10px}
+      .okiri-alert-drawer{display:none;position:absolute;right:0;top:48px;z-index:120;width:min(390px,92vw);max-height:470px;overflow:auto;background:#101a35;border:1px solid var(--line);border-radius:8px;box-shadow:0 24px 70px rgba(0,0,0,.45);padding:10px}
       .okiri-alert-drawer.open{display:grid;gap:8px}
-      .okiri-alert-tools{display:flex;gap:8px;align-items:center;justify-content:space-between}
       .okiri-alert-item{display:grid;gap:5px;background:var(--card);border:1px solid var(--line);border-radius:7px;padding:9px;cursor:pointer}
       .okiri-alert-item.good{box-shadow:inset 4px 0 0 #22c55e}.okiri-alert-item.bad{box-shadow:inset 4px 0 0 #ef4444}
-      .okiri-alert-item small,.okiri-version{color:var(--muted)}
+      .okiri-alert-item small{color:var(--muted)}
       .okiri-market-select{min-width:96px}.okiri-model-panel{margin-top:0}
       .okiri-cap small{display:block;margin-top:2px}.okiri-up{color:#22c55e}.okiri-down{color:#ef4444}
-      .okiri-version{font-size:12px;margin-left:8px;white-space:nowrap}
-      .okiri-source{display:block;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      @media(max-width:760px){
-        .okiri-alert-drawer{right:-90px}
-        .mover-board{grid-template-columns:1fr}
-        #dtQuoteBody tr{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:8px 0}
-        #dtQuoteBody td{border:0!important;padding:2px 6px!important}
-        #dtQuoteBody td:first-child{grid-column:1/-1}
-        #dtQuoteBody td:nth-child(n+6){font-size:12px;color:var(--muted)}
-      }
+      @media(max-width:760px){.okiri-alert-drawer{right:-90px}.mover-board{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
   }
@@ -96,7 +94,7 @@
     if (!target) return;
     const shell = document.createElement("div");
     shell.className = "okiri-alert-shell";
-    shell.innerHTML = `<button id="okiriAlertBell" class="secondary okiri-alert-bell" type="button" title="${text.alerts}">&#128276;<span id="okiriAlertCount" class="okiri-alert-count">0</span></button><div id="okiriAlertDrawer" class="okiri-alert-drawer"></div>`;
+    shell.innerHTML = `<button id="okiriAlertBell" class="secondary okiri-alert-bell" type="button" title="${text.alerts}">🔔<span id="okiriAlertCount" class="okiri-alert-count">0</span></button><div id="okiriAlertDrawer" class="okiri-alert-drawer"></div>`;
     target.prepend(shell);
     $("okiriAlertBell").addEventListener("click", () => {
       $("okiriAlertDrawer").classList.toggle("open");
@@ -104,27 +102,10 @@
     });
   }
 
-  async function installVersion() {
-    if ($("okiriVersion")) return;
-    const header = document.querySelector(".brandline") || document.querySelector("header");
-    if (!header) return;
-    const badge = document.createElement("span");
-    badge.id = "okiriVersion";
-    badge.className = "okiri-version";
-    badge.textContent = `${text.version}: ...`;
-    header.appendChild(badge);
-    try {
-      const data = await fetch("/api/version").then((res) => res.json());
-      badge.textContent = `${text.version}: ${esc(data.version)} · ${String(data.render_commit || "").slice(0, 7)}`;
-      badge.title = data.source_note || "";
-    } catch {
-      badge.textContent = `${text.version}: local`;
-    }
-  }
-
   function installDaytradeSwitch() {
     if ($("okiriDtMarket")) return;
-    const actions = $("dtRefreshBtn")?.parentElement;
+    const dtRefresh = $("dtRefreshBtn");
+    const actions = dtRefresh?.parentElement;
     if (!actions) return;
     const label = document.createElement("label");
     label.innerHTML = `<span class="muted">${text.market}</span>${marketSelect("okiriDtMarket", marketMode)}`;
@@ -219,9 +200,8 @@
     const cls = pct >= 0 ? "desk-up" : "desk-down";
     const heat = detail?.score;
     const range = detail?.metrics?.high_low_position;
-    const source = quote.source || (quote.failed ? "unavailable" : "");
     return `<tr onclick="window.analyze && analyze('${esc(quote.symbol || "")}')">
-      <td><strong>${esc(quote.symbol || "-")}</strong><small class="muted okiri-source">${esc(source)}</small></td>
+      <td><strong>${esc(quote.symbol || "-")}</strong><small class="muted">${esc(quote.source || (quote.failed ? "fallback unavailable" : ""))}</small></td>
       <td>${quote.price == null ? "-" : fmt(quote.price)}</td>
       <td class="okiri-cap">${quoteCap(quote)}</td>
       <td class="${cls}">${quote.change == null ? "-" : signed(quote.change)}</td>
@@ -237,7 +217,7 @@
     if (!board) return;
     try {
       const data = await fetch(`/api/movers?markets=${encodeURIComponent(marketMode)}&limit=6&mode=live`).then((res) => res.json());
-      $("okiriDtModelMeta").textContent = `${new Date(data.updated_at || Date.now()).toLocaleTimeString()} · ${text.scanned} ${data.scanned || 0} · ${text.notAdvice}`;
+      $("okiriDtModelMeta").textContent = `${new Date(data.updated_at || Date.now()).toLocaleTimeString()} · ${text.scanned} ${data.scanned || 0}`;
       board.innerHTML = modelColumn(text.long, data.long_candidates || data.gainers || [], "good") + modelColumn(text.short, data.short_candidates || data.losers || [], "bad");
     } catch (error) {
       $("okiriDtModelMeta").textContent = error.message;
@@ -260,9 +240,9 @@
       const count = $("okiriAlertCount");
       count.textContent = String(items.length);
       count.style.display = items.length ? "grid" : "none";
-      drawer.innerHTML = items.length ? `<div class="okiri-alert-tools"><h3>${text.alerts}</h3><span class="tag">${items.length}</span></div><small>${esc(data.disclaimer || text.notAdvice)}</small>${items.map((item) => {
-        const good = item.tone === "bullish" || String(item.kind || "").includes("golden") || String(item.kind || "").includes("bullish");
-        return `<div class="okiri-alert-item ${good ? "good" : "bad"}" onclick="document.getElementById('okiriAlertDrawer').classList.remove('open'); window.analyze && analyze('${esc(item.symbol)}')"><strong>${esc(item.symbol)} · ${esc(item.title)}</strong><small>${esc(item.name || "")} · ${arrow(item.change_pct)} ${signed(item.change_pct, "%")} · ${esc(item.interval || "")} · ${esc(item.severity || "")}</small><span>${esc(item.action || "")}</span></div>`;
+      drawer.innerHTML = items.length ? `<div class="section-head"><h2>${text.alerts}</h2><span class="tag">${items.length}</span></div>${items.map((item) => {
+        const good = String(item.kind || "").includes("golden") || String(item.kind || "").includes("bullish");
+        return `<div class="okiri-alert-item ${good ? "good" : "bad"}" onclick="document.getElementById('okiriAlertDrawer').classList.remove('open'); window.analyze && analyze('${esc(item.symbol)}')"><strong>${esc(item.symbol)} · ${esc(item.title)}</strong><small>${esc(item.name || "")} · ${arrow(item.change_pct)} ${signed(item.change_pct, "%")} · ${esc(item.interval || "")}</small><span>${esc(item.action || "")}</span></div>`;
       }).join("")}` : `<div class="muted">${text.empty}</div>`;
     } catch (error) {
       drawer.innerHTML = `<div class="muted">${esc(error.message)}</div>`;
@@ -276,7 +256,7 @@
     const mode = $("moverMode")?.value || "recent";
     try {
       const data = await fetch(`/api/movers?markets=${encodeURIComponent(market)}&limit=6&mode=${encodeURIComponent(mode)}`).then((res) => res.json());
-      board.innerHTML = modelColumn(zh ? "正在漲" : "Rising", data.gainers || [], "good") + modelColumn(zh ? "正在跌" : "Falling", data.losers || [], "bad");
+      board.innerHTML = modelColumn(tw ? "正在漲" : "Rising", data.gainers || [], "good") + modelColumn(tw ? "正在跌" : "Falling", data.losers || [], "bad");
     } catch (error) {
       board.innerHTML = `<div class="plainbox muted">${esc(error.message)}</div>`;
     }
@@ -290,7 +270,6 @@
   function boot() {
     installStyle();
     installBell();
-    installVersion();
     installDaytradeSwitch();
     installModelPanel();
     installQuoteCapHeader();
