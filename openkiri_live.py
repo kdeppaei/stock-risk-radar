@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import math
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from html import unescape
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent
 ALERT_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 USD_TWD_CACHE: tuple[float, float] | None = None
 ANALYZE_CACHE: dict[tuple[str, str, str], tuple[float, dict[str, Any]]] = {}
+GOOGLE_FINANCE_CACHE: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
 
 NEUTRAL_NEWS: dict[str, Any] = {
     "query": "intraday-fast-mode",
@@ -50,7 +53,7 @@ def remove_route(path: str, methods: set[str] | None = None) -> None:
     ]
 
 
-for route_path in {"/", "/api/analyze", "/api/quote/{symbol}", "/api/movers", "/api/version"}:
+for route_path in {"/", "/api/analyze", "/api/quote", "/api/quote/{symbol}", "/api/movers", "/api/version"}:
     remove_route(route_path)
 
 
@@ -69,7 +72,7 @@ def version() -> dict[str, Any]:
         "ok": True,
         "app": "OpenKiri",
         "entry": "openkiri_live",
-        "commit_marker": "8270d36-version-probe",
+        "commit_marker": "live-data-guard-google-cap",
         "fast_intraday": True,
         "render_service": "stock-risk-radar",
     }
@@ -124,8 +127,11 @@ def analyze(
     chart_math = base.build_chart_math(visible_rows, latest, risk, prediction)
     design_signals = base.build_design_signals(resolved, market, rows, latest, levels, risk, prediction, news, macro)
     universe_item = base.find_universe_item(resolved) or {"symbol": resolved, "name": resolved, "market": market, "industry": "Unknown", "market_cap_usd": 0}
-    valuation = base.stock_valuation_payload(universe_item, latest["close"])
-    valuation = improve_valuation_with_quote(resolved, market, valuation)
+    if fast_intraday:
+        valuation = fast_valuation_placeholder(universe_item, market)
+    else:
+        valuation = base.stock_valuation_payload(universe_item, latest["close"])
+        valuation = improve_valuation_with_quote(resolved, market, valuation)
 
     response = {
         "ok": True,
@@ -286,6 +292,27 @@ def usd_twd_rate() -> float:
     return rate
 
 
+def fast_valuation_placeholder(item: dict[str, Any], market: str) -> dict[str, Any]:
+    cap_usd = base.optional_number((item or {}).get("market_cap_usd"), 0)
+    if not cap_usd:
+        return {"market_cap": None, "currency": "TWD" if market == "TW" else "USD", "fallback": True, "source": "fast placeholder"}
+    if market == "TW":
+        return {
+            "market_cap": int(cap_usd * 31.8),
+            "currency": "TWD",
+            "market_cap_usd": int(cap_usd),
+            "fallback": True,
+            "source": "fast built-in estimate; Google Finance quote refresh follows",
+        }
+    return {
+        "market_cap": int(cap_usd),
+        "currency": "USD",
+        "market_cap_usd": int(cap_usd),
+        "fallback": True,
+        "source": "fast built-in estimate; Google Finance quote refresh follows",
+    }
+
+
 def market_cap_fallback(symbol: str, market: str, live_price: float | None, currency: str | None) -> tuple[int | None, str | None, float | None, str | None, dict[str, Any]]:
     valuation: dict[str, Any] = {}
     try:
@@ -311,6 +338,113 @@ def market_cap_fallback(symbol: str, market: str, live_price: float | None, curr
     return None, resolved_currency, shares, valuation.get("source"), valuation
 
 
+def compact_amount(value: str | None) -> float | None:
+    if not value:
+        return None
+    text = value.strip().upper().replace(",", "")
+    multiplier = 1
+    if text[-1:] in {"K", "M", "B", "T"}:
+        multiplier = {"K": 1_000, "M": 1_000_000, "B": 1_000_000_000, "T": 1_000_000_000_000}[text[-1]]
+        text = text[:-1]
+    text = re.sub(r"[^0-9.\-]", "", text)
+    if not text:
+        return None
+    try:
+        return float(text) * multiplier
+    except ValueError:
+        return None
+
+
+def google_finance_codes(symbol: str, market: str) -> list[tuple[str, str]]:
+    plain = symbol.upper().replace(".TW", "").replace(".TWO", "")
+    if market == "TW" or symbol.upper().endswith((".TW", ".TWO")) or plain.isdigit():
+        if symbol.upper().endswith(".TWO"):
+            return [(f"{plain}:TWO", "TWO")]
+        if symbol.upper().endswith(".TW"):
+            return [(f"{plain}:TPE", "TPE")]
+        return [(f"{plain}:TPE", "TPE"), (f"{plain}:TWO", "TWO")]
+    return [(f"{plain}:NASDAQ", "NASDAQ"), (f"{plain}:NYSE", "NYSE"), (f"{plain}:NYSEARCA", "NYSEARCA")]
+
+
+def clean_google_text(html: str) -> str:
+    text = re.sub(r"<script\b[^>]*>.*?</script>", " ", html, flags=re.I | re.S)
+    text = re.sub(r"<style\b[^>]*>.*?</style>", " ", text, flags=re.I | re.S)
+    text = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r"\s+", " ", unescape(text))
+
+
+def google_money(pattern: str, text: str) -> float | None:
+    match = re.search(pattern, text)
+    if not match:
+        return None
+    return compact_amount("".join(group or "" for group in match.groups()))
+
+
+def fetch_google_finance_snapshot(symbol: str, market: str) -> dict[str, Any]:
+    cache_key = (symbol.upper(), market)
+    now = time.time()
+    cached = GOOGLE_FINANCE_CACHE.get(cache_key)
+    if cached and now - cached[0] < 30:
+        return cached[1]
+
+    for code, exchange in google_finance_codes(symbol, market):
+        try:
+            url = f"https://www.google.com/finance/quote/{code}"
+            resp = requests.get(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 OpenKiri/4.9"},
+                timeout=4,
+            )
+            resp.raise_for_status()
+            text = clean_google_text(resp.text)
+            pos = text.find(code)
+            if pos < 0:
+                continue
+            snippet = text[pos : pos + 2400]
+            if "arrow_" not in snippet or "Mkt. cap" not in snippet:
+                continue
+
+            price_match = re.search(r"((?:NT\$|\$)[0-9][0-9,.]*)\s+arrow_(upward|downward)", snippet)
+            price = compact_amount(price_match.group(1)) if price_match else None
+            direction = price_match.group(2) if price_match else ""
+            pct_match = re.search(r"arrow_(?:upward|downward)\s+([+\-]?[0-9,.]+)%", snippet)
+            change_pct = compact_amount(pct_match.group(1)) if pct_match else None
+            if change_pct is not None and direction == "downward" and change_pct > 0:
+                change_pct *= -1
+
+            payload = {
+                "symbol": symbol.upper(),
+                "google_code": code,
+                "currency": "TWD" if " TWD " in snippet or code.endswith(":TPE") or code.endswith(":TWO") else "USD",
+                "price": price,
+                "open": google_money(r"Open\s+((?:NT\$|\$)[0-9][0-9,.]*)", snippet),
+                "high": google_money(r"High\s+((?:NT\$|\$)[0-9][0-9,.]*)", snippet),
+                "low": google_money(r"Low\s+((?:NT\$|\$)[0-9][0-9,.]*)", snippet),
+                "change_pct": change_pct,
+                "market_cap": compact_amount((re.search(r"Mkt\. cap\s+([0-9][0-9,.]*[KMBT]?)", snippet) or [None, None])[1]),
+                "volume": compact_amount((re.search(r"Volume\s+([0-9][0-9,.]*[KMBT]?)", snippet) or [None, None])[1]),
+                "shares_outstanding": compact_amount((re.search(r"Shares outstanding\s+([0-9][0-9,.]*[KMBT]?)", snippet) or [None, None])[1]),
+                "trailing_pe": compact_amount((re.search(r"P/E ratio\s+([0-9][0-9,.]*)", snippet) or [None, None])[1]),
+                "source": "Google Finance",
+                "source_url": url,
+            }
+            GOOGLE_FINANCE_CACHE[cache_key] = (now, payload)
+            return payload
+        except Exception:
+            continue
+
+    GOOGLE_FINANCE_CACHE[cache_key] = (now, {})
+    return {}
+
+
+def same_resolved_symbol(left: str | None, right: str | None) -> bool:
+    if not left or not right:
+        return False
+    left_norm, _ = base.normalize_symbol(str(left))
+    right_norm, _ = base.normalize_symbol(str(right))
+    return left_norm == right_norm
+
+
 def fetch_yahoo_quote_snapshot(symbol: str) -> dict[str, Any]:
     try:
         resp = requests.get(
@@ -322,6 +456,9 @@ def fetch_yahoo_quote_snapshot(symbol: str) -> dict[str, Any]:
         resp.raise_for_status()
         row = ((resp.json().get("quoteResponse") or {}).get("result") or [None])[0] or {}
         if not row:
+            return {}
+        returned_symbol = row.get("symbol") or symbol
+        if not same_resolved_symbol(returned_symbol, symbol):
             return {}
         ts = row.get("regularMarketTime")
         date_text = ""
@@ -365,6 +502,7 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
     for candidate in base.candidate_symbols(normalized, raw):
         tried.append(candidate)
         snapshot = fetch_yahoo_quote_snapshot(candidate)
+        google_snapshot = fetch_google_finance_snapshot(candidate, market)
         intraday_rows = base.fetch_price_history(candidate, "1d", "1m")
         source = "1d/1m"
         if not intraday_rows:
@@ -387,14 +525,21 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
         latest = rows[-1]
         previous_close = daily_rows[-2]["close"] if len(daily_rows) >= 2 else rows[-2]["close"] if len(rows) >= 2 else rows[0]["open"]
         live_price = base.optional_number(snapshot.get("price")) if snapshot else None
+        if live_price is None:
+            live_price = base.optional_number(google_snapshot.get("price")) if google_snapshot else None
         live_change = base.optional_number(snapshot.get("change")) if snapshot else None
         live_change_pct = base.optional_number(snapshot.get("change_pct")) if snapshot else None
+        if live_change_pct is None:
+            live_change_pct = base.optional_number(google_snapshot.get("change_pct")) if google_snapshot else None
         live_market_cap = base.optional_number(snapshot.get("market_cap"), 0) if snapshot else None
+        if not live_market_cap:
+            live_market_cap = base.optional_number(google_snapshot.get("market_cap"), 0) if google_snapshot else None
         shares = base.optional_number(snapshot.get("shares_outstanding"), 0) if snapshot else None
+        shares = shares or (base.optional_number(google_snapshot.get("shares_outstanding"), 0) if google_snapshot else None)
         if not live_market_cap and shares and live_price:
             live_market_cap = shares * live_price
-        currency = snapshot.get("currency") if snapshot else ("TWD" if market == "TW" else "USD")
-        cap_source = None
+        currency = (snapshot.get("currency") if snapshot else None) or google_snapshot.get("currency") or ("TWD" if market == "TW" else "USD")
+        cap_source = "Google Finance" if google_snapshot.get("market_cap") else None
         valuation_fallback: dict[str, Any] = {}
         if not live_market_cap:
             cap, cap_currency, fallback_shares, cap_source, valuation_fallback = market_cap_fallback(candidate, market, live_price, currency)
@@ -403,12 +548,19 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
             shares = shares or fallback_shares
         if live_price:
             latest["close"] = live_price
+        if google_snapshot:
+            latest["open"] = google_snapshot.get("open") or latest["open"]
+            latest["high"] = google_snapshot.get("high") or latest["high"]
+            latest["low"] = google_snapshot.get("low") or latest["low"]
+            latest["volume"] = google_snapshot.get("volume") or latest["volume"]
         change = live_change if live_change is not None else latest["close"] - previous_close if previous_close else 0
         change_pct = live_change_pct if live_change_pct is not None else (latest["close"] / previous_close - 1) * 100 if previous_close else 0
         avg_volume = base.mean([row["volume"] for row in rows[-20:-1] if row.get("volume") is not None]) if len(rows) >= 2 else 0
         volume_ratio = latest["volume"] / avg_volume if avg_volume else 1
         cap_previous = int(live_market_cap / (1 + change_pct / 100)) if live_market_cap and change_pct > -99 else None
         source_label = "Yahoo quote live + " + (source if intraday_rows else "5d/1d fallback") if snapshot else source if intraday_rows else "5d/1d fallback"
+        if google_snapshot and "Google Finance" not in source_label:
+            source_label += " + Google Finance"
         if cap_source and cap_source not in source_label:
             source_label += f" + {cap_source}"
         payload = {
@@ -430,7 +582,7 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
             "market_cap_previous": cap_previous,
             "market_cap_change_pct": base.number(change_pct),
             "shares_outstanding": shares,
-            "trailing_pe": (snapshot or {}).get("trailing_pe") or valuation_fallback.get("trailing_pe"),
+            "trailing_pe": (snapshot or {}).get("trailing_pe") or google_snapshot.get("trailing_pe") or valuation_fallback.get("trailing_pe"),
             "forward_pe": (snapshot or {}).get("forward_pe") or valuation_fallback.get("forward_pe"),
             "source": source_label,
             "fallback": (not intraday_rows) or "fallback" in source,
@@ -441,13 +593,23 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
     raise HTTPException(status_code=404, detail=f"No quote data found for {', '.join(tried) or raw}.")
 
 
-def improve_valuation_with_quote(symbol: str, market: str, valuation: dict[str, Any]) -> dict[str, Any]:
+@app.get("/api/quote")
+def quote_query(symbol: str = Query(..., min_length=1, max_length=32)) -> dict[str, Any]:
+    return latest_quote_payload(symbol)
+
+
+def improve_valuation_with_quote(symbol: str, market: str, valuation: dict[str, Any], allow_google: bool = True) -> dict[str, Any]:
     quote = fetch_yahoo_quote_snapshot(symbol)
-    live_price = quote.get("price") or valuation.get("price")
-    currency = quote.get("currency") or valuation.get("currency") or ("TWD" if market == "TW" else "USD")
+    google_quote = fetch_google_finance_snapshot(symbol, market) if allow_google else {}
+    live_price = quote.get("price") or google_quote.get("price") or valuation.get("price")
+    currency = quote.get("currency") or google_quote.get("currency") or valuation.get("currency") or ("TWD" if market == "TW" else "USD")
     cap = base.optional_number(quote.get("market_cap"), 0)
-    shares = base.optional_number(quote.get("shares_outstanding"), 0)
     cap_source = "Yahoo quote live" if cap else None
+    if not cap:
+        cap = base.optional_number(google_quote.get("market_cap"), 0)
+        cap_source = "Google Finance" if cap else None
+    shares = base.optional_number(quote.get("shares_outstanding"), 0)
+    shares = shares or base.optional_number(google_quote.get("shares_outstanding"), 0)
     fallback: dict[str, Any] = {}
     if not cap:
         cap, fallback_currency, fallback_shares, cap_source, fallback = market_cap_fallback(symbol, market, live_price, currency)
@@ -456,6 +618,8 @@ def improve_valuation_with_quote(symbol: str, market: str, valuation: dict[str, 
     if not cap:
         return valuation
     pct = quote.get("change_pct")
+    if pct is None:
+        pct = google_quote.get("change_pct")
     cap = int(cap)
     valuation = dict(valuation)
     valuation.update({
@@ -464,7 +628,7 @@ def improve_valuation_with_quote(symbol: str, market: str, valuation: dict[str, 
         "market_cap_previous": int(cap / (1 + pct / 100)) if pct is not None and pct > -99 else None,
         "market_cap_change_pct": base.number(pct) if pct is not None else None,
         "shares_outstanding": shares,
-        "trailing_pe": quote.get("trailing_pe") or fallback.get("trailing_pe") or valuation.get("trailing_pe"),
+        "trailing_pe": quote.get("trailing_pe") or google_quote.get("trailing_pe") or fallback.get("trailing_pe") or valuation.get("trailing_pe"),
         "forward_pe": quote.get("forward_pe") or fallback.get("forward_pe") or valuation.get("forward_pe"),
         "source": cap_source or valuation.get("source"),
     })

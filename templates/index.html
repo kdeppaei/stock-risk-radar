@@ -999,6 +999,10 @@
     let daytradeLastPrices = {};
     let daytradeAnalyzeData = null;
     let daytradePriceAutoSymbol = "";
+    let analyzeRequestSeq = 0;
+    let quoteRequestSeq = 0;
+    let activeAnalyzeController = null;
+    let manualAnalyzePending = false;
     const STICKERS = ["👍", "🔥", "🚀", "📈", "📉", "⚠️", "💡", "✅", "🤔", "💎"];
     const WATCH_BUNDLE_PREFIX = "__SRR_WATCH__";
 
@@ -3383,21 +3387,54 @@
       return Number(value || 0) >= 0 ? "desk-up" : "desk-down";
     }
 
+    function canonicalSymbol(value) {
+      const raw = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+      if (!raw) return "";
+      if (/^\d+$/.test(raw)) return `${raw}.TW`;
+      return raw;
+    }
+
+    function sameSymbol(left, right) {
+      const a = canonicalSymbol(left);
+      const b = canonicalSymbol(right);
+      if (!a || !b) return false;
+      return a === b || (a.endsWith(".TW") && b === a.replace(".TW", "")) || (b.endsWith(".TW") && a === b.replace(".TW", ""));
+    }
+
     async function analyze(symbol, silent = false) {
+      if (silent && manualAnalyzePending) return;
       const button = $("runBtn");
-      if (!silent) { button.disabled = true; button.textContent = "Loading"; }
-      $("symbol").value = symbol;
+      const requestedSymbol = String(symbol || "").trim() || "2330";
+      const requestId = ++analyzeRequestSeq;
+      if (!silent) {
+        manualAnalyzePending = true;
+        if (activeAnalyzeController) activeAnalyzeController.abort();
+        activeAnalyzeController = new AbortController();
+        button.disabled = true;
+        button.textContent = "Loading";
+        $("summaryText").textContent = `Loading ${requestedSymbol}...`;
+      }
+      $("symbol").value = requestedSymbol;
       try {
-        const qs = new URLSearchParams({ symbol, period: $("period").value, interval: $("interval").value });
-        const res = await fetch(`/api/analyze?${qs}`);
+        const qs = new URLSearchParams({ symbol: requestedSymbol, period: $("period").value, interval: $("interval").value });
+        const fetchOptions = !silent && activeAnalyzeController ? { signal: activeAnalyzeController.signal } : {};
+        const res = await fetch(`/api/analyze?${qs}`, fetchOptions);
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.detail || "Analyze failed");
+        if (requestId !== analyzeRequestSeq) return;
+        if (!sameSymbol(requestedSymbol, data.symbol)) throw new Error(`Symbol mismatch: requested ${requestedSymbol}, got ${data.symbol}`);
         render(data);
+        if (!silent) refreshQuote();
         if (!silent || eventAlertsData?.symbol !== data.symbol) loadEventAlerts(data.symbol);
       } catch (error) {
+        if (error.name === "AbortError") return;
         if (!silent) $("summaryText").textContent = error.message;
       } finally {
-        button.disabled = false; button.textContent = t("analyze");
+        if (!silent && requestId === analyzeRequestSeq) {
+          manualAnalyzePending = false;
+          button.disabled = false;
+          button.textContent = t("analyze");
+        }
       }
     }
 
@@ -3414,6 +3451,7 @@
 
     function render(data) {
       lastData = data;
+      lastQuotePrice = data.latest.close;
       if ($("serenitySymbol")) $("serenitySymbol").value = data.symbol;
       if ($("dtCostSymbol")) $("dtCostSymbol").value = data.symbol;
       if (serenityData && serenityData.symbol !== data.symbol) serenityData = null;
@@ -3479,16 +3517,33 @@
 
     async function refreshQuote() {
       if (!autoRefresh || !lastData) return;
+      const targetSymbol = lastData.symbol;
+      const requestId = ++quoteRequestSeq;
       try {
-        const res = await fetch(`/api/quote?symbol=${encodeURIComponent(lastData.symbol)}`);
+        const res = await fetch(`/api/quote?symbol=${encodeURIComponent(targetSymbol)}`);
         const quote = await res.json();
         if (!res.ok || !quote.ok) return;
+        if (requestId !== quoteRequestSeq || !lastData || !sameSymbol(targetSymbol, lastData.symbol) || !sameSymbol(targetSymbol, quote.symbol)) return;
         const previous = lastQuotePrice;
         lastQuotePrice = quote.price;
         $("price").textContent = fmt(quote.price);
         $("change").textContent = `${arrow(quote.change_pct)} ${signed(quote.change_pct, "%")}`;
         $("change").className = quote.change_pct >= 0 ? (quote.market === "TW" ? "tw-up" : "up") : (quote.market === "TW" ? "tw-down" : "down");
         $("liveMeta").textContent = `${quote.symbol} · ${quote.date} · ${fmt(quote.price)} · ${signed(quote.change_pct, "%")} · ${quote.source}`;
+        if (quote.market_cap) {
+          lastData.valuation = {
+            ...(lastData.valuation || {}),
+            market_cap: quote.market_cap,
+            currency: quote.currency,
+            market_cap_previous: quote.market_cap_previous,
+            market_cap_change_pct: quote.market_cap_change_pct,
+            trailing_pe: quote.trailing_pe ?? lastData.valuation?.trailing_pe,
+            forward_pe: quote.forward_pe ?? lastData.valuation?.forward_pe,
+            source: quote.source
+          };
+          $("valuationMain").textContent = valuationCapText(lastData);
+          $("valuationSub").textContent = peText(lastData);
+        }
         $("refreshMeta").textContent = `${t("updated")} ${new Date().toLocaleTimeString()}`;
         if (previous !== null && Math.abs(previous - quote.price) > 0.0001) flashQuote(quote.price >= previous ? "up" : "down");
       } catch {}
