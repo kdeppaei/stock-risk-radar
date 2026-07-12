@@ -32,6 +32,9 @@
   const defaults = ["2330.TW", "2317.TW", "2454.TW", "3481.TW", "2409.TW", "2002.TW", "1101.TW", "2303.TW", "2881.TW", "0050.TW", "006208.TW"];
   let marketMode = localStorage.getItem("okiri.daytradeMarket") || "TW";
   let moverTimer = null;
+  let daytradeQuoteTimer = null;
+  let daytradeModelTimer = null;
+  const dataSaver = localStorage.getItem("srr.dataSaver") !== "0";
 
   function fmt(n) {
     if (n == null || Number.isNaN(Number(n))) return "-";
@@ -119,9 +122,7 @@
     $("okiriDtMarket").addEventListener("change", () => {
       marketMode = $("okiriDtMarket").value;
       localStorage.setItem("okiri.daytradeMarket", marketMode);
-      refreshDaytradeQuotesLive();
-      loadDaytradeModelBoard();
-      loadAlerts();
+      if (isTabActive("daytrade")) startDaytradeLive(true);
     });
   }
 
@@ -165,7 +166,7 @@
     const watch = JSON.parse(localStorage.getItem("srr.watch") || "[]");
     return [...new Set([...saved, ...watch].map(normalizeSymbol))]
       .filter((symbol) => markets().has(symbolMarket(symbol)))
-      .slice(0, 32);
+      .slice(0, dataSaver ? 8 : 32);
   }
 
   async function refreshDaytradeQuotesLive() {
@@ -181,7 +182,7 @@
     const rows = await Promise.all(symbols.map(async (symbol) => {
       try {
         const quote = await fetch(`/api/quote/${encodeURIComponent(symbol)}`).then((res) => res.json());
-        const detail = await fetch("/api/daytrade/analyze", {
+        const detail = dataSaver ? null : await fetch("/api/daytrade/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ symbol: quote.symbol, buy_price: Number($("dtBuyPrice")?.value || quote.price || 0), sell_price: quote.price || 0, shares: Number($("dtShares")?.value || 1000) })
@@ -270,7 +271,38 @@
 
   function scheduleMoversLive() {
     clearInterval(moverTimer);
-    moverTimer = setInterval(loadMoversLive, $("moverMode")?.value === "live" ? 8000 : 60000);
+    if (!isTabActive("news")) return;
+    moverTimer = setInterval(loadMoversLive, dataSaver ? 120000 : $("moverMode")?.value === "live" ? 8000 : 60000);
+  }
+
+  function activeTab() {
+    return document.querySelector("[data-workspace-tab].active")?.dataset.workspaceTab || "recommend";
+  }
+
+  function isTabActive(name) {
+    return activeTab() === name || document.getElementById(`pane-${name}`)?.classList.contains("active");
+  }
+
+  function startDaytradeLive(force = false) {
+    clearInterval(daytradeQuoteTimer);
+    clearInterval(daytradeModelTimer);
+    if (!isTabActive("daytrade")) return;
+    refreshDaytradeQuotesLive();
+    loadDaytradeModelBoard();
+    if (dataSaver && !force) return;
+    daytradeQuoteTimer = setInterval(refreshDaytradeQuotesLive, dataSaver ? 120000 : 8000);
+    daytradeModelTimer = setInterval(loadDaytradeModelBoard, dataSaver ? 120000 : 8000);
+  }
+
+  function startNewsLive() {
+    if (!isTabActive("news")) return;
+    loadMoversLive();
+    scheduleMoversLive();
+  }
+
+  function hydrateTab(name) {
+    if (name === "daytrade") startDaytradeLive();
+    if (name === "news") startNewsLive();
   }
 
   function boot() {
@@ -280,14 +312,11 @@
     installModelPanel();
     installQuoteCapHeader();
     installMoverSwitch();
-    refreshDaytradeQuotesLive();
-    loadDaytradeModelBoard();
-    loadAlerts();
-    loadMoversLive();
-    scheduleMoversLive();
-    setInterval(refreshDaytradeQuotesLive, 8000);
-    setInterval(loadDaytradeModelBoard, 8000);
-    setInterval(loadAlerts, 60000);
+    document.querySelectorAll("[data-workspace-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => setTimeout(() => hydrateTab(btn.dataset.workspaceTab), 0));
+    });
+    window.addEventListener("okiri:workspace", (event) => hydrateTab(event.detail?.name));
+    hydrateTab(activeTab());
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);

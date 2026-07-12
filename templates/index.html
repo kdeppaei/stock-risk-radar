@@ -969,7 +969,8 @@
     let watchExpanded = localStorage.getItem("srr.watchExpanded") === "1";
     let watchDetailData = {};
     let watchDetailLoading = false;
-    let autoRefresh = true;
+    let dataSaver = localStorage.getItem("srr.dataSaver") !== "0";
+    let autoRefresh = localStorage.getItem("srr.autoRefresh") === "1";
     let lastQuotePrice = null;
     let recommendationData = null;
     let screenerOptionsData = null;
@@ -999,6 +1000,7 @@
     let daytradeLastPrices = {};
     let daytradeAnalyzeData = null;
     let daytradePriceAutoSymbol = "";
+    let loadedWorkspaceTabs = new Set();
     let analyzeRequestSeq = 0;
     let quoteRequestSeq = 0;
     let activeAnalyzeController = null;
@@ -1692,7 +1694,11 @@
     $("addWatchBtn").addEventListener("click", () => addWatch(lastData?.symbol || $("symbol").value.trim()));
     $("watchToggleBtn").addEventListener("click", () => toggleWatchPanel());
     $("watchShareBtn").addEventListener("click", () => shareWatchPortfolio());
-    $("autoBtn").addEventListener("click", () => { autoRefresh = !autoRefresh; $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff"); });
+    $("autoBtn").addEventListener("click", () => {
+      autoRefresh = !autoRefresh;
+      localStorage.setItem("srr.autoRefresh", autoRefresh ? "1" : "0");
+      $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff");
+    });
     $("scRunBtn").addEventListener("click", () => runScreener());
     $("botRunBtn").addEventListener("click", () => runBots());
     $("hdRunBtn").addEventListener("click", () => runHindsight());
@@ -1717,7 +1723,7 @@
     $("pfUseWatchBtn").addEventListener("click", () => applyWatchToPortfolio());
     $("pfRisk").addEventListener("input", updatePortfolioRiskLabel);
     $("dtRefreshBtn").addEventListener("click", () => refreshDaytradeDesk(true));
-    $("dtMarketMode").addEventListener("change", () => { daytradeMarketMode = $("dtMarketMode").value; localStorage.setItem("okiri.daytradeMarket", daytradeMarketMode); refreshDaytradeDesk(true); loadAlerts(); });
+    $("dtMarketMode").addEventListener("change", () => { daytradeMarketMode = $("dtMarketMode").value; localStorage.setItem("okiri.daytradeMarket", daytradeMarketMode); refreshDaytradeDesk(true); if ($("alertDrawer")?.classList.contains("open")) loadAlerts(); });
     $("dtCostBtn").addEventListener("click", () => calculateDaytradeCost());
     $("dtUseLatestBtn").addEventListener("click", () => useLatestForDaytradeCost());
     $("dtAddCurrentBtn").addEventListener("click", () => addDaytradeSymbol(lastData?.symbol || $("symbol").value.trim()));
@@ -1782,13 +1788,29 @@
     function switchWorkspaceTab(name) {
       document.querySelectorAll("[data-workspace-tab]").forEach((btn) => btn.classList.toggle("active", btn.dataset.workspaceTab === name));
       document.querySelectorAll(".workspace-pane").forEach((pane) => pane.classList.toggle("active", pane.id === `pane-${name}`));
-      if (name === "screener" && !botData) runBots();
+      window.dispatchEvent(new CustomEvent("okiri:workspace", { detail: { name } }));
+      ensureWorkspaceData(name);
+    }
+
+    function ensureWorkspaceData(name, force = false) {
+      if (!force && loadedWorkspaceTabs.has(name)) return;
+      loadedWorkspaceTabs.add(name);
+      if (name === "recommend") loadRecommendations();
+      if (name === "screener") {
+        if (!screenerOptionsData) loadScreenerOptions();
+        if (!botData) runBots();
+      }
+      if (name === "news") {
+        loadMovers();
+        if (lastData) loadEventAlerts(lastData.symbol);
+      }
       if (name === "daytrade") refreshDaytradeDesk(false);
       if (name === "serenity") {
         if (!serenityRecentData) loadSerenityRecent();
-        if (!serenityIntelData) loadSerenityIntel();
-        if (!serenityData) runSerenity();
+        if (!dataSaver && !serenityIntelData) loadSerenityIntel();
+        if (!dataSaver && !serenityData) runSerenity();
       }
+      if (name === "forum") loadForum();
     }
 
     function handleShortcuts(event) {
@@ -2033,7 +2055,12 @@
       });
     }
 
-    async function initProfile() {
+    async function initProfile(forceRemote = false) {
+      if (dataSaver && !forceRemote) {
+        if (!profileCode) profileCode = `LOCAL-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+        renderProfileCode();
+        return;
+      }
       try {
         const res = await fetch("/api/profile", {
           method: "POST",
@@ -2094,7 +2121,7 @@
     }
 
     async function saveProfile() {
-      if (!profileCode || profileCode.startsWith("LOCAL-")) await initProfile();
+      if (!profileCode || profileCode.startsWith("LOCAL-")) await initProfile(true);
       try {
         const res = await fetch(`/api/profile/${encodeURIComponent(profileCode)}`, {
           method: "POST",
@@ -2434,8 +2461,9 @@
 
     function scheduleMoverRefresh() {
       if (moverTimer) clearInterval(moverTimer);
+      if (!isWorkspaceTabActive("news")) return;
       const mode = $("moverMode")?.value || "recent";
-      moverTimer = setInterval(loadMovers, mode === "live" ? 8000 : 60000);
+      moverTimer = setInterval(loadMovers, dataSaver ? 120000 : mode === "live" ? 8000 : 60000);
     }
 
     async function loadAlerts() {
@@ -3146,10 +3174,10 @@
           refreshDaytradeQuotes();
           loadDaytradeModelBoard();
         }
-      }, 8000);
+      }, dataSaver ? 120000 : 8000);
       daytradeAnalyzeTimer = setInterval(() => {
         if (isWorkspaceTabActive("daytrade")) analyzeDaytradeSymbol(lastData?.symbol || $("symbol").value.trim() || "2330");
-      }, 30000);
+      }, dataSaver ? 180000 : 30000);
     }
 
     async function loadDaytradePulse() {
@@ -3182,7 +3210,7 @@
     }
 
     async function refreshDaytradeQuotes() {
-      const symbols = [...new Set([...daytradeSymbols, ...watch])].filter(marketFilterSymbol).slice(0, 32);
+      const symbols = [...new Set([...daytradeSymbols, ...watch])].filter(marketFilterSymbol).slice(0, dataSaver ? 8 : 32);
       if (!symbols.length) {
         $("dtQuoteBody").innerHTML = `<tr><td colspan="8">${rt("noData")}</td></tr>`;
         return;
@@ -4116,16 +4144,15 @@
     }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
 
-    mountScreenerPanel(); applyLang(); initProfile(); loadForum(); renderWatchlist(); tickClocks(); loadContext(); loadRecommendations(); loadMovers(); loadAlerts(); loadScreenerOptions(); calculateDaytradeCost(false); analyze($("symbol").value); refreshWatchlist();
+    mountScreenerPanel(); applyLang(); initProfile(); renderWatchlist(); tickClocks(); loadContext(); calculateDaytradeCost(false); analyze($("symbol").value);
     setInterval(tickClocks, 1000);
-    setInterval(loadContext, 60000);
-    setInterval(refreshQuote, 10000);
-    scheduleMoverRefresh();
-    serenityRecentTimer = setInterval(() => { if (isWorkspaceTabActive("serenity")) loadSerenityRecent(); }, 120000);
-    setInterval(() => { if (autoRefresh && lastData && ($("period").value === "1d" || $("interval").value === "5m")) analyze(lastData.symbol, true); }, 30000);
-    setInterval(() => { if (autoRefresh) refreshWatchlist(); }, 30000);
-    setInterval(loadAlerts, 60000);
-    setInterval(loadForum, 600000);
+    setInterval(loadContext, dataSaver ? 300000 : 60000);
+    setInterval(refreshQuote, dataSaver ? 60000 : 10000);
+    serenityRecentTimer = setInterval(() => { if (!dataSaver && isWorkspaceTabActive("serenity")) loadSerenityRecent(); }, 120000);
+    setInterval(() => { if (autoRefresh && lastData && ($("period").value === "1d" || $("interval").value === "5m")) analyze(lastData.symbol, true); }, dataSaver ? 180000 : 30000);
+    setInterval(() => { if (autoRefresh && watchExpanded) refreshWatchlist(); }, dataSaver ? 180000 : 30000);
+    setInterval(() => { if (!dataSaver && $("alertDrawer")?.classList.contains("open")) loadAlerts(); }, 60000);
+    setInterval(() => { if (!dataSaver && isWorkspaceTabActive("forum")) loadForum(); }, 600000);
   </script>
 </body>
 </html>
