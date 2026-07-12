@@ -50,7 +50,7 @@ def remove_route(path: str, methods: set[str] | None = None) -> None:
     ]
 
 
-for route_path in {"/", "/api/analyze", "/api/quote/{symbol}", "/api/movers"}:
+for route_path in {"/", "/api/analyze", "/api/quote/{symbol}", "/api/movers", "/api/version"}:
     remove_route(route_path)
 
 
@@ -61,6 +61,18 @@ def home() -> HTMLResponse:
     if script not in html:
         html = html.replace("</body>", f"{script}\n</body>")
     return HTMLResponse(html)
+
+
+@app.get("/api/version")
+def version() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "app": "OpenKiri",
+        "entry": "openkiri_live",
+        "commit_marker": "8270d36-version-probe",
+        "fast_intraday": True,
+        "render_service": "stock-risk-radar",
+    }
 
 
 @app.get("/api/analyze")

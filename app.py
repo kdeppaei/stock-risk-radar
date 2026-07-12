@@ -412,6 +412,17 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/version")
+def version() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "app": "OpenKiri",
+        "entry": "app",
+        "commit_marker": "8270d36-version-probe",
+        "expected_entry": "openkiri_live",
+    }
+
+
 @app.get("/api/market-context")
 def market_context() -> dict[str, Any]:
     usd_twd = quote_last("TWD=X")
