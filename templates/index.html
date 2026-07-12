@@ -13,7 +13,7 @@
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); }
-    .wrap { width: min(1440px, calc(100% - 28px)); margin: 0 auto; padding: 18px 0 28px; }
+    .wrap { width: min(1440px, calc(100% - 28px)); margin: 0 auto; padding: 18px 0 28px; display: flex; flex-direction: column; }
     .statusbar, header, .cards, .main, .grid { display: grid; gap: 12px; }
     .statusbar { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 14px; }
     .status { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
@@ -61,11 +61,20 @@
     .card small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
     .card.flash-up, .status.flash-up { border-color: var(--green); box-shadow: 0 0 0 2px rgba(34,197,94,.22); animation: blinkUp 1s ease-in-out 2; }
     .card.flash-down, .status.flash-down { border-color: var(--red); box-shadow: 0 0 0 2px rgba(239,68,68,.22); animation: blinkDown 1s ease-in-out 2; }
-    .workspace-panel { margin-bottom: 16px; padding: 0; overflow: hidden; }
+    .statusbar { order: 1; }
+    header { order: 2; }
+    .cards { order: 3; }
+    .wrap > .main { order: 4; }
+    .watch-strip { order: 5; }
+    .workspace-panel { order: 6; margin-bottom: 16px; padding: 0; overflow: hidden; }
+    .screener-panel { order: 7; }
+    .wrap > .grid { order: 8; }
     .workspace-tabs { display: flex; gap: 3px; overflow-x: auto; background: #0f172f; border-bottom: 1px solid var(--line); padding: 6px 8px 0; }
     .workspace-tab { height: 38px; min-width: 88px; border-radius: 7px 7px 0 0; background: #172241; border-color: var(--line); color: #bfdbfe; }
     .workspace-tab.active { background: var(--panel); color: var(--text); border-bottom-color: var(--panel); }
     .workspace-body { padding: 14px; }
+    .header-tabs { width: 100%; border-radius: 8px; border: 1px solid var(--line); padding: 5px; margin-bottom: 2px; }
+    .workspace-panel > .workspace-tabs { display: none; }
     .workspace-pane { display: none; }
     .workspace-pane.active { display: block; }
     .workspace-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
@@ -453,6 +462,16 @@
         <p class="sub" data-i18n="subtitle">一個結合 K 線、新聞情緒、風險分數與交易劇本的股票決策輔助工具</p>
       </div>
       <div class="controls">
+        <div class="workspace-tabs header-tabs">
+          <button class="workspace-tab active" type="button" data-workspace-tab="recommend" data-reco-i18n="tabRecommend">Home</button>
+          <button class="workspace-tab" type="button" data-workspace-tab="daytrade" data-reco-i18n="tabDaytrade">T+0</button>
+          <button class="workspace-tab" type="button" data-workspace-tab="screener" data-reco-i18n="tabScreener">Screener</button>
+          <button class="workspace-tab" type="button" data-workspace-tab="news" data-reco-i18n="tabNews">News</button>
+          <button class="workspace-tab" type="button" data-workspace-tab="serenity" data-reco-i18n="tabSerenity">Serenity</button>
+          <button class="workspace-tab" type="button" data-workspace-tab="forum" data-reco-i18n="tabForum">Forum</button>
+          <button class="workspace-tab" type="button" data-workspace-tab="portfolio" data-reco-i18n="tabPortfolio">Portfolio</button>
+          <button class="workspace-tab" type="button" data-workspace-tab="help" data-reco-i18n="tabHelp">Help</button>
+        </div>
         <div class="langbar">
           <button class="secondary" type="button" data-lang="zh-tw">繁體</button>
           <button class="secondary" type="button" data-lang="zh-cn">简体</button>

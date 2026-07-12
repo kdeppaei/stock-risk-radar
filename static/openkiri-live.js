@@ -89,6 +89,12 @@
   }
 
   function installBell() {
+    const nativeBell = $("alertBellBtn");
+    if (nativeBell) {
+      nativeBell.title = tw ? "\u7576\u65e5\u91cd\u5927\u8a0a\u865f" : "Daily major signals";
+      nativeBell.dataset.tip = tw ? "\u7576\u65e5\u91cd\u5927\u8a0a\u865f\uff1a\u9ec3\u91d1\u4ea4\u53c9\u3001\u6b7b\u4ea1\u4ea4\u53c9\u8207\u591a\u7a7a\u5ef6\u7e8c\u63d0\u9192" : "Daily major signals: golden/death crosses and long/short continuation alerts";
+      return;
+    }
     if ($("okiriAlertBell")) return;
     const target = document.querySelector(".langbar");
     if (!target) return;
