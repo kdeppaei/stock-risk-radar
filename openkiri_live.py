@@ -503,6 +503,48 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
         tried.append(candidate)
         snapshot = fetch_yahoo_quote_snapshot(candidate)
         google_snapshot = fetch_google_finance_snapshot(candidate, market)
+        fast_price = base.optional_number((snapshot or {}).get("price"))
+        fast_source = "Yahoo quote"
+        if fast_price is None:
+            fast_price = base.optional_number(google_snapshot.get("price"))
+            fast_source = "Google Finance"
+        if fast_price is not None and google_snapshot.get("market_cap"):
+            fast_change_pct = base.optional_number((snapshot or {}).get("change_pct"))
+            if fast_change_pct is None:
+                fast_change_pct = base.optional_number(google_snapshot.get("change_pct")) or 0
+            previous_price = fast_price / (1 + fast_change_pct / 100) if fast_change_pct > -99 else fast_price
+            fast_change = (base.optional_number((snapshot or {}).get("change")) if snapshot else None)
+            if fast_change is None:
+                fast_change = fast_price - previous_price
+            live_market_cap = base.optional_number((snapshot or {}).get("market_cap"), 0) or base.optional_number(google_snapshot.get("market_cap"), 0)
+            cap_previous = int(live_market_cap / (1 + fast_change_pct / 100)) if live_market_cap and fast_change_pct > -99 else None
+            payload = {
+                "ok": True,
+                "symbol": candidate,
+                "input_symbol": raw,
+                "market": market,
+                "date": datetime.now(timezone.utc).isoformat(timespec="minutes"),
+                "price": base.number(fast_price),
+                "open": base.number(google_snapshot.get("open") or (snapshot or {}).get("open") or fast_price),
+                "high": base.number(google_snapshot.get("high") or (snapshot or {}).get("high") or fast_price),
+                "low": base.number(google_snapshot.get("low") or (snapshot or {}).get("low") or fast_price),
+                "change": base.number(fast_change),
+                "change_pct": base.number(fast_change_pct),
+                "volume": int(google_snapshot.get("volume") or (snapshot or {}).get("volume") or 0),
+                "volume_ratio": 1,
+                "currency": (snapshot or {}).get("currency") or google_snapshot.get("currency") or ("TWD" if market == "TW" else "USD"),
+                "market_cap": int(live_market_cap) if live_market_cap else None,
+                "market_cap_previous": cap_previous,
+                "market_cap_change_pct": base.number(fast_change_pct),
+                "shares_outstanding": (snapshot or {}).get("shares_outstanding") or google_snapshot.get("shares_outstanding"),
+                "trailing_pe": (snapshot or {}).get("trailing_pe") or google_snapshot.get("trailing_pe"),
+                "forward_pe": (snapshot or {}).get("forward_pe"),
+                "source": fast_source if fast_source == "Google Finance" else "Yahoo quote + Google Finance",
+                "fallback": False,
+                "data_warning": "Quote is optimized for low latency; chart bars are loaded by /api/analyze.",
+            }
+            base.QUOTE_CACHE[cache_key] = (now, payload)
+            return payload
         intraday_rows = base.fetch_price_history(candidate, "1d", "1m")
         source = "1d/1m"
         if not intraday_rows:
