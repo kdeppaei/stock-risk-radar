@@ -7,20 +7,169 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from html import unescape
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 import requests
 from fastapi import HTTPException, Query
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse
 
 import app as base
 
 app = base.app
+app.add_middleware(GZipMiddleware, minimum_size=512, compresslevel=6)
 BASE_DIR = Path(__file__).resolve().parent
 ALERT_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 USD_TWD_CACHE: tuple[float, float] | None = None
 ANALYZE_CACHE: dict[tuple[str, str, str], tuple[float, dict[str, Any]]] = {}
 GOOGLE_FINANCE_CACHE: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
+HTTP_GET_CACHE: dict[tuple[str, tuple[tuple[str, str], ...]], tuple[float, int, bytes, dict[str, str], str, str | None]] = {}
+PRICE_HISTORY_CACHE: dict[tuple[str, str, str], tuple[float, list[dict[str, Any]]]] = {}
+NEWS_CACHE: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
+MACRO_CACHE: tuple[float, dict[str, Any]] | None = None
+MARKET_PULSE_SAVER_CACHE: tuple[float, dict[str, Any]] | None = None
+RECOMMENDATIONS_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
+_CACHE_LOCK = Lock()
+_ORIGINAL_REQUESTS_GET = requests.get
+_ORIGINAL_FETCH_PRICE_HISTORY = base.fetch_price_history
+_ORIGINAL_FETCH_NEWS = base.fetch_news
+_ORIGINAL_FETCH_MACRO_SNAPSHOT = base.fetch_macro_snapshot
+
+
+def cache_prune(cache: dict[Any, Any], max_items: int) -> None:
+    if len(cache) <= max_items:
+        return
+    stale = sorted(cache.items(), key=lambda item: item[1][0])[: max(1, len(cache) - max_items)]
+    for key, _ in stale:
+        cache.pop(key, None)
+
+
+def freeze_params(params: Any) -> tuple[tuple[str, str], ...]:
+    if not params:
+        return ()
+    if isinstance(params, dict):
+        return tuple(sorted((str(key), repr(value)) for key, value in params.items()))
+    try:
+        return tuple(sorted((str(key), repr(value)) for key, value in params))
+    except Exception:
+        return (("params", repr(params)),)
+
+
+def http_ttl(url: Any, params: Any) -> int:
+    text = str(url).lower()
+    frozen = dict(freeze_params(params))
+    interval = str(frozen.get("interval", "")).strip("'\"").lower()
+    if "query1.finance.yahoo.com/v8/finance/chart" in text:
+        if interval in {"1m", "5m"}:
+            return 75
+        if interval in {"15m", "1h"}:
+            return 180
+        return 900
+    if "query1.finance.yahoo.com/v7/finance/quote" in text:
+        return 45
+    if "google.com/finance/quote" in text:
+        return 300
+    if "feeds.finance.yahoo.com" in text or "news.google.com/rss" in text:
+        return 1800
+    if "quoteSummary".lower() in text or "getcrumb" in text or "fc.yahoo.com" in text:
+        return 3600
+    if "bea.gov" in text:
+        return 21600
+    return 300 if text.startswith("http") else 0
+
+
+def cached_response(record: tuple[float, int, bytes, dict[str, str], str, str | None]) -> requests.Response:
+    _, status, content, headers, url, encoding = record
+    response = requests.Response()
+    response.status_code = status
+    response._content = content
+    response._content_consumed = True
+    response.headers.update(headers)
+    response.url = url
+    response.encoding = encoding
+    return response
+
+
+def bandwidth_cached_get(url: Any, *args: Any, **kwargs: Any) -> requests.Response:
+    if kwargs.get("stream"):
+        return _ORIGINAL_REQUESTS_GET(url, *args, **kwargs)
+    params = kwargs.get("params")
+    ttl = http_ttl(url, params)
+    key = (str(url), freeze_params(params))
+    now = time.time()
+    if ttl:
+        with _CACHE_LOCK:
+            cached = HTTP_GET_CACHE.get(key)
+            if cached and now - cached[0] < ttl:
+                return cached_response(cached)
+    response = _ORIGINAL_REQUESTS_GET(url, *args, **kwargs)
+    if ttl and response.status_code == 200 and len(response.content) <= 2_000_000:
+        record = (now, response.status_code, response.content, dict(response.headers), response.url, response.encoding)
+        with _CACHE_LOCK:
+            HTTP_GET_CACHE[key] = record
+            cache_prune(HTTP_GET_CACHE, 256)
+    return response
+
+
+def history_ttl(period: str, interval: str) -> int:
+    if interval in {"1m", "5m"}:
+        return 75
+    if interval in {"15m", "1h"}:
+        return 180
+    if period in {"1d", "5d"}:
+        return 300
+    return 900
+
+
+def copy_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [dict(row) for row in rows]
+
+
+def cached_price_history(symbol: str, period: str, interval: str) -> list[dict[str, Any]]:
+    key = (symbol.upper(), period, interval)
+    now = time.time()
+    ttl = history_ttl(period, interval)
+    with _CACHE_LOCK:
+        cached = PRICE_HISTORY_CACHE.get(key)
+        if cached and now - cached[0] < ttl:
+            return copy_rows(cached[1])
+    rows = _ORIGINAL_FETCH_PRICE_HISTORY(symbol, period, interval)
+    with _CACHE_LOCK:
+        PRICE_HISTORY_CACHE[key] = (now, copy_rows(rows))
+        cache_prune(PRICE_HISTORY_CACHE, 384)
+    return rows
+
+
+def cached_fetch_news(symbol: str, market: str) -> dict[str, Any]:
+    key = (symbol.upper(), market)
+    now = time.time()
+    with _CACHE_LOCK:
+        cached = NEWS_CACHE.get(key)
+        if cached and now - cached[0] < 1800:
+            return dict(cached[1])
+    payload = _ORIGINAL_FETCH_NEWS(symbol, market)
+    with _CACHE_LOCK:
+        NEWS_CACHE[key] = (now, dict(payload))
+        cache_prune(NEWS_CACHE, 160)
+    return payload
+
+
+def cached_macro_snapshot() -> dict[str, Any]:
+    global MACRO_CACHE
+    now = time.time()
+    if MACRO_CACHE and now - MACRO_CACHE[0] < 900:
+        return dict(MACRO_CACHE[1])
+    payload = _ORIGINAL_FETCH_MACRO_SNAPSHOT()
+    MACRO_CACHE = (now, dict(payload))
+    return payload
+
+
+requests.get = bandwidth_cached_get
+base.requests.get = bandwidth_cached_get
+base.fetch_price_history = cached_price_history
+base.fetch_news = cached_fetch_news
+base.fetch_macro_snapshot = cached_macro_snapshot
 
 NEUTRAL_NEWS: dict[str, Any] = {
     "query": "intraday-fast-mode",
@@ -53,14 +202,14 @@ def remove_route(path: str, methods: set[str] | None = None) -> None:
     ]
 
 
-for route_path in {"/", "/api/analyze", "/api/quote", "/api/quote/{symbol}", "/api/movers", "/api/version"}:
+for route_path in {"/", "/api/analyze", "/api/quote", "/api/quote/{symbol}", "/api/movers", "/api/version", "/api/recommendations", "/api/tw/market-pulse"}:
     remove_route(route_path)
 
 
 @app.get("/", response_class=HTMLResponse)
 def home() -> HTMLResponse:
     html = (BASE_DIR / "templates" / "index.html").read_text(encoding="utf-8")
-    script = '<script src="/static/openkiri-live.js?v=20260712-bandwidth"></script>'
+    script = '<script src="/static/openkiri-live.js?v=20260712-bandwidth2"></script>'
     if script not in html:
         html = html.replace("</body>", f"{script}\n</body>")
     return HTMLResponse(html)
@@ -72,10 +221,47 @@ def version() -> dict[str, Any]:
         "ok": True,
         "app": "OpenKiri",
         "entry": "openkiri_live",
-        "commit_marker": "bandwidth-saver-lazy-load",
+        "commit_marker": "bandwidth-saver-backend-cache",
         "fast_intraday": True,
         "render_service": "stock-risk-radar",
     }
+
+
+def analyze_ttl(period: str, interval: str) -> int:
+    if period in {"1d", "5d"} and interval in {"5m", "15m", "1h"}:
+        return 45
+    if interval in {"5m", "15m", "1h"}:
+        return 120
+    return 600
+
+
+@app.get("/api/tw/market-pulse")
+def tw_market_pulse() -> dict[str, Any]:
+    global MARKET_PULSE_SAVER_CACHE
+    now = time.time()
+    if MARKET_PULSE_SAVER_CACHE and now - MARKET_PULSE_SAVER_CACHE[0] < 180:
+        return MARKET_PULSE_SAVER_CACHE[1]
+    payload = base.market_pulse_payload()
+    MARKET_PULSE_SAVER_CACHE = (now, payload)
+    return payload
+
+
+@app.get("/api/recommendations")
+def recommendations(
+    markets: str = Query("US,TW", max_length=16),
+    limit: int = Query(8, ge=3, le=12),
+) -> dict[str, Any]:
+    selected = ",".join(sorted({part.strip().upper() for part in markets.split(",") if part.strip()}))
+    cache_key = (selected, limit)
+    now = time.time()
+    cached = RECOMMENDATIONS_CACHE.get(cache_key)
+    if cached and now - cached[0] < 900:
+        return cached[1]
+    payload = base.recommendations(markets=selected or markets, limit=limit)
+    payload["bandwidth_saver"] = "cached for 15 minutes"
+    RECOMMENDATIONS_CACHE[cache_key] = (now, payload)
+    cache_prune(RECOMMENDATIONS_CACHE, 24)
+    return payload
 
 
 @app.get("/api/analyze")
@@ -92,7 +278,7 @@ def analyze(
     cache_key = (normalized, period, interval)
     now = time.time()
     cached = ANALYZE_CACHE.get(cache_key)
-    if fast_intraday and cached and now - cached[0] < 10:
+    if cached and now - cached[0] < analyze_ttl(period, interval):
         return cached[1]
 
     rows: list[dict[str, Any]] = []
@@ -169,9 +355,9 @@ def analyze(
         "valuation": valuation,
         "chart": base.build_chart_rows(visible_rows, market),
     }
-    if fast_intraday:
-        ANALYZE_CACHE[cache_key] = (now, response)
-    else:
+    ANALYZE_CACHE[cache_key] = (now, response)
+    cache_prune(ANALYZE_CACHE, 160)
+    if not fast_intraday:
         base.save_log(raw, resolved, market, response)
     return response
 
@@ -179,6 +365,25 @@ def analyze(
 @app.get("/api/quote/{symbol}")
 def quote(symbol: str) -> dict[str, Any]:
     return latest_quote_payload(symbol)
+
+
+def saver_universe(selected: set[str], mode: str, cap: int) -> list[dict[str, Any]]:
+    preferred = set(base.DAYTRADE_DEFAULT_SYMBOLS)
+    preferred.update({"NVDA", "MSFT", "AAPL", "GOOGL", "AMZN", "META", "TSLA", "MU", "AVGO", "AMD"})
+    rows = [item for item in base.STOCK_UNIVERSE if item["market"] in selected]
+    rows.sort(key=lambda item: (item["symbol"] not in preferred, -float(item.get("market_cap_usd") or 0)))
+    per_market = 8 if mode == "live" else 12
+    out: list[dict[str, Any]] = []
+    counts: dict[str, int] = {}
+    for item in rows:
+        market = item["market"]
+        if counts.get(market, 0) >= per_market:
+            continue
+        out.append(item)
+        counts[market] = counts.get(market, 0) + 1
+        if len(out) >= cap:
+            break
+    return out
 
 
 @app.get("/api/movers")
@@ -190,14 +395,14 @@ def movers(
     selected = {part.strip().upper() for part in markets.split(",") if part.strip()}
     cache_key = (",".join(sorted(selected)), limit, mode)
     now_ts = datetime.now(timezone.utc).timestamp()
-    ttl = 8 if mode == "live" else 60
+    ttl = 180 if mode == "live" else 300
     cached = base.MOVERS_CACHE.get(cache_key)
     if cached and now_ts - cached[0] < ttl:
         return cached[1]
 
     rows = []
-    items = [item for item in base.STOCK_UNIVERSE if item["market"] in selected]
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    items = saver_universe(selected, mode, 16 if mode == "live" else 24)
+    with ThreadPoolExecutor(max_workers=4) as executor:
         futures = {executor.submit(base.mover_quote, item, mode=mode): item for item in items}
         for future in as_completed(futures):
             try:
@@ -222,6 +427,7 @@ def movers(
         "short_candidates": sorted([r for r in rows if r["model_score"] < 0], key=lambda r: r["model_score"])[:limit],
     }
     base.MOVERS_CACHE[cache_key] = (now_ts, payload)
+    cache_prune(base.MOVERS_CACHE, 64)
     return payload
 
 
@@ -231,12 +437,12 @@ def alerts(markets: str = Query("TW", max_length=16), limit: int = Query(8, ge=3
     cache_key = (",".join(sorted(selected)), limit)
     now = time.time()
     cached = ALERT_CACHE.get(cache_key)
-    if cached and now - cached[0] < 45:
+    if cached and now - cached[0] < 600:
         return cached[1]
 
     pool: list[dict[str, Any]] = []
-    items = [row for row in base.STOCK_UNIVERSE if row["market"] in selected][:48]
-    with ThreadPoolExecutor(max_workers=8) as executor:
+    items = saver_universe(selected, "live", 18)
+    with ThreadPoolExecutor(max_workers=4) as executor:
         futures = {executor.submit(stock_alert_signal, item): item for item in items}
         for future in as_completed(futures):
             try:
@@ -254,6 +460,7 @@ def alerts(markets: str = Query("TW", max_length=16), limit: int = Query(8, ge=3
         "model": "5m MA cross + moving-average topology + live quote pulse",
     }
     ALERT_CACHE[cache_key] = (now, payload)
+    cache_prune(ALERT_CACHE, 32)
     return payload
 
 
@@ -384,7 +591,7 @@ def fetch_google_finance_snapshot(symbol: str, market: str) -> dict[str, Any]:
     cache_key = (symbol.upper(), market)
     now = time.time()
     cached = GOOGLE_FINANCE_CACHE.get(cache_key)
-    if cached and now - cached[0] < 30:
+    if cached and now - cached[0] < 300:
         return cached[1]
 
     for code, exchange in google_finance_codes(symbol, market):
@@ -429,11 +636,13 @@ def fetch_google_finance_snapshot(symbol: str, market: str) -> dict[str, Any]:
                 "source_url": url,
             }
             GOOGLE_FINANCE_CACHE[cache_key] = (now, payload)
+            cache_prune(GOOGLE_FINANCE_CACHE, 256)
             return payload
         except Exception:
             continue
 
     GOOGLE_FINANCE_CACHE[cache_key] = (now, {})
+    cache_prune(GOOGLE_FINANCE_CACHE, 256)
     return {}
 
 
@@ -495,7 +704,7 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
     cache_key = (normalized,)
     now = time.time()
     cached = base.QUOTE_CACHE.get(cache_key)
-    if cached and now - cached[0] < 6:
+    if cached and now - cached[0] < 30:
         return cached[1]
 
     tried: list[str] = []
@@ -544,6 +753,7 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
                 "data_warning": "Quote is optimized for low latency; chart bars are loaded by /api/analyze.",
             }
             base.QUOTE_CACHE[cache_key] = (now, payload)
+            cache_prune(base.QUOTE_CACHE, 256)
             return payload
         intraday_rows = base.fetch_price_history(candidate, "1d", "1m")
         source = "1d/1m"
@@ -631,6 +841,7 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
             "data_warning": "Yahoo quote/chart data can be delayed; live 5m falls back to 5d/1d when intraday bars are unavailable.",
         }
         base.QUOTE_CACHE[cache_key] = (now, payload)
+        cache_prune(base.QUOTE_CACHE, 256)
         return payload
     raise HTTPException(status_code=404, detail=f"No quote data found for {', '.join(tried) or raw}.")
 
