@@ -8,6 +8,10 @@ Public website:
 https://stock-risk-radar.onrender.com/#
 ```
 
+![OpenKiri stock-risk dashboard](docs/images/dashboard.jpg)
+
+_The deployed dashboard combines a ticker workflow, technical-risk summary, valuation context, and decision-support levels in one responsive view._
+
 ## Features
 
 - Clean single-screen stock dashboard for Taiwan and US symbols such as `2330`, `2330.TW`, `AAPL`, `NVDA`, and `TSLA`.
@@ -16,6 +20,28 @@ https://stock-risk-radar.onrender.com/#
 - Screener grouping by market, industry, setup type, signal score, low P/E, market cap, risk, change, price, or volume.
 - Floating valuation cards for market cap, trailing P/E, and forward P/E from Yahoo quoteSummary, with a static market-cap fallback.
 - Responsive UI focused on classification and comparison instead of crowded dashboards.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    B["Browser UI"] --> API["FastAPI routes"]
+    API --> LIVE["openkiri_live.py deployment layer"]
+    LIVE --> CORE["app.py analysis + scoring"]
+    LIVE --> POLICY["Pure cache-key and TTL policy"]
+    CORE --> UPSTREAM["Yahoo, Google, and calendar sources"]
+    CORE --> VIEW["Jinja template + static JavaScript"]
+    POLICY --> TESTS["5 deterministic offline tests"]
+    LIVE --> HEALTH["/health deployment probe"]
+```
+
+## 60-second interview walkthrough
+
+- **Problem:** combine multiple market-data sources into a responsive analysis UI while limiting latency, rate pressure, and stale intraday results.
+- **Decision:** keep shared analysis in `app.py`, isolate deployment behavior in `openkiri_live.py`, and assign upstream-specific TTLs for quote, chart, news, and macro requests.
+- **Testability:** cache-key, pruning, history TTL, and analysis TTL rules are pure functions with five deterministic tests that never call external services.
+- **Operational evidence:** GitHub Actions compiles the modules, runs unit tests, smoke-imports the deployed FastAPI entry point, and Render exposes `/health`.
+- **Trade-off:** public upstream data can be delayed or unavailable, so the app uses explicit fallbacks and presents research-oriented risk context—not investment advice or guaranteed signals.
 
 ## Local Run
 
