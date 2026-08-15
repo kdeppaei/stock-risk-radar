@@ -52,7 +52,17 @@ Start Command:
 uvicorn openkiri_live:app --host 0.0.0.0 --port $PORT
 ```
 
-The included `render.yaml` keeps the existing `stock-risk-radar` Render service name while using the `openkiri_live:app` OpenKiri entry point. `openkiri_app.py` is an older compact prototype kept only as reference; Render does not call it.
+The included `render.yaml` keeps the existing `stock-risk-radar` Render service name while using the `openkiri_live:app` deployment entry point. `openkiri_live.py` imports shared application and market-analysis logic from `app.py`, then adds production caching and deployment-specific route behavior. Cache-key and TTL policy is isolated in `openkiri_cache_policy.py` so it can be tested without network access.
+
+## Engineering Checks
+
+```bash
+python -m compileall -q app.py openkiri_live.py openkiri_cache_policy.py
+python -m unittest discover -s tests -v
+python -c "import openkiri_live; assert openkiri_live.app.title == 'OpenKiri'"
+```
+
+GitHub Actions runs the same compile, unit-test, and deployed-entry-point smoke checks for every push and pull request. The cache-policy tests are deterministic and do not call Yahoo, Google, or other upstream services.
 
 ## API
 
@@ -71,3 +81,7 @@ Supported `interval`: `1d`, `1wk`
 ## Disclaimer
 
 This tool is for research and education only. It is not investment advice.
+
+## License
+
+[MIT](LICENSE)
