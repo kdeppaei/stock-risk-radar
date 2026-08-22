@@ -17,6 +17,7 @@ from fastapi.responses import HTMLResponse
 
 import app as base
 from openkiri_cache_policy import analyze_ttl, cache_prune, freeze_params, history_ttl, http_ttl
+from openkiri_integrity import SnapshotFingerprintTracker
 
 app = base.app
 app.add_middleware(GZipMiddleware, minimum_size=512, compresslevel=6)
@@ -36,6 +37,7 @@ _ORIGINAL_REQUESTS_GET = requests.get
 _ORIGINAL_FETCH_PRICE_HISTORY = base.fetch_price_history
 _ORIGINAL_FETCH_NEWS = base.fetch_news
 _ORIGINAL_FETCH_MACRO_SNAPSHOT = base.fetch_macro_snapshot
+SNAPSHOT_FINGERPRINTS = SnapshotFingerprintTracker()
 
 
 def cached_response(record: tuple[float, int, bytes, dict[str, str], str, str | None]) -> requests.Response:
@@ -296,6 +298,18 @@ def analyze(
         "valuation": valuation,
         "chart": base.build_chart_rows(visible_rows, market),
     }
+    snapshot = {
+        "symbol": resolved,
+        "market": market,
+        "period": period,
+        "interval": interval,
+        "latest": response["latest"],
+        "change": response["change"],
+        "technical": response["technical"],
+        "levels": response["levels"],
+        "chart": response["chart"],
+    }
+    response["integrity"] = SNAPSHOT_FINGERPRINTS.observe(cache_key, snapshot)
     ANALYZE_CACHE[cache_key] = (now, response)
     cache_prune(ANALYZE_CACHE, 160)
     if not fast_intraday:
