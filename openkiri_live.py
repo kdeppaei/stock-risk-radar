@@ -158,7 +158,7 @@ for route_path in {"/", "/api/analyze", "/api/quote", "/api/quote/{symbol}", "/a
 @app.get("/", response_class=HTMLResponse)
 def home() -> HTMLResponse:
     html = (BASE_DIR / "templates" / "index.html").read_text(encoding="utf-8")
-    script = '<script src="/static/openkiri-live.js?v=20260712-bandwidth2"></script>'
+    script = '<script src="/static/openkiri-live.js?v=20261010-workspace"></script>'
     if script not in html:
         html = html.replace("</body>", f"{script}\n</body>")
     return HTMLResponse(html)
@@ -170,7 +170,7 @@ def version() -> dict[str, Any]:
         "ok": True,
         "app": "OpenKiri",
         "entry": "openkiri_live",
-        "commit_marker": "bandwidth-saver-backend-cache",
+        "commit_marker": "human-centered-workspace-20261010",
         "fast_intraday": True,
         "render_service": "stock-risk-radar",
     }

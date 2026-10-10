@@ -14,3 +14,8 @@ local-server-*.log
 .DS_Store
 .vscode/
 .idea/
+
+# Browser checks
+node_modules/
+test-results/
+playwright-report/

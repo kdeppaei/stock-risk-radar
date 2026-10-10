@@ -14,6 +14,8 @@ _The deployed dashboard combines a ticker workflow, technical-risk summary, valu
 
 ## Features
 
+- Task-based workspace with a chart-first overview, separate T+0/screener/news views, accessible controls, explicit loading/error states, and keyboard chart inspection. See [UI acceptance criteria](docs/ui-criteria.md).
+
 - Clean single-screen stock dashboard for Taiwan and US symbols such as `2330`, `2330.TW`, `AAPL`, `NVDA`, and `TSLA`.
 - Yahoo chart data with MA5, MA20, MA60, RSI, MACD, ATR, volume ratio, and 20-day return.
 - Setup filters for golden-cross continuation, golden-cross watch, death-cross continuation, death-cross watch, bullish/bearish MA continuation, volume breakout, MA20 pullback hold, oversold rebound, overheat risk, and mixed consolidation.
@@ -89,6 +91,16 @@ python -c "import openkiri_live; assert openkiri_live.app.title == 'OpenKiri'"
 ```
 
 GitHub Actions runs the same compile, unit-test, and deployed-entry-point smoke checks for every push and pull request. The cache-policy tests are deterministic and do not call Yahoo, Google, or other upstream services.
+
+Browser checks run separately with synthetic market responses:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm exec playwright install chromium
+pnpm test:ui
+```
+
+They verify responsive layouts, stock-query races, error recovery, chart controls, navigation, and lazy loading. See [UI criteria](docs/ui-criteria.md) for the design references and acceptance baseline.
 
 ## API
 

@@ -306,6 +306,9 @@
   }
 
   function boot() {
+    // The current template owns these controls and requests. Keep this adapter
+    // only for older templates, otherwise every workspace is hydrated twice.
+    if ($("dtMarketMode") && $("dtModelBoard") && $("alertBellBtn")) return;
     installStyle();
     installBell();
     installDaytradeSwitch();

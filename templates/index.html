@@ -446,9 +446,11 @@
       .news-panel { max-height: min(520px, calc(100vh - 120px)); }
     }
   </style>
+  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261010" />
 </head>
 <body>
-  <main class="wrap">
+  <a class="skip-link" href="#form" data-ui="skip">跳至股票查詢</a>
+  <main class="wrap" id="dashboard" data-view="overview">
     <section class="statusbar">
       <div class="status"><span data-i18n="twTime">台灣時間</span><strong id="twTime">-</strong></div>
       <div class="status"><span data-i18n="usTime">美東時間</span><strong id="usTime">-</strong></div>
@@ -456,33 +458,45 @@
       <div class="status"><span data-i18n="macroMood">總經氣氛</span><strong id="macroMood">-</strong></div>
     </section>
 
-    <header>
-      <div>
-        <h1>OpenKiri <small>AI Stock Risk Lens</small></h1>
-        <p class="sub" data-i18n="subtitle">一個結合 K 線、新聞情緒、風險分數與交易劇本的股票決策輔助工具</p>
+    <header class="app-header">
+      <div class="brand">
+        <h1><a href="#overview" data-home>OpenKiri</a></h1>
       </div>
-      <div class="controls">
-        <div class="workspace-tabs header-tabs">
-          <button class="workspace-tab active" type="button" data-workspace-tab="recommend" data-reco-i18n="tabRecommend">Home</button>
+        <nav class="workspace-tabs header-tabs" aria-label="主要導覽">
+          <button class="workspace-tab active" type="button" data-workspace-tab="overview" data-ui="overview" aria-current="page">個股總覽</button>
           <button class="workspace-tab" type="button" data-workspace-tab="daytrade" data-reco-i18n="tabDaytrade">T+0</button>
           <button class="workspace-tab" type="button" data-workspace-tab="screener" data-reco-i18n="tabScreener">Screener</button>
           <button class="workspace-tab" type="button" data-workspace-tab="news" data-reco-i18n="tabNews">News</button>
-          <button class="workspace-tab" type="button" data-workspace-tab="serenity" data-reco-i18n="tabSerenity">Serenity</button>
-          <button class="workspace-tab" type="button" data-workspace-tab="forum" data-reco-i18n="tabForum">Forum</button>
-          <button class="workspace-tab" type="button" data-workspace-tab="portfolio" data-reco-i18n="tabPortfolio">Portfolio</button>
-          <button class="workspace-tab" type="button" data-workspace-tab="help" data-reco-i18n="tabHelp">Help</button>
-        </div>
+          <details class="menu nav-more">
+            <summary><span data-ui="more">更多</span><svg class="ui-icon" aria-hidden="true"><use href="/static/icons.svg#chevron-down" /></svg></summary>
+            <div class="menu-content">
+              <button class="workspace-tab" type="button" data-workspace-tab="portfolio" data-reco-i18n="tabPortfolio">Portfolio</button>
+              <button class="workspace-tab" type="button" data-workspace-tab="recommend" data-ui="rankings">市場排行</button>
+              <button class="workspace-tab" type="button" data-workspace-tab="serenity" data-ui="research">進階研究</button>
+              <button class="workspace-tab" type="button" data-workspace-tab="forum" data-reco-i18n="tabForum">Forum</button>
+              <button class="workspace-tab" type="button" data-workspace-tab="help" data-reco-i18n="tabHelp">Help</button>
+            </div>
+          </details>
+        </nav>
         <div class="langbar">
+          <details class="menu language-menu">
+            <summary aria-label="Language"><span id="languageLabel">繁體</span><svg class="ui-icon" aria-hidden="true"><use href="/static/icons.svg#chevron-down" /></svg></summary>
+            <div class="menu-content">
           <button class="secondary" type="button" data-lang="zh-tw">繁體</button>
           <button class="secondary" type="button" data-lang="zh-cn">简体</button>
           <button class="secondary" type="button" data-lang="en">English</button>
+            </div>
+          </details>
           <div class="alert-shell">
-            <button id="alertBellBtn" class="secondary alert-bell" type="button" title="Alerts">🔔<span id="alertCount" class="alert-count">0</span></button>
-            <div id="alertDrawer" class="alert-drawer"></div>
+            <button id="alertBellBtn" class="secondary alert-bell" type="button" title="當日重大訊號" aria-label="當日重大訊號" aria-expanded="false" aria-controls="alertDrawer"><svg class="ui-icon" aria-hidden="true"><use href="/static/icons.svg#bell" /></svg><span id="alertCount" class="alert-count" style="display:none">0</span></button>
+            <div id="alertDrawer" class="alert-drawer" role="region" aria-label="當日重大訊號"></div>
           </div>
         </div>
+    </header>
+    <section class="querybar overview-only" aria-label="股票查詢">
         <form id="form" class="search">
-          <input id="symbol" value="2330" autocomplete="off" />
+          <label class="symbol-field"><span data-ui="stock">股票代號</span><input id="symbol" value="2330" placeholder="2330 / AAPL / MU" autocomplete="off" autocapitalize="characters" spellcheck="false" required maxlength="24" /></label>
+          <label><span data-ui="period">時間範圍</span>
           <select id="period">
             <option value="1d">Today</option>
             <option value="6mo">6M</option>
@@ -490,22 +504,25 @@
             <option value="2y">2Y</option>
             <option value="5y">5Y</option>
           </select>
+          </label>
+          <label><span data-ui="interval">K 線週期</span>
           <select id="interval">
             <option value="5m">Live 5m</option>
             <option value="1d" selected>Day</option>
             <option value="1wk">Week</option>
           </select>
+          </label>
           <button id="runBtn" type="submit" data-i18n="analyze">分析</button>
-          <button id="addWatchBtn" type="button" class="secondary" data-i18n="addWatch">加入關注</button>
+          <button id="addWatchBtn" type="button" class="secondary ui-icon-button" title="加入關注" aria-label="加入關注"><svg class="ui-icon" aria-hidden="true"><use href="/static/icons.svg#plus" /></svg></button>
         </form>
         <div class="refreshbar">
-          <button id="autoBtn" class="secondary" type="button" data-i18n="autoOn">自動刷新：開</button>
+          <button id="autoBtn" class="secondary auto-switch" type="button" role="switch" aria-checked="false">自動刷新：關</button>
           <span class="muted" id="refreshMeta">-</span>
         </div>
-      </div>
-    </header>
+        <div id="queryStatus" class="query-status" role="status" aria-live="polite" hidden><span id="queryStatusText"></span><button id="queryRetry" class="secondary" type="button" data-ui="retry" hidden>重試</button></div>
+    </section>
 
-    <section class="cards">
+    <section class="cards overview-only" aria-label="股票概覽">
       <article class="card"><span data-i18n="symbol">股票代號</span><strong id="ticker">-</strong></article>
       <article class="card" id="priceCard"><span data-i18n="close">收盤/最新</span><strong id="price">-</strong></article>
       <article class="card" id="changeCard"><span data-i18n="change">漲跌</span><strong id="change">-</strong></article>
@@ -514,7 +531,7 @@
       <article class="card" id="valuationCard"><span data-i18n="valuation">市值 / P/E</span><strong id="valuationMain">-</strong><small id="valuationSub">-</small></article>
     </section>
 
-    <section class="panel watch-strip" id="watchPanel">
+    <section class="panel watch-strip overview-only" id="watchPanel">
       <div class="watch-strip-head">
         <div>
           <h2 data-i18n="watchlist">關注清單</h2>
@@ -530,16 +547,6 @@
     </section>
 
     <section class="panel workspace-panel">
-      <div class="workspace-tabs">
-        <button class="workspace-tab active" type="button" data-workspace-tab="recommend" data-reco-i18n="tabRecommend">推薦</button>
-        <button class="workspace-tab" type="button" data-workspace-tab="daytrade" data-reco-i18n="tabDaytrade">T+0</button>
-        <button class="workspace-tab" type="button" data-workspace-tab="screener" data-reco-i18n="tabScreener">篩選</button>
-        <button class="workspace-tab" type="button" data-workspace-tab="news" data-reco-i18n="tabNews">要聞</button>
-        <button class="workspace-tab" type="button" data-workspace-tab="serenity" data-reco-i18n="tabSerenity">Serenity</button>
-        <button class="workspace-tab" type="button" data-workspace-tab="forum" data-reco-i18n="tabForum">討論</button>
-        <button class="workspace-tab" type="button" data-workspace-tab="portfolio" data-reco-i18n="tabPortfolio">組合</button>
-        <button class="workspace-tab" type="button" data-workspace-tab="help" data-reco-i18n="tabHelp">說明</button>
-      </div>
       <div class="workspace-body">
         <section class="workspace-pane active" id="pane-recommend">
           <div class="workspace-head">
@@ -592,8 +599,8 @@
                 </div>
                 <div id="dtModelBoard" class="mover-board"></div>
               </div>
-              <div class="desk-panel">
-                <h3 data-reco-i18n="costRadarTitle">當沖成本雷達 Break-even Radar</h3>
+              <details class="desk-panel tool-details">
+                <summary data-reco-i18n="costRadarTitle">當沖成本雷達 Break-even Radar</summary>
                 <div class="desk-form">
                   <label><span data-reco-i18n="dtSymbol">股票代號</span><input id="dtCostSymbol" value="2330" /></label>
                   <label><span data-reco-i18n="dtBuyPrice">買進價格</span><input id="dtBuyPrice" type="number" step="0.01" placeholder="auto" /></label>
@@ -611,7 +618,7 @@
                 </div>
                 <div id="dtCostResult" class="desk-result-grid"></div>
                 <div id="dtCostSummary" class="desk-callout">-</div>
-              </div>
+              </details>
             </div>
             <div class="desk-grid">
               <div class="desk-panel">
@@ -632,8 +639,8 @@
                   </table>
                 </div>
               </div>
-              <div class="desk-panel">
-                <h3 data-reco-i18n="suitabilityTitle">當沖適性分數 Intraday Suitability Score</h3>
+              <details class="desk-panel tool-details">
+                <summary data-reco-i18n="suitabilityTitle">當沖適性分數 Intraday Suitability Score</summary>
                 <div id="dtScoreBox" class="desk-result-grid"></div>
                 <div id="dtGateBox" class="gate-card yellow">
                   <div class="gate-lamps"><span class="lamp green"></span><span class="lamp yellow"></span><span class="lamp red"></span><strong id="dtGateTitle">-</strong></div>
@@ -644,7 +651,7 @@
                   <div id="dtLevels" class="desk-result-grid"></div>
                   <div id="dtPlaybook" class="plainbox">-</div>
                 </div>
-              </div>
+              </details>
             </div>
           </div>
         </section>
@@ -843,33 +850,43 @@
       </div>
     </section>
 
-    <section class="main">
-      <article class="panel">
+    <section class="main overview-only">
+      <article class="panel chart-panel">
         <div class="chart-head">
-          <h2 data-i18n="chartTitle">K 線 / MA5 / MA20 / MA25 / MA60 / Volume</h2>
+          <h2 data-ui="chart">價格走勢</h2>
           <span class="tag" id="market">-</span>
         </div>
-        <div class="chart-actions">
+        <div class="chart-toolbar">
+        <details class="menu indicator-menu">
+          <summary><svg class="ui-icon" aria-hidden="true"><use href="/static/icons.svg#sliders-horizontal" /></svg><span data-ui="indicators">指標與訊號</span></summary>
+          <div class="menu-content"><div id="chartLayerControls" class="chart-layerbar"></div></div>
+        </details>
+        <details class="menu source-menu">
+          <summary><span data-ui="sources">外部報價</span><svg class="ui-icon" aria-hidden="true"><use href="/static/icons.svg#external-link" /></svg></summary>
+          <div class="menu-content chart-actions">
           <a id="googleLink" class="button secondary" href="#" target="_blank" rel="noreferrer" data-reco-tip="tipGoogle">Google Finance</a>
           <a id="yahooLink" class="button secondary" href="#" target="_blank" rel="noreferrer" data-reco-tip="tipYahoo">Yahoo</a>
           <a id="tradingViewLink" class="button secondary" href="#" target="_blank" rel="noreferrer" data-reco-tip="tipTradingView">TradingView</a>
+          </div>
+        </details>
         </div>
-        <div id="chartLayerControls" class="chart-layerbar"></div>
+        <div class="chart-viewport">
+          <canvas id="chart" role="img" aria-label="股票價格與移動平均線"></canvas>
+          <div id="chartState" class="chart-state"><span data-ui="chartWaiting">等待股票資料</span></div>
+          <div id="chartCrosshair" class="chart-crosshair" hidden></div>
+          <div id="chartTooltip" class="chart-tooltip" hidden></div>
+        </div>
+        <div class="quote-row"><div class="muted" id="liveMeta">-</div><span class="tag" id="predictionBadge">-</span></div>
         <div id="bias25Panel" class="bias-panel"></div>
+        <details class="analysis-details">
+          <summary data-ui="signalDetails">交叉訊號與模型判讀</summary>
+          <div id="chartSignalBox" class="chart-signal-box"></div>
+        </details>
         <details class="chart-legend">
           <summary id="chartLegendSummary">線條說明</summary>
           <div id="chartLegendBody" class="legend-grid"></div>
         </details>
-        <div class="quote-row">
-          <div>
-            <strong data-i18n="liveSnapshot">站內即時摘要</strong>
-            <div class="muted" id="liveMeta">-</div>
-          </div>
-          <span class="tag" id="predictionBadge">-</span>
-        </div>
-        <div id="chartSignalBox" class="chart-signal-box"></div>
-        <div class="chart-hint" id="chartHint" data-i18n="chartHint">點擊 K 線圖可開啟 Google Finance；BUY 是條件式參考訊號。</div>
-        <canvas id="chart"></canvas>
+        <div class="chart-hint" id="chartHint" hidden></div>
       </article>
 
       <aside class="side">
@@ -878,11 +895,11 @@
           <p class="summary" id="summaryText">Loading...</p>
           <div class="riskbar"><div id="riskFill"></div></div>
         </article>
-        <article class="panel">
-          <h2 data-i18n="relatedTitle">關聯標的</h2>
+        <details class="panel side-details">
+          <summary data-i18n="relatedTitle">關聯標的</summary>
           <p class="explain" data-i18n="relatedHint">槓桿 ETF、同業、上下游與產業 ETF。</p>
           <div id="relatedBox" class="relation-grid"></div>
-        </article>
+        </details>
         <article class="panel">
           <h2 data-i18n="watchlist">關注清單</h2>
           <div class="quickbar">
@@ -892,14 +909,14 @@
           </div>
           <div id="watchlist" class="watchlist"></div>
         </article>
-        <article class="panel">
-          <h2 data-i18n="playbook">白話交易劇本</h2>
+        <details class="panel side-details">
+          <summary data-i18n="playbook">白話交易劇本</summary>
           <div class="kvgrid" id="playbook"></div>
-        </article>
+        </details>
       </aside>
     </section>
 
-    <section class="grid">
+    <details class="overview-details overview-only"><summary data-ui="technicals">技術指標與支撐壓力</summary><section class="grid">
       <article class="panel"><h2 data-i18n="technical">技術指標</h2><div class="kvgrid" id="technical"></div></article>
       <article class="panel"><h2 data-i18n="levels">壓力支撐</h2><div class="kvgrid" id="levels"></div></article>
       <article class="panel">
@@ -908,31 +925,24 @@
         <p class="explain" id="scoreHelp"></p>
       </article>
       <article class="panel news-panel"><h2 data-i18n="news">利多 / 利空</h2><div id="newsBox" class="news-scroll"></div></article>
-    </section>
+    </section></details>
 
-    <section class="grid">
+    <details class="overview-details overview-only"><summary data-ui="modelDetails">模型依據與資料說明</summary><section class="grid">
       <article class="panel"><h2 data-i18n="macro">總經 / 量化模型</h2><div class="kvgrid" id="macroBox"></div></article>
       <article class="panel"><h2 data-i18n="modelWhy">模型依據</h2><div id="modelDrivers" class="plainbox"></div></article>
       <article class="panel"><h2 data-i18n="periodHelpTitle">Today / Day / Week 是什麼</h2><p class="summary" data-i18n="periodHelp"></p></article>
       <article class="panel"><h2 data-i18n="refreshHelpTitle">動態追蹤</h2><p class="summary" data-i18n="refreshHelp"></p></article>
-    </section>
+    </section></details>
 
-    <section class="grid">
+    <details class="overview-details overview-only"><summary data-ui="riskDetails">風險檢查與資料來源</summary><section class="grid">
       <article class="panel"><h2 data-i18n="designSignals">開源設計訊號</h2><div id="designSignalsBox" class="design-grid"></div></article>
       <article class="panel"><h2 data-i18n="decisionChecklist">決策檢查表</h2><div id="decisionChecklistBox" class="check-list"></div></article>
       <article class="panel"><h2 data-i18n="sourceMatrix">資料源矩陣</h2><div id="sourceMatrixBox" class="source-list"></div></article>
       <article class="panel"><h2 data-i18n="narrativeRisk">敘事/治理風險</h2><div id="narrativeRiskBox" class="plainbox"></div></article>
-    </section>
+    </section></details>
   </main>
 
   <div id="watchAlertStack" class="alert-stack" aria-live="polite" aria-atomic="false"></div>
-
-  <nav class="utility-dock" aria-label="Quick tools">
-    <button class="icon-btn" type="button" data-reco-tip="tipFocus" onclick="$('symbol').focus(); $('symbol').select();">⌕</button>
-    <button class="icon-btn" type="button" data-reco-tip="tipWatch" onclick="addWatch(lastData?.symbol || $('symbol').value.trim())">★</button>
-    <button class="icon-btn" type="button" data-reco-tip="tipRefresh" onclick="lastData ? analyze(lastData.symbol) : analyze($('symbol').value || '2330')">↻</button>
-    <button class="icon-btn" type="button" data-reco-tip="tipHelp" onclick="switchWorkspaceTab('help')">?</button>
-  </nav>
 
   <aside id="chatDrawer" class="chat-drawer" aria-live="polite">
     <div class="chat-drawer-head">
@@ -952,14 +962,15 @@
       <button id="floatForumPostBtn" type="button" data-reco-i18n="post">送出</button>
     </div>
   </aside>
-  <button id="chatFab" class="chat-fab" type="button" aria-label="Open chat">Chat</button>
+  <button id="chatFab" class="chat-fab" type="button" aria-label="Open chat" hidden>Chat</button>
 
+  <script src="/static/openkiri-ui.js?v=20261010"></script>
   <script>
     const $ = (id) => document.getElementById(id);
     const canvas = $("chart");
     const ctx = canvas.getContext("2d");
     let lastData = null;
-    const DEFAULT_CHART_LAYERS = { ma5: true, ma20: true, ma25: true, ma60: true, volume: true, crosses: true, buys: true, bias25: true };
+    const DEFAULT_CHART_LAYERS = { ma5: true, ma20: true, ma25: true, ma60: true, volume: true, crosses: true, buys: false, bias25: false };
     let chartLayers = { ...DEFAULT_CHART_LAYERS, ...(JSON.parse(localStorage.getItem("okiri.chartLayers") || "{}")) };
     let lang = localStorage.getItem("srr.lang") || "zh-tw";
     let watch = JSON.parse(localStorage.getItem("srr.watch") || "[]");
@@ -1732,7 +1743,6 @@
     document.querySelectorAll("[data-workspace-tab]").forEach((btn) => btn.addEventListener("click", () => switchWorkspaceTab(btn.dataset.workspaceTab)));
     document.addEventListener("keydown", handleShortcuts);
     window.addEventListener("resize", () => renderChart(lastData));
-    canvas.addEventListener("click", () => openExternal($("googleLink").href));
 
     function mountScreenerPanel() {
       const mount = $("screenerPaneMount");
@@ -1741,6 +1751,12 @@
     }
 
     function applyLang() {
+      recoCopy["zh-tw"].loading = "載入中";
+      recoCopy["zh-cn"].loading = "载入中";
+      recoCopy.en.loading = "Loading";
+      recoCopy["zh-tw"].quoteBoardHint = "台股漲紅跌綠；美股漲綠跌紅。";
+      recoCopy["zh-cn"].quoteBoardHint = "台股涨红跌绿；美股涨绿跌红。";
+      recoCopy.en.quoteBoardHint = "Taiwan: red up, green down. US: green up, red down.";
       document.documentElement.lang = lang === "en" ? "en" : lang === "zh-cn" ? "zh-Hans" : "zh-Hant";
       document.querySelectorAll("[data-i18n]").forEach((el) => el.textContent = t(el.dataset.i18n));
       document.querySelectorAll("[data-screen-i18n]").forEach((el) => el.textContent = st(el.dataset.screenI18n));
@@ -1773,6 +1789,7 @@
       renderForum();
       syncMarketSelectLabels();
       if (alertData) renderAlerts(alertData);
+      OpenKiriUI.translate(lang);
     }
 
     function syncMarketSelectLabels() {
@@ -1786,6 +1803,7 @@
     }
 
     function switchWorkspaceTab(name) {
+      if (name !== "overview" && !document.getElementById(`pane-${name}`)) return;
       document.querySelectorAll("[data-workspace-tab]").forEach((btn) => btn.classList.toggle("active", btn.dataset.workspaceTab === name));
       document.querySelectorAll(".workspace-pane").forEach((pane) => pane.classList.toggle("active", pane.id === `pane-${name}`));
       window.dispatchEvent(new CustomEvent("okiri:workspace", { detail: { name } }));
@@ -1795,12 +1813,12 @@
     function ensureWorkspaceData(name, force = false) {
       if (!force && loadedWorkspaceTabs.has(name)) return;
       loadedWorkspaceTabs.add(name);
-      if (name === "recommend") loadRecommendations();
+      if (name === "recommend" && !recommendationData) loadRecommendations();
       if (name === "screener") {
         if (!screenerOptionsData) loadScreenerOptions();
-        if (!botData) runBots();
       }
       if (name === "news") {
+        if (!recommendationData) loadRecommendations();
         loadMovers();
         if (lastData) loadEventAlerts(lastData.symbol);
       }
@@ -1819,6 +1837,7 @@
       const key = event.key.toLowerCase();
       if ((event.ctrlKey || event.metaKey) && key === "k") {
         event.preventDefault();
+        switchWorkspaceTab("overview");
         $("symbol").focus();
         $("symbol").select();
         return;
@@ -2468,6 +2487,7 @@
 
     async function loadAlerts() {
       if (!$("alertDrawer")) return;
+      if (!alertData) $("alertDrawer").textContent = lang === "en" ? "Loading signals..." : "載入訊號中...";
       try {
         const markets = daytradeMarketMode || "TW";
         const res = await fetch(`/api/alerts?markets=${encodeURIComponent(markets)}&limit=10`);
@@ -2506,6 +2526,7 @@
       if (!drawer) return;
       const open = force == null ? !drawer.classList.contains("open") : !!force;
       drawer.classList.toggle("open", open);
+      $("alertBellBtn").setAttribute("aria-expanded", String(open));
       if (open) loadAlerts();
     }
 
@@ -3221,6 +3242,7 @@
           const quoteRes = await fetch(`/api/quote/${encodeURIComponent(symbol)}`);
           const quote = await quoteRes.json();
           if (!quoteRes.ok || !quote.ok) throw new Error(quote.detail || "quote failed");
+          if (dataSaver) return { quote, detail: null };
           const analyzeRes = await fetch("/api/daytrade/analyze", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -3237,6 +3259,7 @@
 
     async function loadDaytradeModelBoard() {
       if (!$("dtModelBoard")) return;
+      if (!$("dtModelBoard").children.length) $("dtModelMeta").textContent = rt("loading") + "...";
       try {
         const markets = daytradeMarketMode || "TW";
         const res = await fetch(`/api/movers?markets=${encodeURIComponent(markets)}&limit=6&mode=live`);
@@ -3267,7 +3290,7 @@
 
     function daytradeQuoteRow(quote, detail, failed = false) {
       const symbol = quote.symbol || "-";
-      const cls = twColorClass(quote.change_pct);
+      const cls = symbolMarket(symbol) === "TW" ? twColorClass(quote.change_pct) : Number(quote.change_pct || 0) >= 0 ? "up" : "down";
       const rangePos = detail?.metrics?.high_low_position;
       const heat = detail?.score;
       const prev = daytradeLastPrices[symbol];
@@ -3434,12 +3457,24 @@
       const button = $("runBtn");
       const requestedSymbol = String(symbol || "").trim() || "2330";
       const requestId = ++analyzeRequestSeq;
+      let timeout;
       if (!silent) {
+        switchWorkspaceTab("overview");
         manualAnalyzePending = true;
         if (activeAnalyzeController) activeAnalyzeController.abort();
         activeAnalyzeController = new AbortController();
-        button.disabled = true;
-        button.textContent = "Loading";
+        const controller = activeAnalyzeController;
+        timeout = setTimeout(() => controller.abort(), 30000);
+        // A new query must not show the previous ticker's price or derived metrics.
+        quoteRequestSeq++;
+        lastData = null;
+        ["price", "change", "risk", "trend", "valuationMain", "valuationSub", "liveMeta", "predictionBadge", "refreshMeta"].forEach((id) => { $(id).textContent = "-"; });
+        ["relatedBox", "playbook", "chartSignalBox", "bias25Panel", "technical", "levels", "suitability", "newsBox", "macroBox", "modelDrivers", "designSignalsBox", "decisionChecklistBox", "sourceMatrixBox", "narrativeRiskBox"].forEach((id) => { $(id).replaceChildren(); });
+        $("riskFill").style.width = "0%";
+        $("ticker").textContent = canonicalSymbol(requestedSymbol);
+        $("market").textContent = "-";
+        button.setAttribute("aria-busy", "true");
+        OpenKiriUI.queryState("loading", requestedSymbol);
         $("summaryText").textContent = `Loading ${requestedSymbol}...`;
       }
       $("symbol").value = requestedSymbol;
@@ -3452,16 +3487,21 @@
         if (requestId !== analyzeRequestSeq) return;
         if (!sameSymbol(requestedSymbol, data.symbol)) throw new Error(`Symbol mismatch: requested ${requestedSymbol}, got ${data.symbol}`);
         render(data);
-        if (!silent) refreshQuote();
-        if (!silent || eventAlertsData?.symbol !== data.symbol) loadEventAlerts(data.symbol);
+        OpenKiriUI.queryState("ready", data.symbol, Boolean(data.chart?.length));
+        if (isWorkspaceTabActive("news") && eventAlertsData?.symbol !== data.symbol) loadEventAlerts(data.symbol);
       } catch (error) {
-        if (error.name === "AbortError") return;
-        if (!silent) $("summaryText").textContent = error.message;
+        if (requestId !== analyzeRequestSeq) return;
+        if (!silent) {
+          OpenKiriUI.queryState("error", requestedSymbol);
+          $("summaryText").textContent = $("queryStatusText").textContent;
+        }
       } finally {
+        clearTimeout(timeout);
         if (!silent && requestId === analyzeRequestSeq) {
           manualAnalyzePending = false;
-          button.disabled = false;
+          button.setAttribute("aria-busy", "false");
           button.textContent = t("analyze");
+          if (lastData && sameSymbol(lastData.symbol, requestedSymbol)) refreshQuote();
         }
       }
     }
@@ -3544,7 +3584,7 @@
     }
 
     async function refreshQuote() {
-      if (!autoRefresh || !lastData) return;
+      if (!autoRefresh || !lastData || manualAnalyzePending || document.hidden || !isWorkspaceTabActive("overview")) return;
       const targetSymbol = lastData.symbol;
       const requestId = ++quoteRequestSeq;
       try {
@@ -4006,7 +4046,8 @@
     function renderChart(data) {
       if (!data) return;
       const rect = canvas.getBoundingClientRect(); const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.max(320, Math.round(rect.width * dpr)); canvas.height = Math.max(360, Math.round(rect.height * dpr));
+      if (!rect.width || !rect.height) return;
+      canvas.width = Math.max(1, Math.round(rect.width * dpr)); canvas.height = Math.max(1, Math.round(rect.height * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const w = rect.width, h = rect.height; ctx.clearRect(0, 0, w, h);
       const rows = data.chart || []; if (!rows.length) return;
@@ -4019,9 +4060,9 @@
       const min = rawMin - spread * 0.035; const max = rawMax + spread * 0.035; const volMax = Math.max(1, ...rows.map((r) => r.volume || 0));
       const x = (i) => pad.l + i * ((w - pad.l - pad.r) / Math.max(1, rows.length - 1)); const y = (p) => pad.t + (max - p) / Math.max(0.0001, max - min) * chartH; const vy = (v) => h - 28 - (v / volMax) * 56;
       const bg = ctx.createLinearGradient(0, pad.t, 0, h - pad.b);
-      bg.addColorStop(0, "rgba(59,130,246,.08)"); bg.addColorStop(1, "rgba(15,23,47,0)");
+      bg.addColorStop(0, "rgba(161,231,213,.025)"); bg.addColorStop(1, "rgba(20,25,27,0)");
       ctx.fillStyle = bg; ctx.fillRect(pad.l, pad.t, w - pad.l - pad.r, chartH);
-      ctx.strokeStyle = "#26345f"; ctx.lineWidth = 1;
+      ctx.strokeStyle = "#303a3d"; ctx.lineWidth = 1;
       for (let i = 0; i < 5; i++) { const yy = pad.t + i * chartH / 4; ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(w - pad.r, yy); ctx.stroke(); ctx.fillStyle = "#97a4c2"; ctx.font = "12px Segoe UI"; ctx.fillText(fmt(max - i * (max - min) / 4), 5, yy + 4); }
       const barW = Math.max(3, (w - pad.l - pad.r) / rows.length * .62);
       if (chartLayers.bias25) drawBias25Bands(rows, x, y);
@@ -4036,7 +4077,9 @@
       ctx.save(); ctx.setLineDash([5, 5]); ctx.strokeStyle = "rgba(226,232,240,.55)"; ctx.beginPath(); ctx.moveTo(pad.l, lastY); ctx.lineTo(w - pad.r + 8, lastY); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle = "#0f172f"; ctx.strokeStyle = "#76a9ff"; ctx.lineWidth = 1; const label = fmt(last.close); const labelW = Math.min(64, ctx.measureText(label).width + 16);
       ctx.beginPath(); ctx.roundRect?.(w - pad.r + 10, lastY - 12, labelW, 24, 6); if (!ctx.roundRect) ctx.rect(w - pad.r + 10, lastY - 12, labelW, 24); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#dbeafe"; ctx.fillText(label, w - pad.r + 18, lastY + 4); ctx.restore();
-      ctx.fillStyle = "#97a4c2"; ctx.fillText(rows[0].date, pad.l, h - 8); ctx.fillText(rows.at(-1).date, Math.max(pad.l, w - 92), h - 8);
+      ctx.fillStyle = "#a5b0b1";
+      ctx.fillText(rows[0].date.slice(0, 10), pad.l, h - 8);
+      ctx.textAlign = "right"; ctx.fillText(rows.at(-1).date.slice(0, 10), w - 8, h - 8); ctx.textAlign = "left";
     }
     function drawLine(rows, key, color, x, y, dash = []) {
       ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = key === "ma25" ? 1.8 : 1.5; ctx.setLineDash(dash); ctx.beginPath(); let started = false;
@@ -4144,12 +4187,12 @@
     }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
 
-    mountScreenerPanel(); applyLang(); initProfile(); renderWatchlist(); tickClocks(); loadContext(); calculateDaytradeCost(false); analyze($("symbol").value);
+    mountScreenerPanel(); applyLang(); OpenKiriUI.boot(); initProfile(); renderWatchlist(); tickClocks(); loadContext(); calculateDaytradeCost(false); analyze($("symbol").value);
     setInterval(tickClocks, 1000);
     setInterval(loadContext, dataSaver ? 300000 : 60000);
     setInterval(refreshQuote, dataSaver ? 60000 : 10000);
     serenityRecentTimer = setInterval(() => { if (!dataSaver && isWorkspaceTabActive("serenity")) loadSerenityRecent(); }, 120000);
-    setInterval(() => { if (autoRefresh && lastData && ($("period").value === "1d" || $("interval").value === "5m")) analyze(lastData.symbol, true); }, dataSaver ? 180000 : 30000);
+    setInterval(() => { if (autoRefresh && lastData && isWorkspaceTabActive("overview") && ($("period").value === "1d" || $("interval").value === "5m")) analyze(lastData.symbol, true); }, dataSaver ? 180000 : 30000);
     setInterval(() => { if (autoRefresh && watchExpanded) refreshWatchlist(); }, dataSaver ? 180000 : 30000);
     setInterval(() => { if (!dataSaver && $("alertDrawer")?.classList.contains("open")) loadAlerts(); }, 60000);
     setInterval(() => { if (!dataSaver && isWorkspaceTabActive("forum")) loadForum(); }, 600000);
