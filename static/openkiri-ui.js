@@ -44,7 +44,7 @@ window.OpenKiriUI = (() => {
     chartState.textContent = `${symbol} · ${t(loading ? "loading" : failed ? "error" : "empty")}`;
     document.querySelector(".cards").setAttribute("aria-busy", String(loading));
     $("chart").setAttribute("aria-busy", String(loading));
-    if (state === "ready") $("chart").setAttribute("aria-label", `${symbol} ${t("chart")}`);
+    $("chart").setAttribute("aria-label", `${symbol} ${t("chart")}`);
   }
 
   function closeMenus(except) {

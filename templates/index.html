@@ -964,7 +964,7 @@
   </aside>
   <button id="chatFab" class="chat-fab" type="button" aria-label="Open chat" hidden>Chat</button>
 
-  <script src="/static/openkiri-ui.js?v=20261010"></script>
+  <script src="/static/openkiri-ui.js?v=20261010.1"></script>
   <script>
     const $ = (id) => document.getElementById(id);
     const canvas = $("chart");
@@ -3475,7 +3475,7 @@
         $("market").textContent = "-";
         button.setAttribute("aria-busy", "true");
         OpenKiriUI.queryState("loading", requestedSymbol);
-        $("summaryText").textContent = `Loading ${requestedSymbol}...`;
+        $("summaryText").textContent = $("queryStatusText").textContent;
       }
       $("symbol").value = requestedSymbol;
       try {

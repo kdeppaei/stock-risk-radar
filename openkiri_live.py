@@ -170,7 +170,7 @@ def version() -> dict[str, Any]:
         "ok": True,
         "app": "OpenKiri",
         "entry": "openkiri_live",
-        "commit_marker": "human-centered-workspace-20261010",
+        "commit_marker": "human-centered-workspace-20261010.1",
         "fast_intraday": True,
         "render_service": "stock-risk-radar",
     }

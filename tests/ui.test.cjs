@@ -117,6 +117,7 @@ test("query replaces stale values, ignores old responses, and recovers from erro
   await query("SLOW");
   assert.equal(await page.locator("#price").innerText(), "-");
   assert.equal(await page.locator("#chartState").isVisible(), true);
+  assert.match(await page.locator("#chart").getAttribute("aria-label"), /^SLOW /);
   await query("MU");
   await page.waitForFunction(() => document.getElementById("price").textContent === "150");
   await pause(900);
