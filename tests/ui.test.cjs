@@ -212,9 +212,12 @@ async function setPageHidden(page, hidden) {
   }, hidden);
 }
 
-function detailFixture(symbol, price = 100) {
+function detailFixture(symbol, price = 100, now = Date.now()) {
   return { ok: true, symbol, market: symbol.endsWith(".TW") ? "TW" : "US", source: "1d/1m",
     latest: { symbol, price, as_of: "2026-10-08T05:30:00Z" }, data_warning: "Synthetic observation, not an execution quote",
+    execution: { allowed: true, valid_until: new Date(now + 300000).toISOString() },
+    data_status: { eligibility: "active" }, provenance: { chart: { as_of: new Date(now - 60000).toISOString() } },
+    benchmark: { symbol: symbol.endsWith(".TW") ? "^TWII" : "^GSPC", as_of: new Date(now - 30000).toISOString(), data_status: { eligibility: "active" } },
     score: 60, posture: "fixture", metrics: { volume_ratio: 1.5, momentum_1bar_pct: 1, momentum_5bar_pct: 2, high_low_position: 50, spread_slippage_risk: "fixture" },
     risk_gate: { state: "yellow", red: [], yellow: ["fixture"], green: [] }, levels: { breakout_trigger: 101, pullback_support: 98, stop_reference: 97, break_even: 100.5, chase_risk_zone: 104, vwap: 99 },
     cost: { buy_amount: 100000, buy_fee: 142, sell_amount: 100000, sell_fee: 142, tax: 150, total_cost: 434, gross_profit: 0, net_profit: -434, net_return_pct: -0.434, per_share_actual_cost: 100.434, break_even_sell_price: 100.5, min_profit_ticks: 1, spread_text: "fixture cost", disclaimer: "fixture" },
@@ -224,6 +227,121 @@ function detailFixture(symbol, price = 100) {
 async function waitForDetail(page, state) {
   await page.waitForFunction((expected) => document.getElementById("dtDetailPanel").dataset.state === expected && !daytradeRequests.has("analysis"), state);
 }
+
+test("blocked, expired, legacy and wrong-benchmark detail contracts expose no playbook", async () => {
+  for (const [width, locale] of [[320, "zh-tw"], [390, "en"], [843, "zh-cn"], [1440, "zh-tw"]]) {
+    const { page, calls, errors } = await pollingPage(locale);
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(() => { daytradeSymbols = ["2330.TW"]; });
+    let mode = "closed";
+    await page.route("**/api/daytrade/analyze", async (route) => {
+      const data = detailFixture("2330.TW", 100, await page.evaluate(() => Date.now()));
+      if (mode === "closed") { data.execution.allowed = false; data.execution.reason = "chart_outside_regular"; data.data_status.eligibility = "reference"; }
+      if (mode === "legacy") delete data.execution;
+      if (mode === "expired") data.execution.valid_until = "2020-01-01T00:00:00Z";
+      if (mode === "wrongIndex") data.benchmark.symbol = "^GSPC";
+      await route.fulfill({ json: data });
+    });
+    await page.locator('[data-workspace-tab="daytrade"]').click(); await settleDaytrade(page);
+    await page.locator('[data-detail-symbol="2330.TW"]').click();
+    for (const failure of ["closed", "legacy", "expired", "wrongIndex"]) {
+      mode = failure;
+      if (failure !== "closed") await page.locator("#dtDetailRefresh").click();
+      await waitForDetail(page, "blocked");
+      assert.equal(await page.locator("#dtDetailWarning").isVisible(), true);
+      assert.equal(await page.locator("#dtDetailResult").isVisible(), false);
+      assert.equal(await page.locator("#dtPlaybook").textContent(), "-");
+      assert.equal(await page.locator("#dtDetailChart").isEnabled(), true);
+    }
+    assert.equal(calls.filter((c) => c.path === "/api/daytrade/analyze").length, 4);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    assert.deepEqual(errors, []); await page.close();
+  }
+});
+
+test("detail expiry hides the model locally without polling or implicit recovery", async () => {
+  const { page, calls, errors } = await pollingPage("en");
+  await page.evaluate(() => { daytradeSymbols = ["2330.TW"]; });
+  await page.route("**/api/daytrade/analyze", async (route) => {
+    const now = await page.evaluate(() => Date.now());
+    const data = detailFixture("2330.TW", 100, now);
+    data.execution.valid_until = new Date(now + 5000).toISOString();
+    await route.fulfill({ json: data });
+  });
+  await page.locator('[data-workspace-tab="daytrade"]').click(); await settleDaytrade(page);
+  await page.locator('[data-detail-symbol="2330.TW"]').click(); await waitForDetail(page, "ready");
+  await page.clock.runFor(5001); await waitForDetail(page, "expired");
+  assert.equal(await page.locator("#dtDetailResult").isVisible(), false);
+  assert.equal(await page.locator("#dtScoreBox").innerText(), "");
+  assert.match(await page.locator("#dtDetailWarning").innerText(), /validity ended/);
+  await setPageHidden(page, true); await page.clock.runFor(31000);
+  await setPageHidden(page, false); await settleDaytrade(page);
+  await page.locator('[data-detail-symbol="2330.TW"]').click();
+  assert.equal(calls.filter((c) => c.path === "/api/daytrade/analyze").length, 1);
+  await page.locator("#dtDetailRefresh").click(); await waitForDetail(page, "ready");
+  assert.equal(calls.filter((c) => c.path === "/api/daytrade/analyze").length, 2);
+  const now = await page.evaluate(() => Date.now());
+  await page.clock.setSystemTime(new Date(now + 60000));
+  await setPageHidden(page, true); await setPageHidden(page, false);
+  await waitForDetail(page, "expired");
+  assert.equal(calls.filter((c) => c.path === "/api/daytrade/analyze").length, 2, "visibility checks expiry even when timers have not run");
+  assert.deepEqual(errors, []); await page.close();
+});
+
+test("US and ETF cost profiles retain explicit zero inputs and ignore old cost responses", async () => {
+  const { page, calls, errors } = await pollingPage("en");
+  await page.evaluate(() => { daytradeSymbols = ["MU", "0050.TW", "2330.TW"]; daytradeMarketMode = "US,TW"; });
+  await page.route("**/api/quote/**", (route) => {
+    const symbol = new URL(route.request().url()).pathname.split("/").at(-1);
+    return route.fulfill({ json: { ok: true, symbol, price: 100, instrument_type: symbol === "0050.TW" ? "ETF" : "EQUITY" } });
+  });
+  const payloads = [];
+  await page.route("**/api/daytrade/analyze", async (route) => {
+    const payload = route.request().postDataJSON(); payloads.push(payload);
+    const data = detailFixture(payload.symbol, 100, await page.evaluate(() => Date.now()));
+    data.latest.instrument_type = payload.instrument_type;
+    if (payload.symbol === "MU" && !payload.cost_confirmed) { data.execution.allowed = false; data.execution.reason = "cost_unconfirmed"; }
+    await route.fulfill({ json: data });
+  });
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  await page.route("**/api/daytrade/cost", async (route) => {
+    await held;
+    await route.fulfill({ json: { ...detailFixture("MU").cost, ok: true, spread_text: "OLD RESPONSE" } });
+  });
+  await page.locator('[data-workspace-tab="daytrade"]').click(); await settleDaytrade(page);
+  await page.locator('[data-detail-symbol="MU"]').click(); await waitForDetail(page, "blocked");
+  await page.locator('details:has(#dtBuyPrice) > summary').click();
+  assert.equal(await page.locator("#dtFeeRate").inputValue(), "");
+  assert.equal(await page.locator("#dtMinFee").inputValue(), "");
+  assert.equal(await page.locator("#dtTaxRate").inputValue(), "");
+  assert.equal(await page.locator("#dtTickField").isVisible(), true);
+  assert.equal(await page.locator("#dtCostConfirmRow").isVisible(), true);
+  assert.match(await page.locator("#dtCostProfile").innerText(), /USD/);
+  for (const id of ["dtFeeRate", "dtMinFee", "dtTaxRate"]) await page.locator(`#${id}`).fill("0");
+  await page.locator("#dtCostConfirmed").check();
+  await page.locator("#dtDetailRefresh").click(); await waitForDetail(page, "ready");
+  assert.equal(payloads.at(-1).cost_confirmed, true);
+  for (const key of ["fee_rate", "min_fee", "tax_rate"]) assert.equal(payloads.at(-1)[key], 0);
+  const before = calls.filter((c) => c.path === "/api/daytrade/cost").length;
+  const requested = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/daytrade/cost");
+  await page.locator("#dtCostBtn").click();
+  await requested;
+  await page.locator('[data-detail-symbol="0050.TW"]').click(); await waitForDetail(page, "ready");
+  assert.equal(payloads.at(-1).instrument_type, "ETF");
+  assert.equal(await page.locator("#dtTaxRate").inputValue(), "");
+  assert.equal(await page.locator("#dtCostConfirmed").isChecked(), false);
+  assert.match(await page.locator("#dtCostProfile").innerText(), /TWD ETF/);
+  release(); await pause(100);
+  assert.doesNotMatch(await page.locator("#dtCostSummary").innerText(), /OLD RESPONSE/);
+  assert.equal(calls.filter((c) => c.path === "/api/daytrade/cost").length, before + 1);
+  await page.locator('[data-detail-symbol="2330.TW"]').click(); await waitForDetail(page, "ready");
+  assert.equal(await page.locator("#dtTaxRate").inputValue(), "0.0015");
+  assert.equal(await page.locator("#dtMinFee").inputValue(), "20");
+  assert.equal(await page.locator("#dtCostConfirmRow").isVisible(), false);
+  assert.equal(await page.locator("#dtTickField").isVisible(), false);
+  assert.deepEqual(errors, []); await page.close();
+});
 
 test("stock details never load implicitly in either bandwidth mode", async () => {
   for (const saver of [true, false]) {
@@ -271,7 +389,7 @@ test("selected details reuse snapshots, stay in T+0, and refresh only on request
     await page.route("**/api/daytrade/analyze", async (route) => {
       const payload = route.request().postDataJSON();
       payloads.push(payload);
-      await route.fulfill({ json: detailFixture(payload.symbol) });
+      await route.fulfill({ json: detailFixture(payload.symbol, 100, await page.evaluate(() => Date.now())) });
     });
     await page.locator('[data-workspace-tab="daytrade"]').click();
     await settleDaytrade(page);

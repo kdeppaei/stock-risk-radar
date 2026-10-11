@@ -26,6 +26,8 @@ _The deployed dashboard combines a ticker workflow, technical-risk summary, valu
 - T+0 candidate lists exclude delayed, unconfirmed, daily-fallback and invalid-time observations. Confirmed last-session results appear in a separate collapsible reference list with full-width bar timestamps and responsive columns; cached rows are reclassified at session boundaries without another scan. Market-switch races and failed refreshes cannot retain old active candidates.
 - T+0 automatic requests stop in background tabs, outside the T+0 view, and for confirmed closed markets. Mixed-market refreshes skip closed markets and retain their dated references. Returning to T+0 or using manual refresh rechecks sessions; expired closure facts never imply automatic reopening. In-flight requests are abortable and automatic batches of the same kind cannot overlap.
 - T+0 stock details load only after a ticker is selected or its model-refresh command is used, in both data-saver and normal modes. Quote/model-board polling and opening the details disclosure do not trigger per-stock models. Selected snapshots retain their source quote time and load time, with explicit chart navigation, retry and input-change invalidation.
+- Selected models validate their bars, quote and market benchmark independently. Closed/unknown sessions, missing/future/stale observations, declared provider delays and incomplete costs return a blocked result with no score, trading levels or playbook. Snapshot validity expires locally without a new request.
+- Taiwan equity models use TAIEX (TPEx stocks use the OTC index); US models use the S&P 500. Long-position costs separate TWD conditional Taiwan stock tax scenarios from explicitly confirmed USD broker scenarios and Taiwan ETF sell rates. Decimal currency rounding preserves zero fees and sub-cent price scenarios; no broker, account or short-sale eligibility is assumed.
 - Local intraday/swing presets save date range, bar interval, chart layers, market selection, and expanded analysis sections.
 - Opt-in traffic diagnostics expose provider/API latency, byte counts, errors, and cache hit rates. See [data and telemetry policy](docs/data-and-telemetry.md).
 - Responsive UI focused on classification and comparison instead of crowded dashboards.
@@ -92,7 +94,7 @@ The included `render.yaml` keeps the existing `stock-risk-radar` Render service 
 ## Engineering Checks
 
 ```bash
-python -m compileall -q app.py openkiri_live.py openkiri_cache_policy.py openkiri_data.py openkiri_metrics.py
+python -m compileall -q app.py openkiri_live.py openkiri_cache_policy.py openkiri_data.py openkiri_metrics.py openkiri_session.py openkiri_cost.py
 python -m unittest discover -s tests -v
 python -c "import openkiri_live; assert openkiri_live.app.title == 'OpenKiri'"
 ```
@@ -119,6 +121,8 @@ GET /api/analyze?symbol=AAPL&period=6mo&interval=1d&context=true
 GET /api/quote?symbol=AAPL
 GET /api/valuation?symbol=AAPL
 GET /api/diagnostics
+POST /api/daytrade/analyze
+POST /api/daytrade/cost
 GET /api/screener?markets=US,TW&industries=Semiconductors,Technology&setup=golden_cross_continuation&sort_by=signal&limit=30
 GET /api/recommendations?markets=US,TW&limit=8
 ```

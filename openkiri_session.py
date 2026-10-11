@@ -117,7 +117,7 @@ def analysis_status(payload: dict, now: float | None = None) -> dict:
     return {"market": market, "price": observation_status(price, market, now), "chart": chart_quality}
 
 
-def intraday_status(meta: dict, now: float | None = None) -> dict:
+def intraday_status(meta: dict, now: float | None = None, *, allow_trade: bool = False) -> dict:
     """Candidate eligibility is stricter than an informational freshness label."""
     now = time.time() if now is None else now
     market = market_status(meta, now)
@@ -130,7 +130,8 @@ def intraday_status(meta: dict, now: float | None = None) -> dict:
         result["reason"] = "missing_time" if stamp is None else "future_time"
     elif market["state"] == "closed" and quality["state"] == "last_session":
         result.update(eligibility="reference", reason="last_session")
-    elif meta.get("interval") not in INTRADAY_SECONDS:
+    elif meta.get("interval") not in INTRADAY_SECONDS and not (
+            allow_trade and meta.get("interval") is None and meta.get("time_basis") != "bar_start"):
         result["reason"] = "daily_fallback"
     elif market["state"] != "regular":
         result["reason"] = "market_unconfirmed" if market["state"] == "unknown" else "outside_regular"
@@ -145,3 +146,32 @@ def intraday_status(meta: dict, now: float | None = None) -> dict:
                       valid_until=iso_time(min(timestamp(market["valid_until"]),
                                               stamp + quality["stale_after_seconds"])))
     return result
+
+
+def daytrade_status(chart: dict, quote: dict, now: float | None = None) -> dict:
+    """Validate each observation; a fresh quote cannot rescue an old model bar."""
+    now = time.time() if now is None else now
+    bar = intraday_status(chart, now)
+    price_meta = {**quote}
+    if not price_meta.get("sessions"):
+        price_meta["sessions"] = chart.get("sessions")
+    price_meta["exchange_timezone"] = price_meta.get("exchange_timezone") or chart.get("exchange_timezone")
+    price = intraday_status(price_meta, now, allow_trade=True)
+    for entry, meta, limit in [(bar, chart, 2 * INTRADAY_SECONDS.get(chart.get("interval"), 60) + 60),
+                               (price, price_meta, 120)]:
+        entry["price"]["stale_after_seconds"] = limit
+        if entry["eligibility"] == "active":
+            stamp = timestamp(meta.get("as_of"))
+            if (finite(meta.get("delay_seconds")) or 0) > 0 or now - stamp >= limit:
+                entry.update(eligibility="excluded", reason="delayed")
+                entry["price"]["state"] = "delayed"
+            else:
+                entry["valid_until"] = iso_time(min(timestamp(entry["valid_until"]), stamp + limit))
+    if quote.get("exchange_timezone") and chart.get("exchange_timezone") and quote["exchange_timezone"] != chart["exchange_timezone"]:
+        price.update(eligibility="excluded", reason="timezone_mismatch")
+    active = bar["eligibility"] == price["eligibility"] == "active"
+    reason = "recent_observation" if active else (
+        "chart_" + bar["reason"] if bar["eligibility"] != "active" else "price_" + price["reason"])
+    return {"market": bar["market"], "chart": bar["price"], "price": price["price"],
+            "eligibility": "active" if active else "reference" if bar["eligibility"] == price["eligibility"] == "reference" else "excluded",
+            "reason": reason, "valid_until": iso_time(min(timestamp(bar["valid_until"]), timestamp(price["valid_until"])))}

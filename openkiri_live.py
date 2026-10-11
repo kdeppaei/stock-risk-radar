@@ -206,7 +206,7 @@ def version() -> dict[str, Any]:
         "ok": True,
         "app": "OpenKiri",
         "entry": "openkiri_live",
-        "commit_marker": "intraday-details-20261012.2",
+        "commit_marker": "intraday-rules-20261012.3",
         "fast_intraday": True,
         "render_service": "stock-risk-radar",
     }
@@ -539,9 +539,10 @@ def fetch_yahoo_quote_snapshot(symbol: str) -> dict[str, Any]:
         }.items()}
         snapshot.update(provenance("Yahoo quote", row.get("regularMarketTime"),
                                    getattr(resp, "openkiri_fetched_at", None)))
-        snapshot.update({"symbol": row["symbol"], "currency": row.get("currency"),
+        snapshot.update({"symbol": row["symbol"], "currency": row.get("currency"), "instrument_type": row.get("quoteType"),
                          "market_state": row.get("marketState"), "date": snapshot["as_of"],
-                         "exchange_timezone": row.get("exchangeTimezoneName"), "quote_session": "regular"})
+                         "exchange_timezone": row.get("exchangeTimezoneName"), "quote_session": "regular",
+                         "delay_seconds": (finite(row.get("exchangeDataDelayedBy")) or 0) * 60})
         return snapshot
     except (requests.RequestException, ValueError, TypeError, KeyError):
         return {}
@@ -586,8 +587,8 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
                                       time_basis="trade" if isinstance(timestamp, (int, float)) else "bar_start",
                                       exchange_timezone=meta.get("exchangeTimezoneName"),
                                       sessions=meta.get("currentTradingPeriod"), market_state=meta.get("marketState"),
-                                      quote_session="regular")
-                snapshot.update({"symbol": candidate, "price": price, "currency": meta.get("currency"),
+                                      quote_session="regular", delay_seconds=(finite(meta.get("exchangeDataDelayedBy")) or 0) * 60)
+                snapshot.update({"symbol": candidate, "price": price, "currency": meta.get("currency"), "instrument_type": meta.get("instrumentType"),
                                  "open": rows[0]["open"] if interval == "1m" else latest["open"],
                                  "high": max(r["high"] for r in rows) if interval == "1m" else latest["high"],
                                  "low": min(r["low"] for r in rows) if interval == "1m" else latest["low"],
@@ -597,12 +598,12 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
             valuation = valuation_from_snapshot(candidate, snapshot)
             payload = {
                 "ok": True, "symbol": candidate, "input_symbol": raw, "market": market,
-                **{key: snapshot.get(key) for key in ("price", "open", "high", "low", "change", "change_pct", "volume", "currency", "market_state")},
+                **{key: snapshot.get(key) for key in ("price", "open", "high", "low", "change", "change_pct", "volume", "currency", "market_state", "instrument_type")},
                 "date": snapshot.get("as_of"), "source": snapshot.get("source"),
                 "as_of": snapshot.get("as_of"), "fetched_at": snapshot.get("fetched_at"),
                 "provenance": {"price": provenance(snapshot.get("source"), snapshot.get("as_of"), snapshot.get("fetched_at"),
                                                    status="delayed_or_historical",
-                                                   **{key: snapshot.get(key) for key in ("exchange_timezone", "sessions", "market_state", "quote_session", "time_basis", "interval")})},
+                                                   **{key: snapshot.get(key) for key in ("exchange_timezone", "sessions", "market_state", "quote_session", "time_basis", "interval", "delay_seconds")})},
                 "valuation": valuation, "volume_ratio": None, "fallback": fallback,
                 "data_warning": "Provider data may be delayed; fetched_at is not the trade time.",
                 **{key: valuation.get(key) for key in ("market_cap", "market_cap_previous", "market_cap_change_pct", "trailing_pe", "forward_pe")},

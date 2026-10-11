@@ -446,7 +446,7 @@
       .news-panel { max-height: min(520px, calc(100vh - 120px)); }
     }
   </style>
-  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261012.2" />
+  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261012.3" />
 </head>
 <body>
   <a class="skip-link" href="#form" data-ui="skip">跳至股票查詢</a>
@@ -617,6 +617,7 @@
               </div>
               <details class="desk-panel tool-details">
                 <summary data-reco-i18n="costRadarTitle">當沖成本雷達 Break-even Radar</summary>
+                <p id="dtCostProfile" class="explain"></p>
                 <div class="desk-form">
                   <label><span data-reco-i18n="dtSymbol">股票代號</span><input id="dtCostSymbol" value="2330" /></label>
                   <label><span data-reco-i18n="dtBuyPrice">買進價格</span><input id="dtBuyPrice" type="number" step="0.01" placeholder="auto" /></label>
@@ -624,10 +625,13 @@
                   <label><span data-reco-i18n="dtShares">股數</span><input id="dtShares" type="number" step="1" value="1000" /></label>
                   <label><span data-reco-i18n="dtFeeRate">手續費率</span><input id="dtFeeRate" type="number" step="0.000001" value="0.001425" /></label>
                   <label><span data-reco-i18n="dtFeeDiscount">手續費折扣</span><input id="dtFeeDiscount" type="number" step="0.01" value="1" /></label>
-                  <label><span data-reco-i18n="dtTaxRate">證交稅率</span><input id="dtTaxRate" type="number" step="0.000001" value="0.0015" /></label>
-                  <label><span data-reco-i18n="dtMinFee">最低手續費</span><input id="dtMinFee" type="number" step="1" value="20" /></label>
-                  <label><span data-reco-i18n="dtRounding">取整方式</span><select id="dtRounding"><option value="floor">floor</option><option value="round">round</option><option value="ceil">ceil</option></select></label>
+                  <label><span id="dtSellRateLabel" data-reco-i18n="dtTaxRate">證交稅率</span><input id="dtTaxRate" type="number" step="0.000001" min="0" value="0.0015" /></label>
+                  <label><span data-reco-i18n="dtMinFee">最低手續費</span><input id="dtMinFee" type="number" step="0.01" min="0" value="20" /></label>
+                  <label><span data-reco-i18n="dtRounding">取整方式</span><select id="dtRounding"><option value="floor">floor</option><option value="round">round</option><option value="ceil">ceil</option><option value="cent">USD 0.01 ceiling</option></select></label>
+                  <label id="dtTickField" hidden><span data-reco-i18n="dtScenarioTick">情境價格步幅</span><input id="dtTickSize" type="number" min="0.0001" step="0.0001" value="0.01" /></label>
+                  <label id="dtSellExtraField" hidden><span data-reco-i18n="dtSellExtra">賣方額外費用</span><input id="dtSellExtra" type="number" min="0" step="0.01" value="0" /></label>
                 </div>
+                <label id="dtCostConfirmRow" class="cost-confirm" hidden><input id="dtCostConfirmed" type="checkbox" /><span data-reco-i18n="dtConfirmCost">採用我的券商成本情境</span></label>
                 <div class="desk-actions" style="margin-top:8px">
                   <button id="dtCostBtn" type="button" data-reco-i18n="dtCalc">計算成本</button>
                   <button id="dtUseLatestBtn" class="secondary" type="button" data-reco-i18n="dtUseLatest">帶入最新價</button>
@@ -665,8 +669,8 @@
                   </div>
                 </div>
                 <p id="dtDetailMeta" class="explain" role="status" aria-live="polite">尚未選擇股票</p>
+                <p id="dtDetailWarning" class="explain" hidden></p>
                 <div id="dtDetailResult" hidden>
-                  <p id="dtDetailWarning" class="explain"></p>
                   <div id="dtScoreBox" class="desk-result-grid"></div>
                   <div id="dtGateBox" class="gate-card yellow">
                     <div class="gate-lamps"><span class="lamp green"></span><span class="lamp yellow"></span><span class="lamp red"></span><strong id="dtGateTitle">-</strong></div>
@@ -1000,7 +1004,7 @@
   </aside>
   <button id="chatFab" class="chat-fab" type="button" aria-label="Open chat" hidden>Chat</button>
 
-  <script src="/static/openkiri-ui.js?v=20261012.1"></script>
+  <script src="/static/openkiri-ui.js?v=20261012.3"></script>
   <script src="/static/openkiri-workflow.js?v=20261011.6"></script>
   <script>
     const $ = (id) => document.getElementById(id);
@@ -1053,6 +1057,10 @@
     let daytradeDetailSymbol = "";
     let daytradeDetailState = "idle";
     let daytradeDetailCompletedAt = null;
+    let daytradeDetailExpiryTimer = null;
+    let daytradeCostInstrument = "EQUITY";
+    let daytradeCostMarket = "TW";
+    let daytradeCostContextSymbol = "";
     let daytradePriceAutoSymbol = "";
     let loadedWorkspaceTabs = new Set();
     let analyzeRequestSeq = 0;
@@ -1296,6 +1304,12 @@
     Object.assign(recoCopy.en, {
       dtDetailTitle: "Stock model details", dtDetailEmpty: "No stock selected", dtDetailRefresh: "Refresh stock model", dtDetailChart: "Price chart", dtDetailFailed: "Model unavailable", dtDetailPaused: "Model request paused", dtDetailInputsChanged: "Cost inputs changed", dtDetailSnapshot: "Model snapshot", dtDetailQuoteTime: "Quote observation", dtDetailMissingTime: "Source time unavailable"
     });
+    Object.assign(recoCopy["zh-tw"], { dtScenarioTick: "情境價格步幅", dtSellExtra: "賣方額外費用", dtConfirmCost: "採用我的券商成本情境", dtSellRate: "賣方其他費率", dtStockCost: "TWD · 台股股票當沖稅費情境（優惠須符合資格）", dtCustomCost: "券商自訂情境 · 不含未輸入費用，不確認帳戶或交易權限", dtDetailBlocked: "交易判讀暫停", dtDetailExpired: "資料有效期已到，交易判讀已收起", dtDetailBarTime: "模型 K 線起始", dtBenchmark: "基準", dtCostNeeded: "成本情境待確認", dtCostInvalid: "成本欄位未完整或不合格", dtDataUnavailable: "行情不符合盤中模型條件", dtBenchmarkUnavailable: "基準資料未確認或已過期" });
+    Object.assign(recoCopy["zh-cn"], { dtScenarioTick: "情境价格步幅", dtSellExtra: "卖方额外费用", dtConfirmCost: "采用我的券商成本情境", dtSellRate: "卖方其他费率", dtStockCost: "TWD · 台股股票当冲税费情境（优惠须符合资格）", dtCustomCost: "券商自订情境 · 不含未输入费用，不确认账户或交易权限", dtDetailBlocked: "交易解读暂停", dtDetailExpired: "数据有效期已到，交易解读已收起", dtDetailBarTime: "模型 K 线起始", dtBenchmark: "基准", dtCostNeeded: "成本情境待确认", dtCostInvalid: "成本栏位未完整或不合格", dtDataUnavailable: "行情不符合盘中模型条件", dtBenchmarkUnavailable: "基准数据未确认或已过期" });
+    Object.assign(recoCopy.en, { dtScenarioTick: "Scenario price increment", dtSellExtra: "Extra sell-side fee", dtConfirmCost: "Use my broker cost scenario", dtSellRate: "Other sell-side rate", dtStockCost: "TWD · Taiwan equity day-trade scenario (conditional tax eligibility)", dtCustomCost: "Broker scenario · Unentered fees excluded; account/trading permission unverified", dtDetailBlocked: "Trading interpretation paused", dtDetailExpired: "Data validity ended; trading interpretation hidden", dtDetailBarTime: "Model bar start", dtBenchmark: "Benchmark", dtCostNeeded: "Cost scenario needs confirmation", dtCostInvalid: "Cost inputs incomplete or invalid", dtDataUnavailable: "Data does not qualify for the intraday model", dtBenchmarkUnavailable: "Benchmark unconfirmed or expired" });
+    Object.assign(recoCopy["zh-tw"], { dtDetailClosed: "休市或非一般交易時段", dtDetailStale: "來源行情延遲或已過期", dtDetailUnknown: "交易時段未確認" });
+    Object.assign(recoCopy["zh-cn"], { dtDetailClosed: "休市或非一般交易时段", dtDetailStale: "来源行情延迟或已过期", dtDetailUnknown: "交易时段未确认" });
+    Object.assign(recoCopy.en, { dtDetailClosed: "Closed or outside regular trading", dtDetailStale: "Source data delayed or stale", dtDetailUnknown: "Trading session unconfirmed" });
     Object.assign(recoCopy["zh-tw"], {
       dtActiveLong: "盤中偏多", dtActiveShort: "盤中偏空", dtReference: "休市參考（非盤中訊號）", dtActive: "盤中候選", dtReferenceCount: "休市參考", dtExcluded: "排除", dtScanTime: "掃描完成", dtNoCandidate: "目前無合格候選", dtModelUnverified: "未驗證逐筆即時；延遲、日線備援與未確認時段不列入盤中候選。", dtModelExpired: "部分資料或時段已過期，待刷新確認。", dtModelFailed: "分類載入失敗，請刷新。", dtBarTime: "K 線起始", dtFallback: "日線備援", dtPollingPaused: "已暫停", dtPollingClosed: "休市暫停", dtPollingRecheck: "暫停・待確認", dtPollingChecked: "上次時段確認"
     });
@@ -1799,14 +1813,14 @@
     $("dtMarketMode").addEventListener("change", () => { pauseDaytradeRequests(); daytradeMarketMode = $("dtMarketMode").value; localStorage.setItem("okiri.daytradeMarket", daytradeMarketMode); invalidateDaytradeDetail(); refreshDaytradeDesk(true); if ($("alertDrawer")?.classList.contains("open")) loadAlerts(); });
     $("dtQuoteBody").addEventListener("click", (event) => {
       const button = event.target.closest("[data-detail-symbol]");
-      if (button) selectDaytradeSymbol(button.dataset.detailSymbol, Number(button.dataset.price || 0));
+      if (button) selectDaytradeSymbol(button.dataset.detailSymbol, Number(button.dataset.price || 0), button.dataset.instrument);
     });
     $("dtDetailRefresh").addEventListener("click", () => analyzeDaytradeSymbol(daytradeDetailSymbol));
     $("dtDetailChart").addEventListener("click", () => { if (daytradeDetailSymbol) analyze(daytradeDetailSymbol); });
-    ["dtBuyPrice", "dtSellPrice", "dtShares", "dtFeeRate", "dtFeeDiscount", "dtTaxRate", "dtMinFee", "dtRounding"].forEach((id) => {
+    ["dtBuyPrice", "dtSellPrice", "dtShares", "dtFeeRate", "dtFeeDiscount", "dtTaxRate", "dtMinFee", "dtRounding", "dtTickSize", "dtSellExtra", "dtCostConfirmed"].forEach((id) => {
       $(id).addEventListener("change", () => { if (daytradeDetailSymbol) invalidateDaytradeDetail("inputsChanged", daytradeDetailSymbol); });
     });
-    $("dtCostSymbol").addEventListener("change", () => { if (daytradeDetailSymbol) invalidateDaytradeDetail(); });
+    $("dtCostSymbol").addEventListener("change", () => { configureDaytradeCost($("dtCostSymbol").value); if (daytradeDetailSymbol) invalidateDaytradeDetail(); });
     $("dtCostBtn").addEventListener("click", () => calculateDaytradeCost());
     $("dtUseLatestBtn").addEventListener("click", () => useLatestForDaytradeCost());
     $("dtAddCurrentBtn").addEventListener("click", () => addDaytradeSymbol(lastData?.symbol || $("symbol").value.trim()));
@@ -3324,10 +3338,12 @@
     }
 
     document.addEventListener("visibilitychange", () => {
+      renderDaytradeDetailState();
       if (document.hidden) pauseDaytradeRequests();
       else if (isWorkspaceTabActive("daytrade")) refreshDaytradeDesk(false);
     });
     window.addEventListener("okiri:workspace", (event) => {
+      renderDaytradeDetailState();
       if (event.detail.name !== "daytrade") pauseDaytradeRequests();
       else if (loadedWorkspaceTabs.has("daytrade")) refreshDaytradeDesk(false);
     });
@@ -3511,7 +3527,7 @@
       const flash = prev && quote.price && quote.price !== prev ? (quote.price > prev ? "flash-up" : "flash-down") : "";
       if (quote.price) daytradeLastPrices[symbol] = quote.price;
       return `<tr class="${flash}" data-quote-symbol="${escapeHtml(symbol)}">
-        <td><button type="button" class="dt-symbol-button" data-detail-symbol="${escapeHtml(symbol)}" data-price="${Number(quote.price || 0)}" aria-controls="dtDetailPanel" title="${escapeHtml(rt("dtDetailTitle"))}">${escapeHtml(symbol)}</button><small class="muted">${failed ? "fallback unavailable" : escapeHtml(quote.source || "")}</small><small class="muted">${escapeHtml(quote.as_of ? new Date(quote.as_of).toLocaleString() : "-")}</small></td>
+        <td><button type="button" class="dt-symbol-button" data-detail-symbol="${escapeHtml(symbol)}" data-price="${Number(quote.price || 0)}" data-instrument="${escapeHtml(quote.instrument_type || "")}" aria-controls="dtDetailPanel" title="${escapeHtml(rt("dtDetailTitle"))}">${escapeHtml(symbol)}</button><small class="muted">${failed ? "fallback unavailable" : escapeHtml(quote.source || "")}</small><small class="muted">${escapeHtml(quote.as_of ? new Date(quote.as_of).toLocaleString() : "-")}</small></td>
         <td>${quote.price == null ? "-" : fmt(quote.price)}</td>
         <td>${quoteMarketCapText(quote)}</td>
         <td class="${cls}">${quote.change == null ? "-" : signed(quote.change)}</td>
@@ -3525,12 +3541,17 @@
     }
 
     async function calculateDaytradeCost(renderErrors = true) {
+      if ((daytradeCostMarket === "US" || daytradeCostInstrument === "ETF") && !$("dtCostConfirmed").checked) {
+        if (renderErrors) $("dtCostSummary").textContent = rt("dtCostNeeded");
+        return;
+      }
       try {
         const payload = daytradeCostPayload();
         if (!payload.buy_price || !payload.sell_price) return;
         const res = await fetch("/api/daytrade/cost", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.detail || "cost failed");
+        if (JSON.stringify(payload) !== JSON.stringify(daytradeCostPayload())) return;
         renderDaytradeCost(data);
       } catch (error) {
         if (renderErrors) $("dtCostSummary").textContent = error.message;
@@ -3545,6 +3566,7 @@
       const value = Number(price || 0);
       if (!value || !$("dtBuyPrice") || !$("dtSellPrice")) return;
       const normalized = symbol || lastData?.symbol || $("symbol").value.trim();
+      configureDaytradeCost(normalized);
       const symbolChanged = daytradePriceAutoSymbol !== normalized;
       if ($("dtCostSymbol")) $("dtCostSymbol").value = normalized;
       if (force || symbolChanged || !validPriceInput("dtBuyPrice")) $("dtBuyPrice").value = value;
@@ -3559,17 +3581,18 @@
       setDaytradeLatestPrices(data.symbol, data.latest.close, false);
     }
 
-    function selectDaytradeSymbol(symbol, latestPrice = 0) {
+    function selectDaytradeSymbol(symbol, latestPrice = 0, instrument) {
       const normalized = normalizeTwSymbolInput(symbol);
       if (!daytradeForeground() || !marketFilterSymbol(normalized)) return;
       $("dtDetailPanel").open = true;
       $("dtDetailPanel").scrollIntoView({ block: "start", behavior: "instant" });
       $("dtDetailPanel").querySelector("summary").focus({ preventScroll: true });
       if (sameSymbol(daytradeDetailSymbol, normalized) &&
-          (daytradeDetailState === "ready" || daytradeRequests.get("analysis")?.scope === normalized)) return;
+          (["ready", "blocked", "expired"].includes(daytradeDetailState) || daytradeRequests.get("analysis")?.scope === normalized)) return;
       $("dtCostResult").replaceChildren();
       $("dtCostSummary").textContent = "-";
       $("dtCostSymbol").value = symbol;
+      configureDaytradeCost(normalized, instrument);
       if (latestPrice) setDaytradeLatestPrices(normalized, latestPrice, true, false);
       else if (!sameSymbol(daytradePriceAutoSymbol, normalized)) {
         $("dtBuyPrice").value = $("dtSellPrice").value = "";
@@ -3579,29 +3602,60 @@
     }
 
     function daytradeCostPayload() {
+      const input = (id) => $(id).value === "" ? null : Number($(id).value);
       return {
         symbol: $("dtCostSymbol").value.trim() || lastData?.symbol || "2330",
-        buy_price: Number($("dtBuyPrice").value || 0),
-        sell_price: Number($("dtSellPrice").value || 0),
-        shares: Number($("dtShares").value || 1000),
-        fee_rate: Number($("dtFeeRate").value || 0.001425),
-        fee_discount: Number($("dtFeeDiscount").value || 1),
-        tax_rate: Number($("dtTaxRate").value || 0.0015),
-        min_fee: Number($("dtMinFee").value || 20),
+        buy_price: input("dtBuyPrice"),
+        sell_price: input("dtSellPrice"),
+        shares: input("dtShares"),
+        fee_rate: input("dtFeeRate"),
+        fee_discount: input("dtFeeDiscount"),
+        tax_rate: input("dtTaxRate"),
+        min_fee: input("dtMinFee"),
+        tick_size: input("dtTickSize"), sell_extra_fee: input("dtSellExtra"),
+        cost_confirmed: $("dtCostConfirmed").checked, instrument_type: daytradeCostInstrument,
         rounding_mode: $("dtRounding").value || "floor",
         is_daytrade: true
       };
     }
 
+    function configureDaytradeCost(symbol, instrument) {
+      const market = symbolMarket(symbol);
+      const type = instrument || (sameSymbol(daytradeCostContextSymbol, symbol) ? daytradeCostInstrument : "EQUITY");
+      if (market !== daytradeCostMarket || type !== daytradeCostInstrument) {
+        const us = market === "US";
+        $("dtFeeRate").value = us ? "" : "0.001425";
+        $("dtTaxRate").value = us || type === "ETF" ? "" : "0.0015";
+        $("dtMinFee").value = us ? "" : "20";
+        $("dtFeeDiscount").value = "1";
+        $("dtRounding").value = us ? "cent" : "floor";
+        $("dtSellExtra").value = "0";
+        $("dtTickSize").value = "0.01";
+      }
+      if (!sameSymbol(daytradeCostContextSymbol, symbol) || type !== daytradeCostInstrument) $("dtCostConfirmed").checked = false;
+      daytradeCostContextSymbol = symbol;
+      daytradeCostMarket = market;
+      daytradeCostInstrument = type;
+      renderDaytradeCostProfile();
+    }
+
+    function renderDaytradeCostProfile() {
+      const custom = daytradeCostMarket === "US" || daytradeCostInstrument === "ETF";
+      $("dtCostProfile").textContent = custom ? `${daytradeCostMarket === "US" ? "USD" : "TWD ETF"} · ${rt("dtCustomCost")}` : rt("dtStockCost");
+      $("dtSellRateLabel").textContent = rt(custom ? "dtSellRate" : "dtTaxRate");
+      $("dtCostConfirmRow").hidden = $("dtSellExtraField").hidden = !custom;
+      $("dtTickField").hidden = daytradeCostMarket !== "US";
+    }
+
     function renderDaytradeCost(data) {
       const fields = [
         ["買進成交金額", data.buy_amount], ["買進手續費", data.buy_fee], ["賣出成交金額", data.sell_amount],
-        ["賣出手續費", data.sell_fee], ["證交稅", data.tax], ["總交易成本", data.total_cost],
+        ["賣出手續費", data.sell_fee], [data.profile === "broker_scenario" ? rt("dtSellRate") : rt("dtTaxRate"), data.tax], ["總交易成本", data.total_cost],
         ["毛損益", data.gross_profit], ["淨損益", data.net_profit], ["淨報酬率", `${fmt(data.net_return_pct)}%`],
         ["每股實際成本", data.per_share_actual_cost], ["損益兩平價", data.break_even_sell_price], ["至少獲利跳動", `${data.min_profit_ticks} ticks`]
       ];
-      $("dtCostResult").innerHTML = fields.map(([labelText, value]) => `<div class="desk-kv"><span>${escapeHtml(labelText)}</span><b>${typeof value === "number" ? fmt(value) : escapeHtml(value)}</b></div>`).join("");
-      $("dtCostSummary").textContent = `${data.spread_text}${data.warning ? ` ${data.warning}。` : ""} ${data.disclaimer}`;
+      $("dtCostResult").innerHTML = fields.map(([labelText, value]) => `<div class="desk-kv"><span>${escapeHtml(labelText)}</span><b>${typeof value === "number" ? fmt(value, 6) : escapeHtml(value)}</b></div>`).join("");
+      $("dtCostSummary").textContent = `${data.currency || "TWD"} · ${data.spread_text}${data.warning ? ` ${data.warning}。` : ""} ${data.disclaimer}`;
     }
 
     async function useLatestForDaytradeCost() {
@@ -3610,7 +3664,10 @@
         const res = await fetch(`/api/quote/${encodeURIComponent(symbol)}`);
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.detail || "quote failed");
+        if (!sameSymbol(symbol, data.symbol)) throw new Error("Quote symbol mismatch");
+        if (!sameSymbol(symbol, $("dtCostSymbol").value)) return;
         $("dtCostSymbol").value = data.symbol;
+        configureDaytradeCost(data.symbol, data.instrument_type);
         setDaytradeLatestPrices(data.symbol, data.price, true, false);
         if (daytradeDetailSymbol) {
           if (sameSymbol(daytradeDetailSymbol, data.symbol)) invalidateDaytradeDetail("inputsChanged", daytradeDetailSymbol);
@@ -3623,6 +3680,8 @@
     }
 
     function invalidateDaytradeDetail(state = "idle", symbol = "") {
+      clearTimeout(daytradeDetailExpiryTimer);
+      daytradeDetailExpiryTimer = null;
       const ticket = daytradeRequests.get("analysis");
       if (ticket) { ticket.controller.abort(); finishDaytradeRequest("analysis", ticket); }
       daytradeDetailSymbol = symbol;
@@ -3637,6 +3696,8 @@
     function renderDaytradeDetailState() {
       const panel = $("dtDetailPanel");
       if (!panel) return;
+      if (daytradeDetailState === "ready" && !(Date.parse(daytradeAnalyzeData?.execution?.valid_until) > Date.now())) expireDaytradeDetail();
+      renderDaytradeCostProfile();
       panel.dataset.state = daytradeDetailState;
       $("dtDetailSymbol").textContent = daytradeDetailSymbol || "-";
       $("dtDetailResult").hidden = daytradeDetailState !== "ready";
@@ -3644,10 +3705,17 @@
       $("dtDetailChart").disabled = !daytradeDetailSymbol;
       panel.setAttribute("aria-busy", String(daytradeDetailState === "loading"));
       const copy = { idle: "dtDetailEmpty", loading: "loading", error: "dtDetailFailed", paused: "dtDetailPaused", inputsChanged: "dtDetailInputsChanged" };
-      if (daytradeDetailState === "ready" && daytradeAnalyzeData) {
+      $("dtDetailWarning").hidden = !daytradeAnalyzeData;
+      if (["ready", "blocked", "expired"].includes(daytradeDetailState) && daytradeAnalyzeData) {
         const quoteTime = Date.parse(daytradeAnalyzeData.latest?.as_of);
-        $("dtDetailMeta").textContent = `${rt("dtDetailSnapshot")} ${new Date(daytradeDetailCompletedAt).toLocaleString()} · ${daytradeAnalyzeData.source || "-"} · ${rt("dtDetailQuoteTime")} ${Number.isFinite(quoteTime) ? new Date(quoteTime).toLocaleString() : rt("dtDetailMissingTime")}`;
-        $("dtDetailWarning").textContent = daytradeAnalyzeData.data_warning || rt("daytradeDisclaimer");
+        const barTime = Date.parse(daytradeAnalyzeData.provenance?.chart?.as_of);
+        const timeText = (time) => Number.isFinite(time) ? new Date(time).toLocaleString() : rt("dtDetailMissingTime");
+        const benchmark = daytradeAnalyzeData.benchmark;
+        $("dtDetailMeta").textContent = `${rt("dtDetailSnapshot")} ${new Date(daytradeDetailCompletedAt).toLocaleString()} · ${daytradeAnalyzeData.source || "-"} · ${rt("dtDetailBarTime")} ${timeText(barTime)} · ${rt("dtDetailQuoteTime")} ${timeText(quoteTime)}${benchmark ? ` · ${rt("dtBenchmark")} ${benchmark.symbol} ${timeText(Date.parse(benchmark.as_of))}` : ""}`;
+        const reason = daytradeAnalyzeData.execution?.reason;
+        const warning = reason === "cost_unconfirmed" ? "dtCostNeeded" : reason === "cost_inputs" ? "dtCostInvalid" : reason === "benchmark_unavailable" ? "dtBenchmarkUnavailable" :
+          /last_session|outside_regular/.test(reason || "") ? "dtDetailClosed" : /delayed|older_data/.test(reason || "") ? "dtDetailStale" : /market_unconfirmed|missing_session/.test(reason || "") ? "dtDetailUnknown" : "dtDataUnavailable";
+        $("dtDetailWarning").textContent = daytradeDetailState === "expired" ? rt("dtDetailExpired") : daytradeDetailState === "blocked" ? `${rt("dtDetailBlocked")} · ${rt(warning)}` : `${rt("dtModelUnverified")} ${rt("daytradeDisclaimer")}`;
       } else $("dtDetailMeta").textContent = rt(copy[daytradeDetailState] || "dtDetailEmpty");
       $("dtQuoteBody").querySelectorAll("[data-detail-symbol]").forEach((button) => {
         const selected = sameSymbol(button.dataset.detailSymbol, daytradeDetailSymbol);
@@ -3655,6 +3723,15 @@
         if (selected) button.setAttribute("aria-current", "true");
         else button.removeAttribute("aria-current");
       });
+    }
+
+    function expireDaytradeDetail() {
+      clearTimeout(daytradeDetailExpiryTimer);
+      daytradeDetailExpiryTimer = null;
+      daytradeDetailState = "expired";
+      if (daytradeAnalyzeData) daytradeAnalyzeData.execution = {allowed: false, reason: "expired"};
+      ["dtScoreBox", "dtGateReasons", "dtLevels"].forEach((id) => $(id).replaceChildren());
+      $("dtPlaybook").textContent = "-";
     }
 
     async function analyzeDaytradeSymbol(symbol) {
@@ -3675,12 +3752,20 @@
         if (!currentDaytradeRequest("analysis", ticket)) return;
         if (!sameSymbol(normalized, data.symbol) || !sameSymbol(data.symbol, data.latest?.symbol)) throw new Error("Model symbol mismatch");
         daytradeAnalyzeData = data;
-        daytradeDetailState = "ready";
+        const validUntil = Date.parse(data.execution?.valid_until);
+        const expectedBenchmark = data.market === "US" ? "^GSPC" : normalized.endsWith(".TWO") ? "^TWOII" : "^TWII";
+        const allowed = data.execution?.allowed === true && validUntil > Date.now() && data.data_status?.eligibility === "active" &&
+          data.benchmark?.symbol === expectedBenchmark && data.benchmark?.data_status?.eligibility === "active";
+        daytradeDetailState = allowed ? "ready" : "blocked";
         daytradeDetailCompletedAt = Date.now();
         if (data.latest?.price) {
+          configureDaytradeCost(normalized, data.latest.instrument_type);
           setDaytradeLatestPrices(normalized, data.latest.price, false, false);
         }
-        renderDaytradeAnalyze(data);
+        if (allowed) {
+          renderDaytradeAnalyze(data);
+          daytradeDetailExpiryTimer = setTimeout(() => { expireDaytradeDetail(); renderDaytradeDetailState(); }, Math.min(2147483647, validUntil - Date.now()));
+        }
         renderDaytradeDetailState();
       } catch (error) {
         if (!currentDaytradeRequest("analysis", ticket)) return;
@@ -3705,7 +3790,7 @@
       $("dtLevels").innerHTML = [
         ["突破觸發價", l.breakout_trigger], ["回測承接區", l.pullback_support], ["停損參考價", l.stop_reference],
         ["損益兩平價", l.break_even], ["追價風險區", l.chase_risk_zone], ["盤中 VWAP", l.vwap],
-      ].map(([labelText, value]) => `<div class="desk-kv"><span>${escapeHtml(labelText)}</span><b>${fmt(value)}</b></div>`).join("");
+      ].map(([labelText, value]) => `<div class="desk-kv"><span>${escapeHtml(labelText)}</span><b>${fmt(value, 6)}</b></div>`).join("");
       $("dtPlaybook").textContent = `${data.playbook} ${data.disclaimer}`;
       if (data.cost) renderDaytradeCost(data.cost);
     }
@@ -4420,7 +4505,7 @@
     }
     function kv(id, obj) { $(id).innerHTML = Object.entries(obj).map(([k, v]) => `<div class="kv"><span>${k}</span><strong>${typeof v === "number" ? fmt(v) : v}</strong></div>`).join(""); }
     function label(value) { return t(value) || value; }
-    function fmt(n) { return Number(n || 0).toLocaleString(lang === "en" ? "en-US" : "zh-TW", { maximumFractionDigits: 2 }); }
+    function fmt(n, digits = 2) { return Number(n || 0).toLocaleString(lang === "en" ? "en-US" : "zh-TW", { maximumFractionDigits: digits }); }
     function signed(n, suffix = "") { return `${Number(n || 0) >= 0 ? "+" : ""}${fmt(n)}${suffix}`; }
     function arrow(n) { return Number(n || 0) >= 0 ? "▲" : "▼"; }
     function compact(n) { return Number(n || 0).toLocaleString(lang === "en" ? "en-US" : "zh-TW", { notation: "compact", maximumFractionDigits: 1 }); }

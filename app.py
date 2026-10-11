@@ -9,6 +9,7 @@ import time
 import html as html_lib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from statistics import mean
@@ -23,6 +24,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
+
+from openkiri_cost import calculate_cost, price_tick, rounded_price
+from openkiri_data import finite, iso_time, provenance
+from openkiri_session import daytrade_status, timestamp
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "stock_risk_log.sqlite3"
@@ -680,7 +686,7 @@ async def daytrade_cost(request: Request) -> dict[str, Any]:
 async def daytrade_analyze(request: Request) -> dict[str, Any]:
     payload = await safe_json(request)
     symbol = str(payload.get("symbol") or "2330").strip().upper()
-    return daytrade_analyze_payload(symbol, payload)
+    return await run_in_threadpool(daytrade_analyze_payload, symbol, payload)
 
 
 @app.get("/api/screener/options")
@@ -1358,136 +1364,14 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
     raise HTTPException(status_code=404, detail=f"No quote data found for {', '.join(tried) or raw}.")
 
 
-def fee_round(value: float, mode: str) -> int:
-    if mode == "ceil":
-        return int(math.ceil(value))
-    if mode == "round":
-        return int(round(value))
-    return int(math.floor(value))
-
-
-def tw_price_tick(price: float) -> float:
-    if price < 10:
-        return 0.01
-    if price < 50:
-        return 0.05
-    if price < 100:
-        return 0.1
-    if price < 500:
-        return 0.5
-    if price < 1000:
-        return 1.0
-    return 5.0
-
-
-def round_to_tick(price: float, mode: str = "ceil") -> float:
-    tick = tw_price_tick(max(price, 0.01))
-    scaled = price / tick
-    if mode == "floor":
-        rounded = math.floor(scaled) * tick
-    elif mode == "round":
-        rounded = round(scaled) * tick
-    else:
-        rounded = math.ceil(scaled) * tick
-    return number(max(tick, rounded), 2)
-
-
-def daytrade_cost_values(
-    buy_price: float,
-    sell_price: float,
-    shares: int,
-    fee_rate: float,
-    fee_discount: float,
-    tax_rate: float,
-    min_fee: int,
-    rounding_mode: str,
-    is_daytrade: bool = True,
-) -> dict[str, Any]:
-    buy_amount = buy_price * shares
-    sell_amount = sell_price * shares
-    raw_buy_fee = buy_amount * fee_rate * fee_discount
-    raw_sell_fee = sell_amount * fee_rate * fee_discount
-    buy_fee = max(min_fee, fee_round(raw_buy_fee, rounding_mode)) if buy_amount else 0
-    sell_fee = max(min_fee, fee_round(raw_sell_fee, rounding_mode)) if sell_amount else 0
-    sell_tax = fee_round(sell_amount * tax_rate, rounding_mode) if is_daytrade else 0
-    total_cost = buy_fee + sell_fee + sell_tax
-    gross_profit = sell_amount - buy_amount
-    net_profit = gross_profit - total_cost
-    net_return_pct = (net_profit / buy_amount * 100) if buy_amount else 0
-    per_share_cost = (buy_amount + total_cost) / shares if shares else 0
-
-    tick = tw_price_tick(buy_price)
-    break_even = round_to_tick(buy_price, "ceil")
-    for step in range(0, 4000):
-        candidate = round_to_tick(buy_price + tick * step, "ceil")
-        test = daytrade_cost_values_no_breakeven(
-            buy_price, candidate, shares, fee_rate, fee_discount, tax_rate, min_fee, rounding_mode, is_daytrade
-        )
-        if test["net_profit"] >= 0:
-            break_even = candidate
-            break
-    min_profit_ticks = max(0, round((break_even - buy_price) / tick))
-    warning = ""
-    if sell_price < break_even:
-        warning = "價差看似獲利，但扣除稅費後仍可能虧損"
-    return {
-        "buy_amount": int(round(buy_amount)),
-        "buy_fee": buy_fee,
-        "sell_amount": int(round(sell_amount)),
-        "sell_fee": sell_fee,
-        "tax": sell_tax,
-        "total_cost": total_cost,
-        "gross_profit": int(round(gross_profit)),
-        "net_profit": int(round(net_profit)),
-        "net_return_pct": number(net_return_pct),
-        "per_share_actual_cost": number(per_share_cost),
-        "break_even_sell_price": break_even,
-        "min_profit_ticks": min_profit_ticks,
-        "tick_size": tick,
-        "spread_text": f"價差 {signed_number(sell_price - buy_price)} 元，毛利 {signed_number(gross_profit, 0)}，但扣除稅費約 {total_cost} 後，淨利約 {signed_number(net_profit, 0)}。",
-        "warning": warning,
-        "disclaimer": "非投資建議，僅供風險與成本輔助判斷。",
-    }
-
-
-def daytrade_cost_values_no_breakeven(
-    buy_price: float,
-    sell_price: float,
-    shares: int,
-    fee_rate: float,
-    fee_discount: float,
-    tax_rate: float,
-    min_fee: int,
-    rounding_mode: str,
-    is_daytrade: bool,
-) -> dict[str, Any]:
-    buy_amount = buy_price * shares
-    sell_amount = sell_price * shares
-    buy_fee = max(min_fee, fee_round(buy_amount * fee_rate * fee_discount, rounding_mode)) if buy_amount else 0
-    sell_fee = max(min_fee, fee_round(sell_amount * fee_rate * fee_discount, rounding_mode)) if sell_amount else 0
-    sell_tax = fee_round(sell_amount * tax_rate, rounding_mode) if is_daytrade else 0
-    total_cost = buy_fee + sell_fee + sell_tax
-    return {"net_profit": int(round(sell_amount - buy_amount - total_cost)), "total_cost": total_cost}
-
-
 def signed_number(value: float, digits: int = 1) -> str:
     rounded = number(value, digits)
     return f"+{rounded:,.{digits}f}" if rounded >= 0 else f"{rounded:,.{digits}f}"
 
 
 def daytrade_cost_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    buy_price = float(payload.get("buy_price") or 0)
-    sell_price = float(payload.get("sell_price") or buy_price)
-    shares = int(float(payload.get("shares") or 1000))
-    fee_rate = float(payload.get("fee_rate") or 0.001425)
-    fee_discount = float(payload.get("fee_discount") or 1)
-    tax_rate = float(payload.get("tax_rate") or 0.0015)
-    min_fee = int(float(payload.get("min_fee") or 20))
-    rounding_mode = str(payload.get("rounding_mode") or "floor")
-    if rounding_mode not in {"floor", "round", "ceil"}:
-        rounding_mode = "floor"
-    is_daytrade = bool(payload.get("is_daytrade", True))
-    return daytrade_cost_values(buy_price, sell_price, shares, fee_rate, fee_discount, tax_rate, min_fee, rounding_mode, is_daytrade)
+    _, market = normalize_symbol(str(payload.get("symbol") or "2330"))
+    return calculate_cost(payload, market)
 
 
 def market_pulse_payload() -> dict[str, Any]:
@@ -1615,28 +1499,77 @@ def daytrade_analyze_payload(symbol: str, payload: dict[str, Any]) -> dict[str, 
     normalized, market = normalize_symbol(raw)
     resolved = normalized
     rows: list[dict[str, Any]] = []
-    source = "1d/1m"
+    interval = "1m"
     for candidate in candidate_symbols(normalized, raw):
+        interval = "1m"
         rows = fetch_price_history(candidate, "1d", "1m")
-        if not rows:
+        if len(rows) < 3:
             rows = fetch_price_history(candidate, "1d", "5m")
-            source = "1d/5m fallback"
+            interval = "5m"
         if rows:
             resolved = candidate
             break
+    quote = latest_quote_payload(resolved)
+    if normalize_symbol(str(quote.get("symbol") or ""))[0] != resolved:
+        raise HTTPException(502, detail="Model quote identity mismatch")
+    latest_row = rows[-1] if rows else {}
+    meta = latest_row.get("_meta") or {}
+    chart_meta = provenance("Yahoo chart", latest_row.get("date"), meta.get("fetched_at"), interval=interval,
+                            time_basis="bar_start", exchange_timezone=meta.get("exchangeTimezoneName"),
+                            sessions=meta.get("currentTradingPeriod"), market_state=meta.get("marketState"),
+                            delay_seconds=(finite(meta.get("exchangeDataDelayedBy")) or 0) * 60)
+    price_meta = (quote.get("provenance") or {}).get("price") or {}
+    status = daytrade_status(chart_meta, price_meta)
+    result = {"ok": True, "symbol": resolved, "market": market, "latest": quote,
+              "source": f"1d/{interval}" if rows else "unavailable", "fallback": not rows,
+              "provenance": {"chart": chart_meta, "price": price_meta}, "data_status": status,
+              "score": None, "posture": None, "metrics": {}, "levels": {}, "cost": None, "playbook": None,
+              "benchmark": None, "risk_gate": {"state": "blocked", "green": [], "yellow": [], "red": []},
+              "data_warning": "Not tick-by-tick verified. Model bars, quotes and benchmark observations must all be current.",
+              "disclaimer": "非投資建議；模型不確認帳戶權限、可放空性或券商即時價格。"}
+
+    def blocked(reason):
+        result["execution"] = {"allowed": False, "reason": reason, "valid_until": status["valid_until"]}
+        return result
+
     if len(rows) < 3:
-        quote = latest_quote_payload(raw)
-        rows = [{
-            "date": datetime.now(timezone.utc),
-            "date_label": quote.get("date", ""),
-            "open": quote.get("open") or quote.get("price") or 0,
-            "high": quote.get("high") or quote.get("price") or 0,
-            "low": quote.get("low") or quote.get("price") or 0,
-            "close": quote.get("price") or 0,
-            "volume": quote.get("volume") or 0,
-        }]
-        source = "quote fallback"
-        resolved = quote.get("symbol", resolved)
+        return blocked("insufficient_bars")
+    if status["eligibility"] != "active":
+        return blocked(status["reason"])
+    start, end = timestamp(status["market"]["regular_start"]), timestamp(status["market"]["regular_end"])
+    rows = [row for row in rows if (stamp := timestamp(row.get("date"))) is not None and start <= stamp < end]
+    if len(rows) < 3:
+        return blocked("insufficient_bars")
+    if any(any(finite(row.get(key), positive=True) is None for key in ("open", "high", "low", "close"))
+           or finite(row.get("volume")) is None or float(row["volume"]) < 0 for row in rows):
+        return blocked("invalid_bars")
+    instrument = str(meta.get("instrumentType") or quote.get("instrument_type") or "").upper()
+    if (instrument not in {"EQUITY", "ETF"} or quote.get("currency") != ("TWD" if market == "TW" else "USD")
+            or (quote.get("instrument_type") and str(quote["instrument_type"]).upper() != instrument)):
+        return blocked("unsupported_instrument")
+    if (market == "US" or instrument == "ETF") and payload.get("cost_confirmed") is not True:
+        return blocked("cost_unconfirmed")
+    try:
+        cost = daytrade_cost_from_payload({**payload, "symbol": resolved, "instrument_type": instrument,
+                                          "buy_price": latest_row["close"] if payload.get("buy_price") is None or payload.get("buy_price") == "" else payload["buy_price"],
+                                          "sell_price": latest_row["close"] if payload.get("sell_price") is None or payload.get("sell_price") == "" else payload["sell_price"]})
+    except HTTPException:
+        return blocked("cost_inputs")
+    benchmark_symbol = "^GSPC" if market == "US" else "^TWOII" if resolved.endswith(".TWO") else "^TWII"
+    ref_index = safe_quote_or_none(benchmark_symbol)
+    if not ref_index or ref_index.get("symbol") != benchmark_symbol or finite(ref_index.get("change_pct")) is None:
+        return blocked("benchmark_unavailable")
+    benchmark_meta = (ref_index.get("provenance") or {}).get("price") or {}
+    now = time.time()
+    status = daytrade_status(chart_meta, price_meta, now)
+    result["data_status"] = status
+    benchmark_status = daytrade_status(chart_meta, benchmark_meta, now)
+    result["benchmark"] = {"symbol": benchmark_symbol, "as_of": benchmark_meta.get("as_of"),
+                           "source": benchmark_meta.get("source"), "change_pct": ref_index["change_pct"], "data_status": benchmark_status}
+    if status["eligibility"] != "active":
+        return blocked(status["reason"])
+    if benchmark_status["eligibility"] != "active":
+        return blocked("benchmark_unavailable")
     latest = rows[-1]
     closes = [float(row["close"]) for row in rows if row.get("close")]
     volumes = [float(row["volume"] or 0) for row in rows]
@@ -1644,23 +1577,11 @@ def daytrade_analyze_payload(symbol: str, payload: dict[str, Any]) -> dict[str, 
     day_low = min(row["low"] for row in rows)
     avg_price = mean(closes) if closes else latest["close"]
     vwap = sum(row["close"] * row["volume"] for row in rows if row["volume"]) / sum(volumes) if sum(volumes) else avg_price
-    ref_index = safe_quote_or_none("^TWII") or {"change_pct": 0}
-    quote = latest_quote_payload(resolved)
-    buy_price = float(payload.get("buy_price") or latest["close"])
-    sell_price = float(payload.get("sell_price") or latest["close"])
-    cost = daytrade_cost_from_payload({**payload, "buy_price": buy_price, "sell_price": sell_price})
     metrics = intraday_metrics(rows, ref_index, cost)
     score = daytrade_score(metrics)
     gate = risk_gate(metrics, cost, score)
     playbook = daytrade_playbook(latest["close"], metrics, cost)
-    return {
-        "ok": True,
-        "symbol": resolved,
-        "market": market,
-        "latest": quote,
-        "source": source,
-        "fallback": "fallback" in source,
-        "data_warning": "資料可能延遲 / 目前使用 fallback；五檔 / 逐筆資料目前不可用。" if "fallback" in source else "Yahoo chart intraday；五檔 / 逐筆資料目前不可用。",
+    result.update({
         "score": score,
         "posture": daytrade_posture(score, metrics, cost),
         "risk_gate": gate,
@@ -1670,7 +1591,7 @@ def daytrade_analyze_payload(symbol: str, payload: dict[str, Any]) -> dict[str, 
             "pullback_support": number(max(day_low, min(closes[-20:]) if len(closes) >= 20 else day_low)),
             "stop_reference": number(min(closes[-20:]) if len(closes) >= 20 else day_low),
             "break_even": cost["break_even_sell_price"],
-            "chase_risk_zone": number(day_high - tw_price_tick(day_high)),
+            "chase_risk_zone": float(rounded_price(Decimal(str(day_high)) - price_tick(day_high, market, instrument, cost["tick_size"] if market == "US" else None), "floor", market, instrument, cost["tick_size"] if market == "US" else None)),
             "selling_pressure_zone": number(day_high),
             "minimum_profit_ticks": cost["min_profit_ticks"],
             "vwap": number(vwap),
@@ -1678,8 +1599,10 @@ def daytrade_analyze_payload(symbol: str, payload: dict[str, Any]) -> dict[str, 
         },
         "cost": cost,
         "playbook": playbook,
-        "disclaimer": "非投資建議，僅供風險與成本輔助判斷。",
-    }
+    })
+    result["execution"] = {"allowed": True, "reason": "current_observations",
+                           "valid_until": min(status["valid_until"], benchmark_status["valid_until"])}
+    return result
 
 
 def intraday_metrics(rows: list[dict[str, Any]], ref_index: dict[str, Any], cost: dict[str, Any]) -> dict[str, Any]:
@@ -1716,7 +1639,7 @@ def intraday_metrics(rows: list[dict[str, Any]], ref_index: dict[str, Any], cost
         "near_support_pct": number(near_support_pct),
         "consecutive_volume": consecutive_volume,
         "index_change_pct": number(float(ref_index.get("change_pct") or 0)),
-        "cost_covered": cost["net_profit"] >= 0,
+        "cost_covered": cost["net_return_pct"] >= 0,
         "cost_drag_pct": number(cost["total_cost"] / max(1, abs(cost["gross_profit"])) * 100) if cost["gross_profit"] else 999,
         "spread_slippage_risk": "high" if volume_ratio < 0.8 or amplitude_pct < 0.6 else "medium" if volume_ratio < 1.2 else "low",
     }
@@ -1741,7 +1664,7 @@ def risk_gate(metrics: dict[str, Any], cost: dict[str, Any], score: int) -> dict
     red = []
     yellow = []
     green = []
-    if not cost["net_profit"] >= 0:
+    if cost["net_return_pct"] < 0:
         red.append("毛利不足以覆蓋稅費")
     if metrics["index_change_pct"] <= -0.8:
         red.append("大盤急跌")
@@ -1757,7 +1680,7 @@ def risk_gate(metrics: dict[str, Any], cost: dict[str, Any], score: int) -> dict
         green.append("價格站上短均")
     if metrics["index_change_pct"] > -0.35:
         green.append("指數未明顯轉弱")
-    if cost["net_profit"] >= 0:
+    if cost["net_return_pct"] >= 0:
         green.append("目標價超過損益兩平")
     if metrics["near_pressure_pct"] >= 0.6:
         green.append("壓力區距離足夠")
@@ -1779,7 +1702,7 @@ def risk_gate(metrics: dict[str, Any], cost: dict[str, Any], score: int) -> dict
 
 
 def daytrade_posture(score: int, metrics: dict[str, Any], cost: dict[str, Any]) -> str:
-    if not cost["net_profit"] >= 0:
+    if cost["net_return_pct"] < 0:
         return "成本不利，價差不足"
     if metrics["volume_ratio"] < 0.8:
         return "量縮不宜硬沖"
@@ -1797,10 +1720,11 @@ def daytrade_posture(score: int, metrics: dict[str, Any], cost: dict[str, Any]) 
 
 
 def daytrade_playbook(price: float, metrics: dict[str, Any], cost: dict[str, Any]) -> str:
-    trigger = round_to_tick(price + tw_price_tick(price), "ceil")
-    pullback = round_to_tick(price * 0.996, "floor")
-    stop = round_to_tick(price * 0.992, "floor")
-    target = round_to_tick(trigger + tw_price_tick(trigger), "ceil")
+    market, instrument = cost["market"], cost["instrument_type"]
+    tick = cost["tick_size"] if market == "US" else None
+    trigger = float(rounded_price(Decimal(str(price)) + price_tick(price, market, instrument, tick), "ceil", market, instrument, tick))
+    stop = float(rounded_price(price * 0.992, "floor", market, instrument, tick))
+    target = float(rounded_price(Decimal(str(trigger)) + price_tick(trigger, market, instrument, tick), "ceil", market, instrument, tick))
     incentive = "誘因足夠" if target > cost["break_even_sell_price"] else "扣稅費後誘因不足"
     return (
         f"若價格站回 {trigger} 且量比 > 1.5，可觀察突破；但因損益兩平約 {cost['break_even_sell_price']}，"
