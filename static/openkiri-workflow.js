@@ -26,7 +26,7 @@ window.OpenKiriWorkflow = (() => {
     const price = data.quote?.provenance?.price || data.provenance?.price || {};
     const chart = data.provenance?.chart || {};
     const v = data.valuation || {};
-    const currency = data.quote?.currency || v.currency || "";
+    const currency = data.quote?.currency || price.currency || chart.currency || v.currency || "";
     $("priceMeta").textContent = `${price.time_basis === "bar_start" ? tr("chart") : price.source || tr("unavailable")} ${currency} · ${localTime(price.as_of)}`;
     $("priceMeta").title = tr("delayed");
     $("valuationMeta").textContent = v.status === "reported" ? `${v.source} · ${tr("reported")} · ${localTime(v.as_of)}` : tr("missingValuation");

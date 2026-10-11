@@ -204,7 +204,7 @@ def version() -> dict[str, Any]:
         "ok": True,
         "app": "OpenKiri",
         "entry": "openkiri_live",
-        "commit_marker": "data-observability-presets-20261011",
+        "commit_marker": "data-observability-presets-20261011.1",
         "fast_intraday": True,
         "render_service": "stock-risk-radar",
     }
@@ -299,7 +299,8 @@ def analyze(
     # Fundamentals load separately so an unavailable provider cannot block the chart.
     valuation = empty_valuation(resolved, latest.get("_meta", {}).get("currency"))
     chart_meta = provenance("Yahoo chart", latest.get("date"), latest.get("_meta", {}).get("fetched_at"),
-                            symbol=resolved, interval=interval, time_basis="bar_start", status="delayed_or_historical")
+                            symbol=resolved, currency=latest.get("_meta", {}).get("currency"), interval=interval,
+                            time_basis="bar_start", status="delayed_or_historical")
 
     response = {
         "ok": True,

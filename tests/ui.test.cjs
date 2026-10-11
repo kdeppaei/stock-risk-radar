@@ -55,7 +55,7 @@ async function pageFor(width = 1440, locale = "zh-tw") {
       data.interval = url.searchParams.get("interval");
       data.period = url.searchParams.get("period");
       data.analysis_scope = url.searchParams.get("context") === "true" ? "technical_news_events" : "technical_only";
-      const meta = { source: "Yahoo chart", as_of: "2026-03-05T14:30:00+00:00", fetched_at: "2026-03-05T14:35:00+00:00" };
+      const meta = { source: "Yahoo chart", currency: data.market === "TW" ? "TWD" : "USD", as_of: "2026-03-05T14:30:00+00:00", fetched_at: "2026-03-05T14:35:00+00:00" };
       data.provenance = { chart: meta, price: meta };
       if (symbol === "EMPTY") data.chart = [];
       if (symbol === "WRONG") data.symbol = "2330.TW";
@@ -145,6 +145,7 @@ test("valuation provenance and opt-in diagnostics stay separate from chart data"
   await page.locator("#symbol").fill("NOVAL"); await page.locator("#runBtn").click();
   await page.waitForFunction(() => document.getElementById("valuationMeta").textContent === "無可核實估值");
   assert.equal(await page.locator("#valuationMain").innerText(), "-");
+  assert.match(await page.locator("#priceMeta").innerText(), /USD/);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
   await page.close();
