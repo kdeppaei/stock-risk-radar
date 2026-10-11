@@ -228,6 +228,7 @@ test("closed markets stay request-free after facts expire, then manual refresh r
     await page.locator(".language-menu summary").click();
     await page.locator(`[data-lang="${locale}"]`).click();
     assert.equal(await page.locator("#dtModelCadence").innerText(), label, "translation preserves paused status");
+    assert.ok(await page.locator("#dtModelCadence").evaluate((el) => el.clientHeight) < 32, "paused badge stays on one line");
   }
   const before = calls.length;
   await page.clock.runFor(360000);
@@ -313,6 +314,7 @@ test("mixed-market polling skips closed markets and preserves their original ref
   await page.locator(".language-menu summary").click();
   await page.locator('[data-lang="en"]').click();
   assert.match(await page.locator("#dtModelCadence").innerText(), /TW.*Paused: closed session/);
+  assert.ok(await page.locator("#dtModelCadence").evaluate((el) => el.clientHeight) < 32);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
   await page.close();

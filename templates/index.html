@@ -446,7 +446,7 @@
       .news-panel { max-height: min(520px, calc(100vh - 120px)); }
     }
   </style>
-  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261011.5" />
+  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261011.7" />
 </head>
 <body>
   <a class="skip-link" href="#form" data-ui="skip">跳至股票查詢</a>
@@ -603,13 +603,11 @@
                 </div>
               </div>
               <div class="desk-panel">
-                <div class="section-head">
-                  <div>
-                    <h3 data-reco-i18n="dtModelTitle">T+0 模型多空分類</h3>
-                    <p class="explain" id="dtModelMeta" role="status" aria-live="polite">-</p>
-                  </div>
+                <div class="section-head dt-model-head">
+                  <h3 data-reco-i18n="dtModelTitle">T+0 模型多空分類</h3>
                   <span class="desk-chip good" id="dtModelCadence">8s</span>
                 </div>
+                <p class="explain" id="dtModelMeta" role="status" aria-live="polite">-</p>
                 <div id="dtModelBoard" class="mover-board"></div>
                 <p class="explain" id="dtModelNotice" hidden></p>
                 <details id="dtModelReference" class="tool-details" hidden>
