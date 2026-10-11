@@ -25,6 +25,16 @@ Market cap changes are no longer copied from stock-price percentage changes, and
 
 Google Finance remains an external comparison link. Automatic page scraping is removed from the quote and valuation path because the existing parser could mix page content and did not establish source timestamps. Google's [finance disclaimer](https://www.google.com/googlefinance/disclaimer/) describes provider delays and data limitations. No promise of broker-grade live data is made.
 
+## Sessions and Data Age
+
+Analysis and quotes include `data_status`, computed from their existing source metadata. Yahoo `currentTradingPeriod` epoch windows are preserved, including exchange time zone and any supplied shortened session. A recent explicit `marketState` can establish the provider's state for at most five minutes; conflicting regular-state/session evidence is unconfirmed. Cached API replies recalculate these labels without fetching another calendar or quote.
+
+Supported Taiwan/New York conventional-session weekends can be labeled closed in the exchange time zone. Weekday closure is inferred only outside an actual supplied window on that same exchange date. A previous day's window is not copied onto today's weekday, and missing holiday/exception information remains **unconfirmed**. This is not a complete official holiday calendar or exchange halt feed. Official regular-session references: [TWSE](https://www.twse.com.tw/zh/products/system/trading.html) and [NYSE](https://www.nyse.com/trade/trading-information).
+
+Observation labels never imply verified real-time delivery. Quotes/intraday bars are considered older after the greater of 15 minutes or two returned bar intervals. A daily bar's start time is not assessed as a one-minute trade timestamp; daily/weekly historical bars use seven/28-day age guards. During a confirmed closed state, observations matching the last supplied session (within seven days) remain labeled as last-session data, rather than a live intraday delay. Regular-session quotes in pre/post-market are labeled regular-session-only, not extended-hours prices. Missing and future timestamps are visible warnings.
+
+A requested intraday chart that falls back to daily bars gets a dedicated warning. Quote refresh and historical chart quality are shown separately. The UI says **page loaded**, not quote updated, for its own render time. Market-state labels expire at the next supplied boundary or within five minutes; a local 30-second display check replaces expired labels with a refresh-needed state, without network requests. Data-age thresholds are display heuristics, not a trading SLA or proof a security is tradable.
+
 ## Request Cost
 
 Default analysis fetches chart data and runs the technical model. Valuation is fetched separately, so it does not block the chart. Users can request news/event analysis using `context=true`. Price refresh and chart data keep separate provenance; quote refresh does not rewrite historical bars.

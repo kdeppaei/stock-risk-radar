@@ -1230,7 +1230,7 @@ def fetch_price_history(symbol: str, period: str, interval: str) -> list[dict[st
         if not result or str((result.get("meta") or {}).get("symbol", "")).upper() != symbol.upper():
             return []
         meta = result.get("meta") or {}
-        meta = {key: meta.get(key) for key in ("symbol", "currency", "regularMarketPrice", "regularMarketTime", "chartPreviousClose", "exchangeTimezoneName", "marketState")}
+        meta = {key: meta.get(key) for key in ("symbol", "currency", "regularMarketPrice", "regularMarketTime", "chartPreviousClose", "exchangeTimezoneName", "marketState", "currentTradingPeriod")}
         meta["fetched_at"] = getattr(resp, "openkiri_fetched_at", time.time())
         timestamps = result.get("timestamp") or []
         quote = (result.get("indicators", {}).get("quote") or [{}])[0]

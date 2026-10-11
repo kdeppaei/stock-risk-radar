@@ -446,7 +446,7 @@
       .news-panel { max-height: min(520px, calc(100vh - 120px)); }
     }
   </style>
-  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261010.2" />
+  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261011.3" />
 </head>
 <body>
   <a class="skip-link" href="#form" data-ui="skip">跳至股票查詢</a>
@@ -536,6 +536,12 @@
       <article class="card"><span data-i18n="risk">風險</span><strong id="risk">-</strong></article>
       <article class="card"><span data-i18n="trend">趨勢</span><strong id="trend">-</strong></article>
       <article class="card" id="valuationCard"><span data-i18n="valuation">市值 / P/E</span><strong id="valuationMain">-</strong><small id="valuationSub">-</small><small id="valuationMeta">-</small></article>
+    </section>
+
+    <section id="marketDataStatus" class="market-data-status overview-only" aria-label="市場與資料狀態" hidden>
+      <strong id="marketSessionState"></strong><span id="priceQualityState"></span><span id="chartQualityState"></span>
+      <small data-workflow="delayed">非逐筆即時保證</small>
+      <p id="marketDataWarning" role="status" aria-live="polite" hidden></p>
     </section>
 
     <section class="panel watch-strip overview-only" id="watchPanel">
@@ -981,7 +987,7 @@
   <button id="chatFab" class="chat-fab" type="button" aria-label="Open chat" hidden>Chat</button>
 
   <script src="/static/openkiri-ui.js?v=20261010.2"></script>
-  <script src="/static/openkiri-workflow.js?v=20261011.2"></script>
+  <script src="/static/openkiri-workflow.js?v=20261011.3"></script>
   <script>
     const $ = (id) => document.getElementById(id);
     const canvas = $("chart");
@@ -3487,6 +3493,7 @@
         lastData = null;
         ["price", "change", "risk", "trend", "valuationMain", "valuationSub", "valuationMeta", "priceMeta", "analysisScope", "liveMeta", "predictionBadge", "refreshMeta"].forEach((id) => { $(id).textContent = "-"; });
         $("dataProvenance").replaceChildren();
+        $("marketDataStatus").hidden = true;
         ["relatedBox", "playbook", "chartSignalBox", "bias25Panel", "technical", "levels", "suitability", "newsBox", "macroBox", "modelDrivers", "designSignalsBox", "decisionChecklistBox", "sourceMatrixBox", "narrativeRiskBox"].forEach((id) => { $(id).replaceChildren(); });
         $("riskFill").style.width = "0%";
         $("ticker").textContent = canonicalSymbol(requestedSymbol);
@@ -3584,7 +3591,7 @@
       renderChartSignal(data);
       renderBias25Panel(data);
       renderChart(data);
-      $("refreshMeta").textContent = `${t("updated")} ${new Date().toLocaleTimeString()}`;
+      $("refreshMeta").textContent = `${OpenKiriWorkflow.requestLabel()} ${new Date().toLocaleTimeString()}`;
       if (!watch.includes(data.symbol)) renderWatchlist();
       if (isWorkspaceTabActive("daytrade")) analyzeDaytradeSymbol(data.symbol);
     }
@@ -3628,7 +3635,7 @@
           $("valuationSub").textContent = peText(lastData);
         }
         OpenKiriWorkflow.renderProvenance(lastData);
-        $("refreshMeta").textContent = `${t("updated")} ${new Date().toLocaleTimeString()}`;
+        $("refreshMeta").textContent = `${OpenKiriWorkflow.requestLabel()} ${new Date().toLocaleTimeString()}`;
         if (previous !== null && Math.abs(previous - quote.price) > 0.0001) flashQuote(quote.price >= previous ? "up" : "down");
       } catch {}
     }

@@ -9,6 +9,9 @@ window.OpenKiriWorkflow = (() => {
   Object.assign(words.en, { estimated: "Calculated estimate", cap: "Market cap", sharesSnapshot: "Issued-share snapshot", epsPeriod: "TTM EPS period end", priceInput: "Price observation" });
   Object.assign(words["zh-tw"], { estimated: "計算估值", cap: "市值", sharesSnapshot: "已發行股數快照", epsPeriod: "近四季 EPS 截止日", priceInput: "計算用股價時點" });
   Object.assign(words["zh-cn"], { estimated: "计算估值", cap: "市值", sharesSnapshot: "已发行股数快照", epsPeriod: "近四季 EPS 截止日", priceInput: "计算用股价时间" });
+  Object.assign(words.en, { pageRetrieved: "Page loaded", marketPrefix: "Market", quotePrefix: "Price", chartPrefix: "Chart", session_regular: "Regular session", session_pre: "Pre-market", session_post: "Post-market", session_closed: "Closed / outside supplied session", session_weekend: "Closed: regular-session weekend", session_unknown: "Market state unconfirmed", session_expired: "Market state needs refresh", quality_recent_observation: "Recent observation", quality_last_session: "Last supplied session", quality_regular_session_only: "Regular-session price only", quality_historical_bar: "Historical bar close", quality_older_data: "Older data", quality_delayed: "Possibly delayed", quality_missing_time: "Unknown source time", quality_future_time: "Invalid future time", quality_daily_fallback: "Daily fallback, not intraday", warning_delayed: "Observation is behind during the session; do not treat it as live.", warning_older_data: "Data is older; check the source timestamp.", warning_missing_time: "The source did not supply an observation time.", warning_future_time: "Observation time is in the future; not a usable live quote.", warning_daily_fallback: "The chart fell back to daily bars, not intraday data." });
+  Object.assign(words["zh-tw"], { pageRetrieved: "畫面載入", marketPrefix: "市場", quotePrefix: "報價", chartPrefix: "K 線", session_regular: "常規盤中", session_pre: "盤前", session_post: "盤後", session_closed: "休市／非來源交易時段", session_weekend: "休市：常規週末", session_unknown: "市場狀態未確認", session_expired: "市場狀態待刷新", quality_recent_observation: "近期資料", quality_last_session: "來源最後交易時段資料", quality_regular_session_only: "僅常規盤價格", quality_historical_bar: "圖表收盤值", quality_older_data: "資料較舊", quality_delayed: "行情可能延遲", quality_missing_time: "來源時點不明", quality_future_time: "來源時點異常", quality_daily_fallback: "日線備援，非日內資料", warning_delayed: "盤中資料落後，勿視為即時行情。", warning_older_data: "資料較舊，請核對來源時點。", warning_missing_time: "來源未提供資料時間。", warning_future_time: "資料時間在未來，勿視為可用即時行情。", warning_daily_fallback: "目前 K 線為日線備援，不適用日內判讀。" });
+  Object.assign(words["zh-cn"], { pageRetrieved: "页面加载", marketPrefix: "市场", quotePrefix: "报价", chartPrefix: "K 线", session_regular: "常规盘中", session_pre: "盘前", session_post: "盘后", session_closed: "休市／非来源交易时段", session_weekend: "休市：常规周末", session_unknown: "市场状态未确认", session_expired: "市场状态待刷新", quality_recent_observation: "近期数据", quality_last_session: "来源最后交易时段数据", quality_regular_session_only: "仅常规盘价格", quality_historical_bar: "图表收盘值", quality_older_data: "数据较旧", quality_delayed: "行情可能延迟", quality_missing_time: "来源时间不明", quality_future_time: "来源时间异常", quality_daily_fallback: "日线备用，非日内数据", warning_delayed: "盘中数据落后，勿视为实时行情。", warning_older_data: "数据较旧，请核对来源时间。", warning_missing_time: "来源未提供数据时间。", warning_future_time: "数据时间在未来，勿视为可用实时行情。", warning_daily_fallback: "目前 K 线为日线备用，不适用日内判断。" });
   const tr = (key) => (words[lang] || words["zh-tw"])[key];
   const localTime = (value) => {
     if (!value || !Number.isFinite(Date.parse(value))) return tr("unknownTime");
@@ -18,6 +21,34 @@ window.OpenKiriWorkflow = (() => {
   let valuationSequence = 0;
   let metricsPending = false;
   const valuationCache = new Map();
+
+  function renderFreshness(data) {
+    if (!data) return;
+    const active = data.quote?.data_status || data.data_status || {};
+    const market = active.market || {};
+    const now = Date.now();
+    const expired = market.valid_until && now >= Date.parse(market.valid_until);
+    const state = expired ? "expired" : market.basis === "regular_weekend" ? "weekend" : market.state || "unknown";
+    $("marketSessionState").textContent = `${tr("marketPrefix")}: ${tr(`session_${state}`) || tr("session_unknown")}`;
+    $("marketSessionState").dataset.state = expired ? "unknown" : market.state || "unknown";
+    $("marketSessionState").title = `${tr("retrieved")}: ${localTime(market.source_fetched_at)} · ${market.timezone || "-"}`;
+    const qualities = [["priceQualityState", "quotePrefix", active.price], ["chartQualityState", "chartPrefix", data.data_status?.chart]];
+    const warnings = [];
+    qualities.forEach(([id, label, quality]) => {
+      const q = quality || { state: "missing_time" };
+      let status = q.state;
+      const age = (now - Date.parse(q.as_of)) / 1000;
+      if (["recent_observation", "historical_bar"].includes(status) && Number.isFinite(age) && age > q.stale_after_seconds) {
+        status = !expired && market.state === "regular" && q.interval !== "1d" && q.interval !== "1wk" ? "delayed" : "older_data";
+      }
+      $(id).textContent = `${tr(label)}: ${tr(`quality_${status}`) || tr("quality_missing_time")}`;
+      $(id).title = `${tr("sourceTime")}: ${localTime(q.as_of)}`;
+      if (["delayed", "older_data", "missing_time", "future_time", "daily_fallback"].includes(status)) warnings.push(tr(`warning_${status}`));
+    });
+    $("marketDataWarning").textContent = [...new Set(warnings)].join(" ");
+    $("marketDataWarning").hidden = !warnings.length;
+    $("marketDataStatus").hidden = !isWorkspaceTabActive("overview");
+  }
 
   function translate() {
     document.querySelectorAll("[data-workflow]").forEach((el) => { el.textContent = tr(el.dataset.workflow); });
@@ -30,6 +61,7 @@ window.OpenKiriWorkflow = (() => {
     const chart = data.provenance?.chart || {};
     const v = data.valuation || {};
     const currency = data.quote?.currency || price.currency || chart.currency || v.currency || "";
+    renderFreshness(data);
     $("priceMeta").textContent = `${price.time_basis === "bar_start" ? tr("chart") : price.source || tr("unavailable")} ${currency} · ${localTime(price.as_of)}`;
     $("priceMeta").title = tr("delayed");
     const primaryField = v.fields?.market_cap || v.fields?.trailing_pe;
@@ -180,6 +212,7 @@ window.OpenKiriWorkflow = (() => {
     $("diagnosticsPanel").addEventListener("toggle", () => { if ($("diagnosticsPanel").open) loadMetrics(); });
     $("refreshDiagnostics").addEventListener("click", loadMetrics);
     $("enrichAnalysis").addEventListener("click", () => { if (lastData) analyze(lastData.symbol, false, true); });
+    setInterval(() => { if (!document.hidden && lastData) renderFreshness(lastData); }, 30000);
   }
-  return { boot, translate, renderProvenance, loadValuation, cancelValuation, biasLabel };
+  return { boot, translate, renderProvenance, loadValuation, cancelValuation, biasLabel, requestLabel: () => tr("pageRetrieved") };
 })();

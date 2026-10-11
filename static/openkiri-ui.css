@@ -89,6 +89,13 @@ summary::marker { color: var(--muted); }
 #price { font-size: 26px; }
 #valuationMain { font-size: 18px; }
 .card small { font-size: 11px; }
+.market-data-status { order: 3; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 12px; min-width: 0; }
+.market-data-status > * { overflow-wrap: anywhere; min-width: 0; }
+.market-data-status strong { font-size: 12px; }
+.market-data-status strong[data-state="regular"] { color: var(--accent); }
+.market-data-status strong[data-state="pre"], .market-data-status strong[data-state="post"] { color: var(--amber); }
+.market-data-status small { color: var(--muted); font-size: 11px; margin-left: auto; }
+.market-data-status p { flex-basis: 100%; margin: 2px 0 0; padding-left: 10px; border-left: 2px solid var(--amber); color: var(--amber); font-size: 12px; }
 .wrap > .main { order: 4; grid-template-columns: minmax(0, 1fr) 290px; gap: 28px; margin: 0; padding: 24px 0; }
 .panel { background: none; border: 0; border-radius: 0; padding: 0; min-width: 0; }
 .chart-panel { min-width: 0; }

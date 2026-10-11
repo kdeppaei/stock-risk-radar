@@ -57,6 +57,24 @@ async function pageFor(width = 1440, locale = "zh-tw") {
       data.analysis_scope = url.searchParams.get("context") === "true" ? "technical_news_events" : "technical_only";
       const meta = { source: "Yahoo chart", currency: data.market === "TW" ? "TWD" : "USD", as_of: "2026-03-05T14:30:00+00:00", fetched_at: "2026-03-05T14:35:00+00:00" };
       data.provenance = { chart: meta, price: meta };
+      if (symbol?.startsWith("SESSION")) {
+        const now = Date.now();
+        const market = { state: "regular", basis: "provider_session", checked_at: new Date(now).toISOString(), valid_until: new Date(now + 120000).toISOString(), timezone: "America/New_York" };
+        const quality = { state: "recent_observation", as_of: new Date(now - 30000).toISOString(), interval: "5m", stale_after_seconds: 900 };
+        data.data_status = { market, price: { ...quality }, chart: { ...quality } };
+        if (symbol === "SESSIONLIVE") Object.assign(data.data_status.price, { state: "delayed", as_of: new Date(now - 1800000).toISOString() });
+        if (symbol === "SESSIONCLOSED") {
+          Object.assign(market, { state: "closed", basis: "regular_weekend" });
+          data.data_status.price.state = data.data_status.chart.state = "last_session";
+        }
+        if (symbol === "SESSIONUNKNOWN") market.state = "unknown";
+        if (symbol === "SESSIONEXPIRED") market.valid_until = new Date(now - 1000).toISOString();
+        if (symbol === "SESSIONFALLBACK") {
+          data.interval = "1d"; data.data_fallback = true; data.data_status.chart.state = "daily_fallback";
+        }
+        if (symbol === "SESSIONFUTURE") data.data_status.price.state = "future_time";
+        if (symbol === "SESSIONPOST") { market.state = "post"; data.data_status.price.state = "regular_session_only"; }
+      }
       if (symbol === "EMPTY") data.chart = [];
       if (symbol === "WRONG") data.symbol = "2330.TW";
     } else if (url.pathname === "/api/valuation") {
@@ -173,6 +191,28 @@ test("reported and estimated valuation fields have independent labels and dates"
   assert.match(await page.locator("#valuationMeta").innerText(), /來源報告值.*未提供資料時點/);
   assert.match(await page.locator("#dataProvenance").textContent(), /近四季 EPS 截止日.*EPS 4/);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test("session and freshness warnings distinguish closed, delayed, unknown and fallback data", async () => {
+  const { page, errors, requests } = await pageFor(320);
+  for (const [symbol, expected] of [["SESSIONLIVE", "常規盤中"], ["SESSIONCLOSED", "休市：常規週末"], ["SESSIONUNKNOWN", "市場狀態未確認"], ["SESSIONEXPIRED", "市場狀態待刷新"], ["SESSIONFALLBACK", "常規盤中"], ["SESSIONFUTURE", "常規盤中"], ["SESSIONPOST", "盤後"]]) {
+    await page.locator("#symbol").fill(symbol); await page.locator("#runBtn").click();
+    await page.waitForFunction((target) => document.getElementById("ticker").textContent === target && document.getElementById("queryStatus").hidden, symbol);
+    assert.match(await page.locator("#marketSessionState").innerText(), new RegExp(expected));
+    if (symbol === "SESSIONLIVE") assert.match(await page.locator("#marketDataWarning").innerText(), /盤中資料落後/);
+    if (symbol === "SESSIONCLOSED") {
+      assert.match(await page.locator("#priceQualityState").innerText(), /最後交易時段/);
+      assert.equal(await page.locator("#marketDataWarning").isVisible(), false);
+    }
+    if (symbol === "SESSIONFALLBACK") assert.match(await page.locator("#marketDataWarning").innerText(), /日線備援，不適用日內/);
+    if (symbol === "SESSIONFUTURE") assert.match(await page.locator("#marketDataWarning").innerText(), /時間在未來/);
+    if (symbol === "SESSIONPOST") assert.match(await page.locator("#priceQualityState").innerText(), /僅常規盤價格/);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  }
+  assert.match(await page.locator("#refreshMeta").innerText(), /畫面載入/);
+  assert.equal(requests.some((url) => /session|calendar|freshness/.test(url)), false);
   assert.deepEqual(errors, []);
   await page.close();
 });

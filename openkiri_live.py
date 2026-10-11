@@ -18,6 +18,7 @@ from openkiri_cache_policy import analyze_ttl, cache_prune, freeze_params, histo
 from openkiri_data import empty_valuation, finite, iso_time, provenance, valuation_from_snapshot
 from openkiri_metrics import METRICS, MetricsMiddleware, provider_group
 from openkiri_valuation import public_valuation
+from openkiri_session import analysis_status, market_status, observation_status
 
 app = base.app
 app.add_middleware(GZipMiddleware, minimum_size=512, compresslevel=6)
@@ -205,7 +206,7 @@ def version() -> dict[str, Any]:
         "ok": True,
         "app": "OpenKiri",
         "entry": "openkiri_live",
-        "commit_marker": "public-valuation-sources-20261011.2",
+        "commit_marker": "session-freshness-20261011.3",
         "fast_intraday": True,
         "render_service": "stock-risk-radar",
     }
@@ -263,7 +264,7 @@ def analyze(
     cached = ANALYZE_CACHE.get(cache_key)
     if cached and now - cached[0] < analyze_ttl(period, interval):
         METRICS.record("Cache analysis", hit=True)
-        return cached[1]
+        return {**cached[1], "data_status": analysis_status(cached[1])}
     METRICS.record("Cache analysis", hit=False)
 
     rows: list[dict[str, Any]] = []
@@ -301,7 +302,10 @@ def analyze(
     valuation = empty_valuation(resolved, latest.get("_meta", {}).get("currency"))
     chart_meta = provenance("Yahoo chart", latest.get("date"), latest.get("_meta", {}).get("fetched_at"),
                             symbol=resolved, currency=latest.get("_meta", {}).get("currency"), interval=interval,
-                            time_basis="bar_start", status="delayed_or_historical")
+                            time_basis="bar_start", status="delayed_or_historical",
+                            exchange_timezone=latest.get("_meta", {}).get("exchangeTimezoneName"),
+                            sessions=latest.get("_meta", {}).get("currentTradingPeriod"),
+                            market_state=latest.get("_meta", {}).get("marketState"))
 
     response = {
         "ok": True,
@@ -341,6 +345,7 @@ def analyze(
         "valuation": valuation,
         "chart": base.build_chart_rows(visible_rows, market),
     }
+    response["data_status"] = analysis_status(response)
     ANALYZE_CACHE[cache_key] = (now, response)
     cache_prune(ANALYZE_CACHE, 160)
     if not fast_intraday:
@@ -499,7 +504,8 @@ def fetch_yahoo_quote_snapshot(symbol: str) -> dict[str, Any]:
         snapshot.update(provenance("Yahoo quote", row.get("regularMarketTime"),
                                    getattr(resp, "openkiri_fetched_at", None)))
         snapshot.update({"symbol": row["symbol"], "currency": row.get("currency"),
-                         "market_state": row.get("marketState"), "date": snapshot["as_of"]})
+                         "market_state": row.get("marketState"), "date": snapshot["as_of"],
+                         "exchange_timezone": row.get("exchangeTimezoneName"), "quote_session": "regular"})
         return snapshot
     except (requests.RequestException, ValueError, TypeError, KeyError):
         return {}
@@ -513,7 +519,11 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
         cached = base.QUOTE_CACHE.get(key)
         if cached and time.time() - cached[0] < 45:
             METRICS.record("Cache quote payload", hit=True)
-            return cached[1]
+            payload = dict(cached[1])
+            meta = payload["provenance"]["price"]
+            session = market_status(meta)
+            payload["data_status"] = {"market": session, "price": observation_status(meta, session)}
+            return payload
         METRICS.record("Cache quote payload", hit=False)
         for candidate in base.candidate_symbols(normalized, raw):
             snapshot = fetch_yahoo_quote_snapshot(candidate)
@@ -536,7 +546,11 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
                 previous = finite(meta.get("chartPreviousClose"), positive=True) if interval == "1m" else (
                     rows[-2]["close"] if len(rows) > 1 else None)
                 snapshot = provenance("Yahoo chart", timestamp, meta.get("fetched_at"),
-                                      status="delayed_or_historical", interval=interval)
+                                      status="delayed_or_historical", interval=interval,
+                                      time_basis="trade" if isinstance(timestamp, (int, float)) else "bar_start",
+                                      exchange_timezone=meta.get("exchangeTimezoneName"),
+                                      sessions=meta.get("currentTradingPeriod"), market_state=meta.get("marketState"),
+                                      quote_session="regular")
                 snapshot.update({"symbol": candidate, "price": price, "currency": meta.get("currency"),
                                  "open": rows[0]["open"] if interval == "1m" else latest["open"],
                                  "high": max(r["high"] for r in rows) if interval == "1m" else latest["high"],
@@ -551,11 +565,14 @@ def latest_quote_payload(symbol: str) -> dict[str, Any]:
                 "date": snapshot.get("as_of"), "source": snapshot.get("source"),
                 "as_of": snapshot.get("as_of"), "fetched_at": snapshot.get("fetched_at"),
                 "provenance": {"price": provenance(snapshot.get("source"), snapshot.get("as_of"), snapshot.get("fetched_at"),
-                                                   status="delayed_or_historical")},
+                                                   status="delayed_or_historical",
+                                                   **{key: snapshot.get(key) for key in ("exchange_timezone", "sessions", "market_state", "quote_session", "time_basis", "interval")})},
                 "valuation": valuation, "volume_ratio": None, "fallback": fallback,
                 "data_warning": "Provider data may be delayed; fetched_at is not the trade time.",
                 **{key: valuation.get(key) for key in ("market_cap", "market_cap_previous", "market_cap_change_pct", "trailing_pe", "forward_pe")},
             }
+            session = market_status(payload["provenance"]["price"])
+            payload["data_status"] = {"market": session, "price": observation_status(payload["provenance"]["price"], session)}
             base.QUOTE_CACHE[key] = (time.time(), payload)
             cache_prune(base.QUOTE_CACHE, 256)
             return payload

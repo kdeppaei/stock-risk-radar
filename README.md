@@ -22,6 +22,7 @@ _The deployed dashboard combines a ticker workflow, technical-risk summary, valu
 - Screener grouping by market, industry, setup type, signal score, low P/E, market cap, risk, change, price, or volume.
 - Valuation uses TWSE/TPEx daily data, Nasdaq reported US market cap, and dated Yahoo TTM EPS. Listed Taiwan cap and calculated US P/E are explicitly estimated; each field retains its own source/date. Unsupported or missing values, including forward P/E, remain unavailable. Static estimates never populate valuation cards.
 - Separate source timestamps and retrieval timestamps for prices, chart bars, and valuation. Technical analysis loads first; slower valuation loads independently and news/event analysis is optional.
+- Conservative market-session and data-age labels distinguish supplied regular/pre/post sessions, regular weekends, historical closes, delayed observations, and daily intraday fallbacks. Unknown holiday/session information is not guessed. Status checks add no upstream requests.
 - Local intraday/swing presets save date range, bar interval, chart layers, market selection, and expanded analysis sections.
 - Opt-in traffic diagnostics expose provider/API latency, byte counts, errors, and cache hit rates. See [data and telemetry policy](docs/data-and-telemetry.md).
 - Responsive UI focused on classification and comparison instead of crowded dashboards.
