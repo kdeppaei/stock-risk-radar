@@ -35,6 +35,14 @@ Observation labels never imply verified real-time delivery. Quotes/intraday bars
 
 A requested intraday chart that falls back to daily bars gets a dedicated warning. Quote refresh and historical chart quality are shown separately. The UI says **page loaded**, not quote updated, for its own render time. Market-state labels expire at the next supplied boundary or within five minutes; a local 30-second display check replaces expired labels with a refresh-needed state, without network requests. Data-age thresholds are display heuristics, not a trading SLA or proof a security is tradable.
 
+### Intraday Candidates
+
+The T+0 model uses the metadata already returned by each scanned chart; it does not fetch a second quote or a calendar. Active candidates require a confirmed regular session with a supplied session window, an intraday interval, a nonfuture observation inside that window, and age within the existing freshness limit. The same score threshold used by `side` (at least +8 / at most -8) determines the long/short groups; weak scores remain observation-only. Daily fallbacks, missing/invalid times, unknown sessions, extended-hours data and delayed observations are excluded from active candidates.
+
+Confirmed closed-session observations matching the last supplied session appear only in separate **reference** groups. Daily references retain their actual daily interval and label. Older closed data is excluded, not promoted into a reference candidate. These classifications do not establish tradability, short-sale eligibility or an entry recommendation.
+
+`/api/movers` exposes candidate and reference arrays, eligibility/quality metadata, source times, counts and aggregated exclusion reasons. Cached raw observations are reclassified at request time without another scan; scan completion and source times are preserved. Active validity ends at the earlier of the session/state boundary and the observation-age limit. The existing local display timer removes expired rows without network I/O. Frontend market-switch requests are abortable and sequenced, failed refreshes clear old candidates, and no general gainers/losers list substitutes for an empty candidate group. The existing scan caps, cache TTLs and polling cadence are unchanged.
+
 ## Request Cost
 
 Default analysis fetches chart data and runs the technical model. Valuation is fetched separately, so it does not block the chart. Users can request news/event analysis using `context=true`. Price refresh and chart data keep separate provenance; quote refresh does not rewrite historical bars.

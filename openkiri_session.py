@@ -115,3 +115,33 @@ def analysis_status(payload: dict, now: float | None = None) -> dict:
     if payload.get("requested_interval") in INTRADAY_SECONDS and payload.get("interval") not in INTRADAY_SECONDS:
         chart_quality["state"] = "daily_fallback"
     return {"market": market, "price": observation_status(price, market, now), "chart": chart_quality}
+
+
+def intraday_status(meta: dict, now: float | None = None) -> dict:
+    """Candidate eligibility is stricter than an informational freshness label."""
+    now = time.time() if now is None else now
+    market = market_status(meta, now)
+    quality = observation_status(meta, market, now)
+    result = {"market": market, "price": quality, "eligibility": "excluded",
+              "reason": quality["state"], "valid_until": market["valid_until"]}
+    stamp = timestamp(quality["as_of"])
+    start, end = timestamp(market["regular_start"]), timestamp(market["regular_end"])
+    if stamp is None or stamp > now:
+        result["reason"] = "missing_time" if stamp is None else "future_time"
+    elif market["state"] == "closed" and quality["state"] == "last_session":
+        result.update(eligibility="reference", reason="last_session")
+    elif meta.get("interval") not in INTRADAY_SECONDS:
+        result["reason"] = "daily_fallback"
+    elif market["state"] != "regular":
+        result["reason"] = "market_unconfirmed" if market["state"] == "unknown" else "outside_regular"
+    elif quality["state"] != "recent_observation":
+        result["reason"] = quality["state"]
+    elif not start or not end:
+        result["reason"] = "missing_session"
+    elif not start <= stamp < end:
+        result["reason"] = "outside_session"
+    else:
+        result.update(eligibility="active", reason="recent_observation",
+                      valid_until=iso_time(min(timestamp(market["valid_until"]),
+                                              stamp + quality["stale_after_seconds"])))
+    return result

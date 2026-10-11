@@ -18,7 +18,7 @@ from openkiri_cache_policy import analyze_ttl, cache_prune, freeze_params, histo
 from openkiri_data import empty_valuation, finite, iso_time, provenance, valuation_from_snapshot
 from openkiri_metrics import METRICS, MetricsMiddleware, provider_group
 from openkiri_valuation import public_valuation
-from openkiri_session import analysis_status, market_status, observation_status
+from openkiri_session import analysis_status, intraday_status, market_status, observation_status
 
 app = base.app
 app.add_middleware(GZipMiddleware, minimum_size=512, compresslevel=6)
@@ -206,7 +206,7 @@ def version() -> dict[str, Any]:
         "ok": True,
         "app": "OpenKiri",
         "entry": "openkiri_live",
-        "commit_marker": "session-freshness-20261011.3",
+        "commit_marker": "intraday-eligibility-20261011.4",
         "fast_intraday": True,
         "render_service": "stock-risk-radar",
     }
@@ -377,6 +377,40 @@ def saver_universe(selected: set[str], mode: str, cap: int) -> list[dict[str, An
     return out
 
 
+def movers_payload(rows: list[dict], selected: set[str], limit: int, mode: str,
+                   updated_at: str, now: float) -> dict:
+    classified = []
+    counts = {"active": 0, "reference": 0, "excluded": 0}
+    excluded_reasons: dict[str, int] = {}
+    for raw in rows:
+        meta = raw.get("provenance") or {}
+        status = intraday_status(meta, now)
+        row = {key: value for key, value in raw.items() if key != "provenance"}
+        row.update(data_status=status, as_of=status["price"]["as_of"], interval=meta.get("interval"))
+        counts[status["eligibility"]] += 1
+        if status["eligibility"] == "excluded":
+            reason = status["reason"]
+            excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
+        classified.append(row)
+
+    def candidates(bucket: str, side: str) -> list[dict]:
+        return sorted([row for row in classified if row["data_status"]["eligibility"] == bucket
+                       and row["side"] == side], key=lambda row: row["model_score"],
+                      reverse=side == "long")[:limit]
+
+    return {
+        "ok": True, "mode": mode, "updated_at": updated_at, "checked_at": iso_time(now),
+        "markets": sorted(selected), "scanned": len(rows), "counts": counts,
+        "excluded_reasons": excluded_reasons,
+        "gainers": sorted(classified, key=lambda row: row["change_pct"], reverse=True)[:limit],
+        "losers": sorted(classified, key=lambda row: row["change_pct"])[:limit],
+        "long_candidates": candidates("active", "long"),
+        "short_candidates": candidates("active", "short"),
+        "reference_long": candidates("reference", "long"),
+        "reference_short": candidates("reference", "short"),
+    }
+
+
 @app.get("/api/movers")
 def movers(
     markets: str = Query("US,TW", max_length=16),
@@ -385,11 +419,11 @@ def movers(
 ) -> dict[str, Any]:
     selected = {part.strip().upper() for part in markets.split(",") if part.strip()}
     cache_key = (",".join(sorted(selected)), limit, mode)
-    now_ts = datetime.now(timezone.utc).timestamp()
+    now_ts = time.time()
     ttl = 180 if mode == "live" else 300
     cached = base.MOVERS_CACHE.get(cache_key)
     if cached and now_ts - cached[0] < ttl:
-        return cached[1]
+        return movers_payload(cached[1]["rows"], selected, limit, mode, cached[1]["updated_at"], now_ts)
 
     rows = []
     items = saver_universe(selected, mode, 16 if mode == "live" else 24)
@@ -405,21 +439,11 @@ def movers(
             row["model_score"] = daytrade_mover_score(row)
             row["side"] = "long" if row["model_score"] >= 8 else "short" if row["model_score"] <= -8 else "watch"
             rows.append(row)
-    rows.sort(key=lambda row: row["change_pct"], reverse=True)
-    payload = {
-        "ok": True,
-        "mode": mode,
-        "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "markets": sorted(selected),
-        "scanned": len(rows),
-        "gainers": rows[:limit],
-        "losers": sorted(rows, key=lambda row: row["change_pct"])[:limit],
-        "long_candidates": sorted([r for r in rows if r["model_score"] > 0], key=lambda r: r["model_score"], reverse=True)[:limit],
-        "short_candidates": sorted([r for r in rows if r["model_score"] < 0], key=lambda r: r["model_score"])[:limit],
-    }
-    base.MOVERS_CACHE[cache_key] = (now_ts, payload)
+    checked_at = time.time()
+    updated_at = iso_time(checked_at)
+    base.MOVERS_CACHE[cache_key] = (checked_at, {"rows": rows, "updated_at": updated_at})
     cache_prune(base.MOVERS_CACHE, 64)
-    return payload
+    return movers_payload(rows, selected, limit, mode, updated_at, checked_at)
 
 
 @app.get("/api/alerts")

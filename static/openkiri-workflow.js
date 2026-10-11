@@ -212,7 +212,11 @@ window.OpenKiriWorkflow = (() => {
     $("diagnosticsPanel").addEventListener("toggle", () => { if ($("diagnosticsPanel").open) loadMetrics(); });
     $("refreshDiagnostics").addEventListener("click", loadMetrics);
     $("enrichAnalysis").addEventListener("click", () => { if (lastData) analyze(lastData.symbol, false, true); });
-    setInterval(() => { if (!document.hidden && lastData) renderFreshness(lastData); }, 30000);
+    setInterval(() => {
+      if (document.hidden) return;
+      if (lastData) renderFreshness(lastData);
+      if (daytradeModelData && isWorkspaceTabActive("daytrade")) renderDaytradeModelBoard(daytradeModelData);
+    }, 30000);
   }
   return { boot, translate, renderProvenance, loadValuation, cancelValuation, biasLabel, requestLabel: () => tr("pageRetrieved") };
 })();

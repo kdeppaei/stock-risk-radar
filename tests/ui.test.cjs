@@ -89,7 +89,8 @@ async function pageFor(width = 1440, locale = "zh-tw") {
         market_cap: { source: "Nasdaq", estimated: false, as_of: null },
         trailing_pe: { source: "Yahoo fundamentals-timeseries + Yahoo chart", estimated: true, eps_ttm: 4, as_of: "2026-02-28T00:00:00Z", price_as_of: "2026-03-05T14:30:00Z" }
       } });
-    } else if (url.pathname === "/api/diagnostics") data = { ok: true, since: "2026-03-05T00:00:00Z", rows: [{ name: "API /api/analyze", requests: 4, cache_hit_pct: 50, avg_ms: 20, p95_ms: 30, sent_bytes: 4096, received_bytes: 0, errors: 0 }] };
+    } else if (url.pathname === "/api/movers") data = { ok: true, markets: url.searchParams.get("markets").split(","), scanned: 0, counts: { active: 0, reference: 0, excluded: 0 }, long_candidates: [], short_candidates: [], reference_long: [], reference_short: [] };
+    else if (url.pathname === "/api/diagnostics") data = { ok: true, since: "2026-03-05T00:00:00Z", rows: [{ name: "API /api/analyze", requests: 4, cache_hit_pct: 50, avg_ms: 20, p95_ms: 30, sent_bytes: 4096, received_bytes: 0, errors: 0 }] };
     else if (url.pathname === "/api/market-context") data = { usd_twd: {}, macro: { label: "neutral" } };
     else if (url.pathname.startsWith("/api/quote/")) data = { ok: true, symbol: url.pathname.split("/").at(-1), price: 100, change_pct: 1, source: "fixture" };
     else if (url.pathname.startsWith("/api/daytrade/")) data = { ok: false, detail: "Fixture: unavailable" };
@@ -145,6 +146,106 @@ test("responsive workspace, keyboard chart, and on-demand panels", async () => {
     assert.deepEqual(errors, []);
     await page.close();
   }
+});
+
+function moverFixture(market = "TW") {
+  const now = Date.now();
+  const stamp = new Date(now - 60000).toISOString();
+  const valid = new Date(now + 120000).toISOString();
+  const long = { symbol: market === "TW" ? "2330.TW" : "MU", name: "Synthetic company with a longer name", pattern: "breakout", price: 100, change_pct: 2, model_score: 16, source: "1d/5m", interval: "5m", as_of: stamp,
+    data_status: { eligibility: "active", valid_until: valid, market: { state: "regular" }, price: { state: "recent_observation", as_of: stamp, stale_after_seconds: 900 } } };
+  const reference = structuredClone(long);
+  Object.assign(reference, { symbol: "LAST.TW", interval: "1d", source: "5d/1d", as_of: "2026-10-08T01:00:00Z" });
+  Object.assign(reference.data_status, { eligibility: "reference", market: { state: "closed" } });
+  Object.assign(reference.data_status.price, { state: "last_session", as_of: reference.as_of });
+  return { ok: true, mode: "live", markets: [market], scanned: 7, updated_at: new Date(now).toISOString(), counts: { active: 1, reference: 1, excluded: 5 }, gainers: [{ symbol: "UNSAFE" }], losers: [], long_candidates: [long], short_candidates: [], reference_long: [reference], reference_short: [] };
+}
+
+test("intraday candidates and closed references stay distinct, accessible, and responsive", async () => {
+  for (const [width, locale] of [[320, "zh-tw"], [390, "en"], [768, "zh-cn"], [1440, "zh-tw"]]) {
+    const { page, errors, requests } = await pageFor(width, locale);
+    await page.route("**/api/movers?**", (route) => {
+      requests.push("/api/movers");
+      const data = moverFixture();
+      for (const invalid of ["STALE", "FUTURE", "UNKNOWN", "EXPIRED", "DAILY"]) {
+        const row = structuredClone(data.long_candidates[0]); row.symbol = invalid;
+        if (invalid === "STALE") row.data_status.price.as_of = new Date(Date.now() - 1800000).toISOString();
+        if (invalid === "FUTURE") row.data_status.price.as_of = new Date(Date.now() + 30000).toISOString();
+        if (invalid === "UNKNOWN") row.data_status.market.state = "unknown";
+        if (invalid === "EXPIRED") row.data_status.valid_until = new Date(Date.now() - 1000).toISOString();
+        if (invalid === "DAILY") row.interval = "1d";
+        data.long_candidates.push(row);
+      }
+      return route.fulfill({ json: data });
+    });
+    await page.locator('[data-workspace-tab="daytrade"]').click();
+    await page.locator('#dtModelBoard [data-model-symbol="2330.TW"]').waitFor();
+    assert.equal(await page.locator("#dtModelBoard .model-mover").count(), 1);
+    assert.equal(await page.locator("#dtModelReference").isVisible(), true);
+    assert.equal(await page.locator("#dtReferenceBoard").isVisible(), false);
+    await page.locator("#dtModelReference > summary").click();
+    assert.match(await page.locator("#dtReferenceBoard").innerText(), /LAST.TW/);
+    assert.match(await page.locator("#dtReferenceBoard .model-time").innerText(), /1d/);
+    assert.match(await page.locator("#dtReferenceBoard").innerText(), locale === "en" ? /Daily fallback/ : locale === "zh-cn" ? /日线备用/ : /日線備援/);
+    assert.doesNotMatch(await page.locator("#dtModelBoard").innerText(), /LAST|STALE|FUTURE|UNKNOWN|EXPIRED|DAILY|UNSAFE/);
+    assert.match(await page.locator("#dtModelBoard .model-time").innerText(), /5m/);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `model overflow at ${width}/${locale}`);
+    assert.equal(await page.locator(".model-mover").evaluateAll((buttons) => buttons.some((button) => button.scrollWidth > button.clientWidth)), false, `row overflow at ${width}/${locale}`);
+    if (process.env.UI_SCREENSHOTS) {
+      fs.mkdirSync(process.env.UI_SCREENSHOTS, { recursive: true });
+      await page.screenshot({ path: path.join(process.env.UI_SCREENSHOTS, `intraday-${width}-${locale}.png`), fullPage: true });
+    }
+    await page.locator('#dtModelBoard [data-model-symbol="2330.TW"]').focus();
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() => document.querySelector(".wrap").dataset.view === "overview");
+    assert.equal(requests.filter((p) => p === "/api/movers").length, 1);
+    assert.deepEqual(errors, []);
+    await page.close();
+  }
+});
+
+test("model expiration, market races, failures, and missing contracts never retain unsafe candidates", async () => {
+  const { page, errors, requests } = await pageFor(390);
+  await page.clock.install({ time: new Date() });
+  await page.reload();
+  await page.waitForFunction(() => document.getElementById("price").textContent === "100");
+  let mode = "expiry";
+  let calls = 0;
+  await page.route("**/api/movers?**", async (route) => {
+    calls++;
+    const market = new URL(route.request().url()).searchParams.get("markets");
+    if (mode === "failure") return route.fulfill({ status: 503, json: { ok: false } });
+    if (mode === "legacy") return route.fulfill({ json: { ok: true, markets: [market], gainers: [{ symbol: "UNSAFE" }], losers: [] } });
+    const data = moverFixture(market);
+    if (mode === "expiry") data.long_candidates[0].data_status.valid_until = new Date(Date.now() + 5000).toISOString();
+    if (mode === "race" && market === "TW") await pause(700);
+    await route.fulfill({ json: data });
+  });
+  await page.locator('[data-workspace-tab="daytrade"]').click();
+  await page.locator('#dtModelBoard [data-model-symbol="2330.TW"]').waitFor();
+  const before = calls;
+  await page.clock.runFor(31000);
+  assert.equal(await page.locator("#dtModelBoard .model-mover").count(), 0);
+  assert.match(await page.locator("#dtModelNotice").innerText(), /過期/);
+  assert.equal(calls, before, "local expiration sends no request");
+  mode = "race";
+  await page.locator("#dtRefreshBtn").click();
+  await page.waitForFunction(() => document.getElementById("dtModelMeta").textContent.includes("載入中"));
+  await page.locator("#dtMarketMode").selectOption("US");
+  await page.locator('#dtModelBoard [data-model-symbol="MU"]').waitFor();
+  await pause(850);
+  assert.doesNotMatch(await page.locator("#dtModelBoard").innerText(), /2330/);
+  mode = "failure";
+  await page.locator("#dtRefreshBtn").click();
+  await page.waitForFunction(() => document.getElementById("dtModelMeta").textContent.includes("失敗"));
+  assert.equal(await page.locator("#dtModelBoard .model-mover").count(), 0);
+  assert.equal(await page.locator("#dtModelReference").isVisible(), false);
+  mode = "legacy";
+  await page.locator("#dtRefreshBtn").click();
+  await page.waitForFunction(() => document.getElementById("dtModelMeta").textContent.includes("盤中候選 0"));
+  assert.doesNotMatch(await page.locator("#dtModelBoard").innerText(), /UNSAFE/);
+  assert.deepEqual(errors, []);
+  await page.close();
 });
 
 test("valuation provenance and opt-in diagnostics stay separate from chart data", async () => {

@@ -446,7 +446,7 @@
       .news-panel { max-height: min(520px, calc(100vh - 120px)); }
     }
   </style>
-  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261011.3" />
+  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261011.4" />
 </head>
 <body>
   <a class="skip-link" href="#form" data-ui="skip">跳至股票查詢</a>
@@ -606,11 +606,16 @@
                 <div class="section-head">
                   <div>
                     <h3 data-reco-i18n="dtModelTitle">T+0 模型多空分類</h3>
-                    <p class="explain" id="dtModelMeta">-</p>
+                    <p class="explain" id="dtModelMeta" role="status" aria-live="polite">-</p>
                   </div>
                   <span class="desk-chip good" id="dtModelCadence">8s</span>
                 </div>
                 <div id="dtModelBoard" class="mover-board"></div>
+                <p class="explain" id="dtModelNotice" hidden></p>
+                <details id="dtModelReference" class="tool-details" hidden>
+                  <summary><span data-reco-i18n="dtReference">休市參考（非盤中訊號）</span> <span id="dtReferenceCount">0</span></summary>
+                  <div id="dtReferenceBoard" class="mover-board"></div>
+                </details>
               </div>
               <details class="desk-panel tool-details">
                 <summary data-reco-i18n="costRadarTitle">當沖成本雷達 Break-even Radar</summary>
@@ -987,7 +992,7 @@
   <button id="chatFab" class="chat-fab" type="button" aria-label="Open chat" hidden>Chat</button>
 
   <script src="/static/openkiri-ui.js?v=20261010.2"></script>
-  <script src="/static/openkiri-workflow.js?v=20261011.3"></script>
+  <script src="/static/openkiri-workflow.js?v=20261011.4"></script>
   <script>
     const $ = (id) => document.getElementById(id);
     const canvas = $("chart");
@@ -1010,6 +1015,9 @@
     let screenerOptionsData = null;
     let screenerData = null;
     let moversData = null;
+    let daytradeModelData = null;
+    let daytradeModelController = null;
+    let daytradeModelSequence = 0;
     let alertData = null;
     let eventAlertsData = null;
     let serenityData = null;
@@ -1267,13 +1275,22 @@
       daytradeTitle: "T+0 台美日內戰情室", quoteBoardTitle: "台美日內報價榜 Quote Board", marketSwitch: "市場", marketBoth: "台美", marketTWOnly: "台股", marketUSOnly: "美股",
       dtMarketCap: "市值", dtModelTitle: "T+0 模型多空分類", dtLong: "偏做多", dtShort: "偏做空", dtScanned: "掃描", alertTitle: "當日重大訊號", noAlerts: "目前沒有重大交叉訊號"
     });
+    Object.assign(recoCopy["zh-tw"], {
+      dtActiveLong: "盤中偏多", dtActiveShort: "盤中偏空", dtReference: "休市參考（非盤中訊號）", dtActive: "盤中候選", dtReferenceCount: "休市參考", dtExcluded: "排除", dtScanTime: "掃描完成", dtNoCandidate: "目前無合格候選", dtModelUnverified: "未驗證逐筆即時；延遲、日線備援與未確認時段不列入盤中候選。", dtModelExpired: "部分資料或時段已過期，待刷新確認。", dtModelFailed: "分類載入失敗，請刷新。", dtBarTime: "K 線起始", dtFallback: "日線備援"
+    });
     Object.assign(recoCopy["zh-cn"], {
       daytradeTitle: "T+0 台美日内战情室", quoteBoardTitle: "台美日内报价榜 Quote Board", marketSwitch: "市场", marketBoth: "台美", marketTWOnly: "台股", marketUSOnly: "美股",
       dtMarketCap: "市值", dtModelTitle: "T+0 模型多空分类", dtLong: "偏做多", dtShort: "偏做空", dtScanned: "扫描", alertTitle: "当日重大信号", noAlerts: "目前没有重大交叉信号"
     });
+    Object.assign(recoCopy["zh-cn"], {
+      dtActiveLong: "盘中偏多", dtActiveShort: "盘中偏空", dtReference: "休市参考（非盘中信号）", dtActive: "盘中候选", dtReferenceCount: "休市参考", dtExcluded: "排除", dtScanTime: "扫描完成", dtNoCandidate: "目前无合格候选", dtModelUnverified: "未验证逐笔实时；延迟、日线备用与未确认时段不列入盘中候选。", dtModelExpired: "部分数据或时段已过期，待刷新确认。", dtModelFailed: "分类加载失败，请刷新。", dtBarTime: "K 线起始", dtFallback: "日线备用"
+    });
     Object.assign(recoCopy.en, {
       daytradeTitle: "T+0 TW/US Intraday Desk", quoteBoardTitle: "TW/US Quote Board", marketSwitch: "Market", marketBoth: "TW + US", marketTWOnly: "Taiwan", marketUSOnly: "US",
       dtMarketCap: "Mkt cap", dtModelTitle: "T+0 long/short model", dtLong: "Long bias", dtShort: "Short bias", dtScanned: "Scanned", alertTitle: "Major signals", noAlerts: "No major cross signal right now"
+    });
+    Object.assign(recoCopy.en, {
+      dtActiveLong: "Intraday long bias", dtActiveShort: "Intraday short bias", dtReference: "Closed-session reference (not an intraday signal)", dtActive: "Intraday candidates", dtReferenceCount: "Closed-session references", dtExcluded: "Excluded", dtScanTime: "Scan completed", dtNoCandidate: "No eligible candidates", dtModelUnverified: "Not verified tick-by-tick. Delayed data, daily fallbacks and unconfirmed sessions are excluded from intraday candidates.", dtModelExpired: "Some observations or sessions expired; refresh to confirm.", dtModelFailed: "Classification failed; refresh to retry.", dtBarTime: "Bar start", dtFallback: "Daily fallback"
     });
 
     Object.assign(recoCopy["zh-tw"], {
@@ -1717,6 +1734,7 @@
       renderWatchlist();
       if (recommendationData) renderRecommendations(recommendationData);
       if (moversData) renderMovers(moversData);
+      if (daytradeModelData) renderDaytradeModelBoard(daytradeModelData);
       if (eventAlertsData) renderEventAlerts(eventAlertsData);
       if (screenerOptionsData) renderScreenerOptions(screenerOptionsData);
       if (screenerData) renderScreener(screenerData);
@@ -3282,32 +3300,73 @@
 
     async function loadDaytradeModelBoard() {
       if (!$("dtModelBoard")) return;
-      if (!$("dtModelBoard").children.length) $("dtModelMeta").textContent = rt("loading") + "...";
+      const sequence = ++daytradeModelSequence;
+      daytradeModelController?.abort();
+      const controller = new AbortController();
+      daytradeModelController = controller;
+      const timer = setTimeout(() => controller.abort(), 20000);
+      daytradeModelData = null;
+      $("dtModelBoard").replaceChildren();
+      $("dtModelReference").hidden = true;
+      $("dtModelNotice").hidden = true;
+      $("dtModelMeta").textContent = rt("loading") + "...";
+      const markets = daytradeMarketMode || "TW";
       try {
-        const markets = daytradeMarketMode || "TW";
-        const res = await fetch(`/api/movers?markets=${encodeURIComponent(markets)}&limit=6&mode=live`);
+        const res = await fetch(`/api/movers?markets=${encodeURIComponent(markets)}&limit=6&mode=live`, { signal: controller.signal });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.detail || "model failed");
-        const updated = new Date(data.updated_at || Date.now()).toLocaleTimeString();
-        $("dtModelMeta").textContent = `${rt("updated")} ${updated} · ${rt("dtScanned")} ${data.scanned || 0}`;
-        $("dtModelBoard").innerHTML =
-          renderMoverModelColumn(rt("dtLong"), data.long_candidates || data.gainers || [], "good") +
-          renderMoverModelColumn(rt("dtShort"), data.short_candidates || data.losers || [], "bad");
-      } catch (error) {
-        $("dtModelMeta").textContent = error.message;
-      }
+        if (sequence !== daytradeModelSequence || markets !== daytradeMarketMode) return;
+        if ((data.markets || []).slice().sort().join(",") !== markets.split(",").sort().join(",")) throw new Error("Market mismatch");
+        daytradeModelData = data;
+        renderDaytradeModelBoard(data);
+      } catch {
+        if (sequence === daytradeModelSequence) $("dtModelMeta").textContent = rt("dtModelFailed");
+      } finally { clearTimeout(timer); }
+    }
+
+    function renderDaytradeModelBoard(data) {
+      const now = Date.now();
+      const usable = (row, bucket) => {
+        const status = row.data_status || {};
+        const price = status.price || {};
+        const stamp = Date.parse(price.as_of);
+        if (status.eligibility !== bucket || !Number.isFinite(stamp) || stamp > now || !(Date.parse(status.valid_until) > now)) return false;
+        if (bucket === "reference") return status.market?.state === "closed" && price.state === "last_session";
+        return status.market?.state === "regular" && price.state === "recent_observation" &&
+          ["1m", "5m", "15m", "1h"].includes(row.interval) && (now - stamp) / 1000 <= price.stale_after_seconds;
+      };
+      const rows = (key) => Array.isArray(data[key]) ? data[key] : [];
+      const longs = rows("long_candidates").filter((row) => usable(row, "active"));
+      const shorts = rows("short_candidates").filter((row) => usable(row, "active"));
+      const refLong = rows("reference_long").filter((row) => usable(row, "reference"));
+      const refShort = rows("reference_short").filter((row) => usable(row, "reference"));
+      const total = longs.length + shorts.length;
+      const refs = refLong.length + refShort.length;
+      const expired = ["long_candidates", "short_candidates", "reference_long", "reference_short"].reduce((sum, key) => sum + rows(key).filter((row) => !usable(row, key.startsWith("reference") ? "reference" : "active")).length, 0);
+      const scanTime = Number.isFinite(Date.parse(data.updated_at)) ? new Date(data.updated_at).toLocaleString() : "-";
+      $("dtModelMeta").textContent = `${rt("dtScanTime")} ${scanTime} · ${rt("dtScanned")} ${data.scanned || 0} · ${rt("dtActive")} ${total} · ${rt("dtReferenceCount")} ${refs} · ${rt("dtExcluded")} ${(data.counts?.excluded || 0) + expired}`;
+      $("dtModelBoard").innerHTML = renderMoverModelColumn(rt("dtActiveLong"), longs, "good") + renderMoverModelColumn(rt("dtActiveShort"), shorts, "bad");
+      $("dtModelNotice").textContent = expired ? rt("dtModelExpired") : rt("dtModelUnverified");
+      $("dtModelNotice").hidden = false;
+      const reference = $("dtModelReference");
+      const first = reference.hidden;
+      reference.hidden = refs === 0;
+      if (first && refs) reference.open = total === 0;
+      $("dtReferenceCount").textContent = refs;
+      $("dtReferenceBoard").innerHTML = renderMoverModelColumn(rt("dtLong"), refLong, "warn") + renderMoverModelColumn(rt("dtShort"), refShort, "warn");
     }
 
     function renderMoverModelColumn(title, rows, tone) {
       return `<div class="mover-column">
         <div class="section-head"><h2>${escapeHtml(title)}</h2><span class="tag ${tone}">${rows.length}</span></div>
         <div class="mover-list">${(rows || []).map((row) => {
-          const cls = Number(row.change_pct || 0) >= 0 ? "up" : "down";
-          return `<div class="mover-item" onclick="analyze('${escapeHtml(row.symbol)}')">
-            <div><strong>${escapeHtml(row.symbol)}</strong><small class="muted">${escapeHtml(row.name || "")} · ${escapeHtml(row.pattern || "pulse")}</small></div>
+          const cls = symbolMarket(row.symbol) === "TW" ? twColorClass(row.change_pct) : Number(row.change_pct || 0) >= 0 ? "up" : "down";
+          const sourceTime = new Date(row.as_of).toLocaleString(lang === "en" ? "en-US" : "zh-TW", { timeZoneName: "short" });
+          return `<button type="button" class="mover-item model-mover" data-model-symbol="${escapeHtml(row.symbol)}" onclick="analyze(this.dataset.modelSymbol)">
+            <div><strong>${escapeHtml(row.symbol)}</strong><small class="muted">${escapeHtml(row.name || "")} · ${escapeHtml(row.pattern || "pulse")}</small><small class="muted model-time">${rt("dtBarTime")} ${escapeHtml(sourceTime)} · Yahoo ${escapeHtml(row.source || "")} ${row.interval === "1d" ? escapeHtml(rt("dtFallback")) : ""}</small></div>
             <div class="${cls}"><strong>${arrow(row.change_pct)} ${signed(row.change_pct, "%")}</strong><small>${fmt(row.price)} · score ${escapeHtml(row.model_score ?? "-")}</small></div>
-          </div>`;
-        }).join("") || `<div class="muted">${rt("noData")}</div>`}</div>
+          </button>`;
+        }).join("") || `<div class="muted">${rt("dtNoCandidate")}</div>`}</div>
       </div>`;
     }
 

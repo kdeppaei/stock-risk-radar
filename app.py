@@ -1831,6 +1831,7 @@ def mover_quote(item: dict[str, Any], mode: str = "recent") -> dict[str, Any] | 
     latest = rows[-1]
     previous = rows[-2] if mode == "live" else rows[0]
     pattern = detect_price_pattern([row["close"] for row in rows[-12:]])
+    meta = latest.get("_meta", {})
     return {
         "symbol": item["symbol"],
         "name": item["name"],
@@ -1844,6 +1845,12 @@ def mover_quote(item: dict[str, Any], mode: str = "recent") -> dict[str, Any] | 
         "pattern": pattern["pattern"],
         "pattern_score": pattern["score"],
         "basis": "last bar" if mode == "live" and source == "1d/5m" else "5d",
+        "provenance": {
+            "source": "Yahoo chart", "as_of": latest.get("date"), "fetched_at": meta.get("fetched_at"),
+            "interval": source.split("/")[1], "time_basis": "bar_start",
+            "exchange_timezone": meta.get("exchangeTimezoneName"),
+            "sessions": meta.get("currentTradingPeriod"), "market_state": meta.get("marketState"),
+        },
     }
 
 
