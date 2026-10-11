@@ -446,7 +446,7 @@
       .news-panel { max-height: min(520px, calc(100vh - 120px)); }
     }
   </style>
-  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261011.7" />
+  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261012.1" />
 </head>
 <body>
   <a class="skip-link" href="#form" data-ui="skip">跳至股票查詢</a>
@@ -650,22 +650,33 @@
                 </div>
                 <div class="desk-scroll">
                   <table class="desk-table">
-                    <thead><tr><th data-reco-i18n="dtProduct">商品</th><th data-reco-i18n="dtLast">成交</th><th data-reco-i18n="dtMarketCap">市值</th><th data-reco-i18n="dtChange">漲跌</th><th data-reco-i18n="dtChangePct">幅度</th><th data-reco-i18n="dtVolumeRatio">量比</th><th data-reco-i18n="dtRangePos">日內高低位置</th><th data-reco-i18n="dtHeat">當沖熱度</th></tr></thead>
+                    <thead><tr><th data-reco-i18n="dtProduct">商品</th><th data-reco-i18n="dtLast">成交</th><th data-reco-i18n="dtMarketCap">市值</th><th data-reco-i18n="dtChange">漲跌</th><th data-reco-i18n="dtChangePct">幅度</th></tr></thead>
                     <tbody id="dtQuoteBody"></tbody>
                   </table>
                 </div>
               </div>
-              <details class="desk-panel tool-details">
-                <summary data-reco-i18n="suitabilityTitle">當沖適性分數 Intraday Suitability Score</summary>
-                <div id="dtScoreBox" class="desk-result-grid"></div>
-                <div id="dtGateBox" class="gate-card yellow">
-                  <div class="gate-lamps"><span class="lamp green"></span><span class="lamp yellow"></span><span class="lamp red"></span><strong id="dtGateTitle">-</strong></div>
-                  <div id="dtGateReasons" class="theme-tags"></div>
+              <details class="desk-panel tool-details" id="dtDetailPanel">
+                <summary data-reco-i18n="dtDetailTitle">個股詳細模型</summary>
+                <div class="dt-detail-head">
+                  <strong id="dtDetailSymbol">-</strong>
+                  <div class="desk-actions">
+                    <button id="dtDetailRefresh" class="secondary ui-icon-button" type="button" data-reco-tip="dtDetailRefresh" disabled><svg class="ui-icon" aria-hidden="true"><use href="/static/icons.svg#refresh-cw" /></svg></button>
+                    <button id="dtDetailChart" class="secondary ui-icon-button" type="button" data-reco-tip="dtDetailChart" disabled><svg class="ui-icon" aria-hidden="true"><use href="/static/icons.svg#chart-no-axes-combined" /></svg></button>
+                  </div>
                 </div>
-                <div class="desk-playbook">
-                  <h3 data-reco-i18n="dtPlaybookTitle">盤中觸發價 / 交易劇本</h3>
-                  <div id="dtLevels" class="desk-result-grid"></div>
-                  <div id="dtPlaybook" class="plainbox">-</div>
+                <p id="dtDetailMeta" class="explain" role="status" aria-live="polite">尚未選擇股票</p>
+                <div id="dtDetailResult" hidden>
+                  <p id="dtDetailWarning" class="explain"></p>
+                  <div id="dtScoreBox" class="desk-result-grid"></div>
+                  <div id="dtGateBox" class="gate-card yellow">
+                    <div class="gate-lamps"><span class="lamp green"></span><span class="lamp yellow"></span><span class="lamp red"></span><strong id="dtGateTitle">-</strong></div>
+                    <div id="dtGateReasons" class="theme-tags"></div>
+                  </div>
+                  <div class="desk-playbook">
+                    <h3 data-reco-i18n="dtPlaybookTitle">盤中觸發價 / 交易劇本</h3>
+                    <div id="dtLevels" class="desk-result-grid"></div>
+                    <div id="dtPlaybook" class="plainbox">-</div>
+                  </div>
                 </div>
               </details>
             </div>
@@ -989,7 +1000,7 @@
   </aside>
   <button id="chatFab" class="chat-fab" type="button" aria-label="Open chat" hidden>Chat</button>
 
-  <script src="/static/openkiri-ui.js?v=20261011.6"></script>
+  <script src="/static/openkiri-ui.js?v=20261012.1"></script>
   <script src="/static/openkiri-workflow.js?v=20261011.6"></script>
   <script>
     const $ = (id) => document.getElementById(id);
@@ -1037,9 +1048,11 @@
     let daytradeSymbols = JSON.parse(localStorage.getItem("okiri.daytradeSymbols") || '["2330","2317","2454","3481","2409","2002","1101","2303","2881","0050","006208"]');
     let daytradeMarketMode = localStorage.getItem("okiri.daytradeMarket") || "TW";
     let daytradeQuoteTimer = null;
-    let daytradeAnalyzeTimer = null;
     let daytradeLastPrices = {};
     let daytradeAnalyzeData = null;
+    let daytradeDetailSymbol = "";
+    let daytradeDetailState = "idle";
+    let daytradeDetailCompletedAt = null;
     let daytradePriceAutoSymbol = "";
     let loadedWorkspaceTabs = new Set();
     let analyzeRequestSeq = 0;
@@ -1273,6 +1286,15 @@
     Object.assign(recoCopy["zh-tw"], {
       daytradeTitle: "T+0 台美日內戰情室", quoteBoardTitle: "台美日內報價榜 Quote Board", marketSwitch: "市場", marketBoth: "台美", marketTWOnly: "台股", marketUSOnly: "美股",
       dtMarketCap: "市值", dtModelTitle: "T+0 模型多空分類", dtLong: "偏做多", dtShort: "偏做空", dtScanned: "掃描", alertTitle: "當日重大訊號", noAlerts: "目前沒有重大交叉訊號"
+    });
+    Object.assign(recoCopy["zh-tw"], {
+      dtDetailTitle: "個股詳細模型", dtDetailEmpty: "尚未選擇股票", dtDetailRefresh: "更新個股模型", dtDetailChart: "價格走勢", dtDetailFailed: "模型載入失敗", dtDetailPaused: "模型請求已暫停", dtDetailInputsChanged: "成本條件已變更", dtDetailSnapshot: "模型快照", dtDetailQuoteTime: "報價觀察", dtDetailMissingTime: "來源未提供時間"
+    });
+    Object.assign(recoCopy["zh-cn"], {
+      dtDetailTitle: "个股详细模型", dtDetailEmpty: "尚未选择股票", dtDetailRefresh: "更新个股模型", dtDetailChart: "价格走势", dtDetailFailed: "模型加载失败", dtDetailPaused: "模型请求已暂停", dtDetailInputsChanged: "成本条件已变更", dtDetailSnapshot: "模型快照", dtDetailQuoteTime: "报价观察", dtDetailMissingTime: "来源未提供时间"
+    });
+    Object.assign(recoCopy.en, {
+      dtDetailTitle: "Stock model details", dtDetailEmpty: "No stock selected", dtDetailRefresh: "Refresh stock model", dtDetailChart: "Price chart", dtDetailFailed: "Model unavailable", dtDetailPaused: "Model request paused", dtDetailInputsChanged: "Cost inputs changed", dtDetailSnapshot: "Model snapshot", dtDetailQuoteTime: "Quote observation", dtDetailMissingTime: "Source time unavailable"
     });
     Object.assign(recoCopy["zh-tw"], {
       dtActiveLong: "盤中偏多", dtActiveShort: "盤中偏空", dtReference: "休市參考（非盤中訊號）", dtActive: "盤中候選", dtReferenceCount: "休市參考", dtExcluded: "排除", dtScanTime: "掃描完成", dtNoCandidate: "目前無合格候選", dtModelUnverified: "未驗證逐筆即時；延遲、日線備援與未確認時段不列入盤中候選。", dtModelExpired: "部分資料或時段已過期，待刷新確認。", dtModelFailed: "分類載入失敗，請刷新。", dtBarTime: "K 線起始", dtFallback: "日線備援", dtPollingPaused: "已暫停", dtPollingClosed: "休市暫停", dtPollingRecheck: "暫停・待確認", dtPollingChecked: "上次時段確認"
@@ -1774,7 +1796,17 @@
     $("pfUseWatchBtn").addEventListener("click", () => applyWatchToPortfolio());
     $("pfRisk").addEventListener("input", updatePortfolioRiskLabel);
     $("dtRefreshBtn").addEventListener("click", () => refreshDaytradeDesk(true));
-    $("dtMarketMode").addEventListener("change", () => { pauseDaytradeRequests(); daytradeMarketMode = $("dtMarketMode").value; localStorage.setItem("okiri.daytradeMarket", daytradeMarketMode); refreshDaytradeDesk(true); if ($("alertDrawer")?.classList.contains("open")) loadAlerts(); });
+    $("dtMarketMode").addEventListener("change", () => { pauseDaytradeRequests(); daytradeMarketMode = $("dtMarketMode").value; localStorage.setItem("okiri.daytradeMarket", daytradeMarketMode); invalidateDaytradeDetail(); refreshDaytradeDesk(true); if ($("alertDrawer")?.classList.contains("open")) loadAlerts(); });
+    $("dtQuoteBody").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-detail-symbol]");
+      if (button) selectDaytradeSymbol(button.dataset.detailSymbol, Number(button.dataset.price || 0));
+    });
+    $("dtDetailRefresh").addEventListener("click", () => analyzeDaytradeSymbol(daytradeDetailSymbol));
+    $("dtDetailChart").addEventListener("click", () => { if (daytradeDetailSymbol) analyze(daytradeDetailSymbol); });
+    ["dtBuyPrice", "dtSellPrice", "dtShares", "dtFeeRate", "dtFeeDiscount", "dtTaxRate", "dtMinFee", "dtRounding"].forEach((id) => {
+      $(id).addEventListener("change", () => { if (daytradeDetailSymbol) invalidateDaytradeDetail("inputsChanged", daytradeDetailSymbol); });
+    });
+    $("dtCostSymbol").addEventListener("change", () => { if (daytradeDetailSymbol) invalidateDaytradeDetail(); });
     $("dtCostBtn").addEventListener("click", () => calculateDaytradeCost());
     $("dtUseLatestBtn").addEventListener("click", () => useLatestForDaytradeCost());
     $("dtAddCurrentBtn").addEventListener("click", () => addDaytradeSymbol(lastData?.symbol || $("symbol").value.trim()));
@@ -1806,6 +1838,7 @@
         const text = rt(el.dataset.recoTip);
         el.setAttribute("data-tip", text);
         el.setAttribute("title", text);
+        el.setAttribute("aria-label", text);
       });
       $("scoreHelp").textContent = t("scoreHelp");
       $("autoBtn").textContent = autoRefresh ? t("autoOn") : t("autoOff");
@@ -3248,8 +3281,8 @@
 
     function pauseDaytradeRequests() {
       clearInterval(daytradeQuoteTimer);
-      clearInterval(daytradeAnalyzeTimer);
-      daytradeQuoteTimer = daytradeAnalyzeTimer = null;
+      daytradeQuoteTimer = null;
+      if (daytradeRequests.has("analysis")) invalidateDaytradeDetail("paused", daytradeDetailSymbol);
       daytradeRequests.forEach((ticket) => { clearTimeout(ticket.timer); ticket.controller.abort(); });
       daytradeRequests.clear();
       renderDaytradePollingState();
@@ -3306,15 +3339,13 @@
       if (force || !$("dtPulseBody").dataset.loaded) loadDaytradePulse();
       refreshDaytradeQuotes();
       loadDaytradeModelBoard();
-      analyzeDaytradeSymbol(lastData?.symbol || $("symbol").value.trim() || "2330");
-      calculateDaytradeCost(false);
+      renderDaytradeDetailState();
       scheduleDaytradeTimers();
     }
 
     function scheduleDaytradeTimers() {
       clearInterval(daytradeQuoteTimer);
-      clearInterval(daytradeAnalyzeTimer);
-      daytradeQuoteTimer = daytradeAnalyzeTimer = null;
+      daytradeQuoteTimer = null;
       renderDaytradePollingState();
       if (!daytradeForeground() || !daytradeRefreshMarkets(true).length) return;
       daytradeQuoteTimer = setInterval(async () => {
@@ -3322,9 +3353,6 @@
         const refreshed = await loadDaytradeModelBoard(true);
         if (refreshed && daytradeForeground()) refreshDaytradeQuotes(true);
       }, dataSaver ? 120000 : 8000);
-      daytradeAnalyzeTimer = setInterval(() => {
-        if (daytradeForeground()) analyzeDaytradeSymbol(lastData?.symbol || $("symbol").value.trim() || "2330", true);
-      }, dataSaver ? 180000 : 30000);
     }
 
     async function loadDaytradePulse() {
@@ -3365,37 +3393,32 @@
       const markets = new Set(daytradeRefreshMarkets(automatic));
       const symbols = [...new Set([...daytradeSymbols, ...watch])].filter((symbol) => markets.has(symbolMarket(symbol))).slice(0, dataSaver ? 8 : 32);
       if (!symbols.length) {
-        if (!automatic) $("dtQuoteBody").innerHTML = `<tr><td colspan="8">${rt("noData")}</td></tr>`;
+        if (!automatic) $("dtQuoteBody").innerHTML = `<tr><td colspan="5">${rt("noData")}</td></tr>`;
         return;
       }
       const ticket = beginDaytradeRequest("quotes", automatic);
       if (!ticket) return;
       try {
-        $("dtQuoteBody").innerHTML = $("dtQuoteBody").innerHTML || `<tr><td colspan="8">${rt("loading")}...</td></tr>`;
+        $("dtQuoteBody").innerHTML = $("dtQuoteBody").innerHTML || `<tr><td colspan="5">${rt("loading")}...</td></tr>`;
         const rows = await Promise.all(symbols.map(async (symbol) => {
           try {
             const quoteRes = await fetch(`/api/quote/${encodeURIComponent(symbol)}`, { signal: ticket.controller.signal });
             const quote = await quoteRes.json();
             if (!quoteRes.ok || !quote.ok) throw new Error(quote.detail || "quote failed");
-            if (dataSaver || ticket.controller.signal.aborted || !currentDaytradeRequest("quotes", ticket) ||
-                (automatic && daytradePausedMarkets.has(symbolMarket(symbol)))) return { quote, detail: null };
-            const analyzeRes = await fetch("/api/daytrade/analyze", {
-              method: "POST",
-              signal: ticket.controller.signal,
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ symbol: quote.symbol, buy_price: Number($("dtBuyPrice").value || quote.price), sell_price: quote.price, shares: Number($("dtShares").value || 1000) })
-            });
-            const detail = await analyzeRes.json();
-            return { quote, detail: detail.ok ? detail : null };
+            if (!sameSymbol(symbol, quote.symbol)) throw new Error("Quote symbol mismatch");
+            return { quote };
           } catch {
-            return { quote: { symbol, price: null, change_pct: null, change: null, volume_ratio: null }, detail: null, failed: true };
+            return { quote: { symbol, price: null, change_pct: null, change: null }, failed: true };
           }
         }));
         if (currentDaytradeRequest("quotes", ticket)) {
+          const focused = document.activeElement?.dataset.detailSymbol;
           const fetched = new Set(symbols.map(canonicalSymbol));
           if (!automatic) $("dtQuoteBody").replaceChildren();
           else $("dtQuoteBody").querySelectorAll("tr[data-quote-symbol]").forEach((tr) => { if (fetched.has(canonicalSymbol(tr.dataset.quoteSymbol))) tr.remove(); });
-          $("dtQuoteBody").insertAdjacentHTML("beforeend", rows.map((row) => daytradeQuoteRow(row.quote, row.detail, row.failed)).join(""));
+          $("dtQuoteBody").insertAdjacentHTML("beforeend", rows.map((row) => daytradeQuoteRow(row.quote, row.failed)).join(""));
+          renderDaytradeDetailState();
+          if (focused) [...$("dtQuoteBody").querySelectorAll("[data-detail-symbol]")].find((button) => button.dataset.detailSymbol === focused)?.focus({ preventScroll: true });
         }
       } finally { finishDaytradeRequest("quotes", ticket); }
     }
@@ -3481,23 +3504,18 @@
       </div>`;
     }
 
-    function daytradeQuoteRow(quote, detail, failed = false) {
+    function daytradeQuoteRow(quote, failed = false) {
       const symbol = quote.symbol || "-";
       const cls = symbolMarket(symbol) === "TW" ? twColorClass(quote.change_pct) : Number(quote.change_pct || 0) >= 0 ? "up" : "down";
-      const rangePos = detail?.metrics?.high_low_position;
-      const heat = detail?.score;
       const prev = daytradeLastPrices[symbol];
       const flash = prev && quote.price && quote.price !== prev ? (quote.price > prev ? "flash-up" : "flash-down") : "";
       if (quote.price) daytradeLastPrices[symbol] = quote.price;
-      return `<tr class="${flash}" data-quote-symbol="${escapeHtml(symbol)}" onclick="selectDaytradeSymbol('${escapeHtml(symbol)}', ${Number(quote.price || 0)})">
-        <td><strong>${escapeHtml(symbol)}</strong><small class="muted">${failed ? "fallback unavailable" : escapeHtml(quote.source || "")}</small><small class="muted">${escapeHtml(quote.as_of ? new Date(quote.as_of).toLocaleString() : "-")}</small></td>
+      return `<tr class="${flash}" data-quote-symbol="${escapeHtml(symbol)}">
+        <td><button type="button" class="dt-symbol-button" data-detail-symbol="${escapeHtml(symbol)}" data-price="${Number(quote.price || 0)}" aria-controls="dtDetailPanel" title="${escapeHtml(rt("dtDetailTitle"))}">${escapeHtml(symbol)}</button><small class="muted">${failed ? "fallback unavailable" : escapeHtml(quote.source || "")}</small><small class="muted">${escapeHtml(quote.as_of ? new Date(quote.as_of).toLocaleString() : "-")}</small></td>
         <td>${quote.price == null ? "-" : fmt(quote.price)}</td>
         <td>${quoteMarketCapText(quote)}</td>
         <td class="${cls}">${quote.change == null ? "-" : signed(quote.change)}</td>
         <td class="${cls}">${quote.change_pct == null ? "-" : `${arrow(quote.change_pct)} ${signed(quote.change_pct, "%")}`}</td>
-        <td>${quote.volume_ratio == null ? "-" : fmt(quote.volume_ratio)}</td>
-        <td>${rangePos == null ? "-" : `${fmt(rangePos)}%`}</td>
-        <td><span class="desk-chip ${heat >= 70 ? "good" : heat < 45 ? "bad" : "warn"}">${heat == null ? "-" : `${heat}/100`}</span></td>
       </tr>`;
     }
 
@@ -3523,7 +3541,7 @@
       return $(id) && Number($(id).value || 0) > 0;
     }
 
-    function setDaytradeLatestPrices(symbol, price, force = false) {
+    function setDaytradeLatestPrices(symbol, price, force = false, calculate = true) {
       const value = Number(price || 0);
       if (!value || !$("dtBuyPrice") || !$("dtSellPrice")) return;
       const normalized = symbol || lastData?.symbol || $("symbol").value.trim();
@@ -3532,20 +3550,32 @@
       if (force || symbolChanged || !validPriceInput("dtBuyPrice")) $("dtBuyPrice").value = value;
       if (force || symbolChanged || !validPriceInput("dtSellPrice")) $("dtSellPrice").value = value;
       daytradePriceAutoSymbol = normalized;
-      calculateDaytradeCost(false);
+      if (calculate) calculateDaytradeCost(false);
     }
 
     function syncDaytradePricesFromAnalysis(data) {
+      if (daytradeDetailSymbol) return;
       if (!data?.latest?.close) return;
       setDaytradeLatestPrices(data.symbol, data.latest.close, false);
     }
 
     function selectDaytradeSymbol(symbol, latestPrice = 0) {
+      const normalized = normalizeTwSymbolInput(symbol);
+      if (!daytradeForeground() || !marketFilterSymbol(normalized)) return;
+      $("dtDetailPanel").open = true;
+      $("dtDetailPanel").scrollIntoView({ block: "start", behavior: "instant" });
+      $("dtDetailPanel").querySelector("summary").focus({ preventScroll: true });
+      if (sameSymbol(daytradeDetailSymbol, normalized) &&
+          (daytradeDetailState === "ready" || daytradeRequests.get("analysis")?.scope === normalized)) return;
+      $("dtCostResult").replaceChildren();
+      $("dtCostSummary").textContent = "-";
       $("dtCostSymbol").value = symbol;
-      if (latestPrice) setDaytradeLatestPrices(symbol, latestPrice, true);
-      calculateDaytradeCost(false);
-      analyzeDaytradeSymbol(symbol);
-      analyze(symbol);
+      if (latestPrice) setDaytradeLatestPrices(normalized, latestPrice, true, false);
+      else if (!sameSymbol(daytradePriceAutoSymbol, normalized)) {
+        $("dtBuyPrice").value = $("dtSellPrice").value = "";
+        daytradePriceAutoSymbol = normalized;
+      }
+      analyzeDaytradeSymbol(normalized);
     }
 
     function daytradeCostPayload() {
@@ -3581,17 +3611,60 @@
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.detail || "quote failed");
         $("dtCostSymbol").value = data.symbol;
-        setDaytradeLatestPrices(data.symbol, data.price, true);
+        setDaytradeLatestPrices(data.symbol, data.price, true, false);
+        if (daytradeDetailSymbol) {
+          if (sameSymbol(daytradeDetailSymbol, data.symbol)) invalidateDaytradeDetail("inputsChanged", daytradeDetailSymbol);
+          else invalidateDaytradeDetail();
+        }
         calculateDaytradeCost();
       } catch (error) {
         $("dtCostSummary").textContent = `資料可能延遲 / 目前使用 fallback：${error.message}`;
       }
     }
 
-    async function analyzeDaytradeSymbol(symbol, automatic = false) {
-      const normalized = normalizeTwSymbolInput(symbol || "2330");
-      if (!daytradeRefreshMarkets(automatic).includes(symbolMarket(normalized))) return;
-      const ticket = beginDaytradeRequest("analysis", automatic, normalized);
+    function invalidateDaytradeDetail(state = "idle", symbol = "") {
+      const ticket = daytradeRequests.get("analysis");
+      if (ticket) { ticket.controller.abort(); finishDaytradeRequest("analysis", ticket); }
+      daytradeDetailSymbol = symbol;
+      daytradeDetailState = state;
+      daytradeDetailCompletedAt = null;
+      daytradeAnalyzeData = null;
+      ["dtScoreBox", "dtGateReasons", "dtLevels"].forEach((id) => $(id).replaceChildren());
+      $("dtGateTitle").textContent = $("dtPlaybook").textContent = "-";
+      renderDaytradeDetailState();
+    }
+
+    function renderDaytradeDetailState() {
+      const panel = $("dtDetailPanel");
+      if (!panel) return;
+      panel.dataset.state = daytradeDetailState;
+      $("dtDetailSymbol").textContent = daytradeDetailSymbol || "-";
+      $("dtDetailResult").hidden = daytradeDetailState !== "ready";
+      $("dtDetailRefresh").disabled = !daytradeDetailSymbol || daytradeDetailState === "loading";
+      $("dtDetailChart").disabled = !daytradeDetailSymbol;
+      panel.setAttribute("aria-busy", String(daytradeDetailState === "loading"));
+      const copy = { idle: "dtDetailEmpty", loading: "loading", error: "dtDetailFailed", paused: "dtDetailPaused", inputsChanged: "dtDetailInputsChanged" };
+      if (daytradeDetailState === "ready" && daytradeAnalyzeData) {
+        const quoteTime = Date.parse(daytradeAnalyzeData.latest?.as_of);
+        $("dtDetailMeta").textContent = `${rt("dtDetailSnapshot")} ${new Date(daytradeDetailCompletedAt).toLocaleString()} · ${daytradeAnalyzeData.source || "-"} · ${rt("dtDetailQuoteTime")} ${Number.isFinite(quoteTime) ? new Date(quoteTime).toLocaleString() : rt("dtDetailMissingTime")}`;
+        $("dtDetailWarning").textContent = daytradeAnalyzeData.data_warning || rt("daytradeDisclaimer");
+      } else $("dtDetailMeta").textContent = rt(copy[daytradeDetailState] || "dtDetailEmpty");
+      $("dtQuoteBody").querySelectorAll("[data-detail-symbol]").forEach((button) => {
+        const selected = sameSymbol(button.dataset.detailSymbol, daytradeDetailSymbol);
+        button.title = rt("dtDetailTitle");
+        if (selected) button.setAttribute("aria-current", "true");
+        else button.removeAttribute("aria-current");
+      });
+    }
+
+    async function analyzeDaytradeSymbol(symbol) {
+      if (!symbol) return;
+      const normalized = normalizeTwSymbolInput(symbol);
+      if (!daytradeForeground() || !marketFilterSymbol(normalized)) return;
+      if (daytradeRequests.get("analysis")?.scope === normalized) return;
+      invalidateDaytradeDetail("loading", normalized);
+      $("dtDetailPanel").open = true;
+      const ticket = beginDaytradeRequest("analysis", false, normalized);
       if (!ticket) return;
       $("dtCostSymbol").value = normalized;
       try {
@@ -3600,14 +3673,21 @@
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.detail || "daytrade analyze failed");
         if (!currentDaytradeRequest("analysis", ticket)) return;
+        if (!sameSymbol(normalized, data.symbol) || !sameSymbol(data.symbol, data.latest?.symbol)) throw new Error("Model symbol mismatch");
         daytradeAnalyzeData = data;
+        daytradeDetailState = "ready";
+        daytradeDetailCompletedAt = Date.now();
         if (data.latest?.price) {
-          setDaytradeLatestPrices(normalized, data.latest.price, false);
+          setDaytradeLatestPrices(normalized, data.latest.price, false, false);
         }
         renderDaytradeAnalyze(data);
+        renderDaytradeDetailState();
       } catch (error) {
         if (!currentDaytradeRequest("analysis", ticket)) return;
-        $("dtPlaybook").textContent = `資料可能延遲 / 目前使用 fallback：${error.message}`;
+        daytradeAnalyzeData = null;
+        daytradeDetailCompletedAt = null;
+        daytradeDetailState = "error";
+        renderDaytradeDetailState();
       } finally { finishDaytradeRequest("analysis", ticket); }
     }
 
@@ -3627,7 +3707,7 @@
         ["損益兩平價", l.break_even], ["追價風險區", l.chase_risk_zone], ["盤中 VWAP", l.vwap],
       ].map(([labelText, value]) => `<div class="desk-kv"><span>${escapeHtml(labelText)}</span><b>${fmt(value)}</b></div>`).join("");
       $("dtPlaybook").textContent = `${data.playbook} ${data.disclaimer}`;
-      renderDaytradeCost(data.cost);
+      if (data.cost) renderDaytradeCost(data.cost);
     }
 
     function twColorClass(value) {
@@ -3723,7 +3803,6 @@
       lastData = data;
       lastQuotePrice = data.latest.close;
       if ($("serenitySymbol")) $("serenitySymbol").value = data.symbol;
-      if ($("dtCostSymbol")) $("dtCostSymbol").value = data.symbol;
       if (serenityData && serenityData.symbol !== data.symbol) serenityData = null;
       const isTW = data.market === "TW";
       $("ticker").textContent = data.symbol;
@@ -3768,7 +3847,6 @@
       renderChart(data);
       $("refreshMeta").textContent = `${OpenKiriWorkflow.requestLabel()} ${new Date().toLocaleTimeString()}`;
       if (!watch.includes(data.symbol)) renderWatchlist();
-      if (isWorkspaceTabActive("daytrade")) analyzeDaytradeSymbol(data.symbol);
     }
 
     function renderNewsEventFlags(context) {
