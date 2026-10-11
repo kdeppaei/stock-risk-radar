@@ -6,6 +6,9 @@ window.OpenKiriWorkflow = (() => {
     "zh-tw": { preset: "操作預設", custom: "自訂", daytrade: "當沖", swing: "波段", savePreset: "儲存預設", resetPreset: "還原預設", saved: "已儲存於此裝置", reset: "已還原預設", storageError: "此裝置無法儲存", enrich: "載入消息與事件分析", diagnostics: "流量與效能診斷", refreshMetrics: "刷新統計", metricsNote: "本程序啟動後統計，非 Render 帳單；重新部署會歸零。", metricsUnits: "送出：API 壓縮後本文／上游 HTTP 請求估計。接收：上游解壓後本文。P95：最近 128 次。未含 TLS 與平台流量。", category: "分類", requests: "請求", cacheHits: "快取命中", latency: "平均 / P95", sent: "送出", received: "接收", errors: "失敗", unavailable: "暫無資料", unknownTime: "來源未提供資料時點", retrieved: "取得時間", sourceTime: "資料時點", price: "報價", chart: "K 線（起始時點）", valuation: "市值 / P/E", reported: "來源報告值", technical: "僅技術模型；尚未載入消息與事件", full: "技術、消息與事件模型", delayed: "非逐筆即時保證", loading: "載入中", failed: "請求失敗，請重試", missingValuation: "無可核實估值", valuationRule: "市值變動不等於資金流入流出", barBias: "25 根 K 線乖離率", dayBias: "25 日乖離率", weekBias: "25 週乖離率" }
   };
   words["zh-cn"] = { preset: "操作预设", custom: "自定义", daytrade: "日内", swing: "波段", savePreset: "保存预设", resetPreset: "还原预设", saved: "已保存于此设备", reset: "已还原预设", storageError: "此设备无法保存", enrich: "加载消息与事件分析", diagnostics: "流量与性能诊断", refreshMetrics: "刷新统计", metricsNote: "本进程启动后统计，非 Render 账单；重新部署会归零。", metricsUnits: "发送：API 压缩后正文／上游 HTTP 请求估计。接收：上游解压后正文。P95：最近 128 次。未含 TLS 与平台流量。", category: "分类", requests: "请求", cacheHits: "缓存命中", latency: "平均 / P95", sent: "发送", received: "接收", errors: "失败", unavailable: "暂无数据", unknownTime: "来源未提供数据时间", retrieved: "获取时间", sourceTime: "数据时间", price: "报价", chart: "K 线（起始时间）", valuation: "市值 / P/E", reported: "来源报告值", technical: "仅技术模型；尚未加载消息与事件", full: "技术、消息与事件模型", delayed: "非逐笔实时保证", loading: "加载中", failed: "请求失败，请重试", missingValuation: "无可核实估值", valuationRule: "市值变动不等于资金流入流出", barBias: "25 根 K 线乖离率", dayBias: "25 日乖离率", weekBias: "25 周乖离率" };
+  Object.assign(words.en, { estimated: "Calculated estimate", cap: "Market cap", sharesSnapshot: "Issued-share snapshot", epsPeriod: "TTM EPS period end", priceInput: "Price observation" });
+  Object.assign(words["zh-tw"], { estimated: "計算估值", cap: "市值", sharesSnapshot: "已發行股數快照", epsPeriod: "近四季 EPS 截止日", priceInput: "計算用股價時點" });
+  Object.assign(words["zh-cn"], { estimated: "计算估值", cap: "市值", sharesSnapshot: "已发行股数快照", epsPeriod: "近四季 EPS 截止日", priceInput: "计算用股价时间" });
   const tr = (key) => (words[lang] || words["zh-tw"])[key];
   const localTime = (value) => {
     if (!value || !Number.isFinite(Date.parse(value))) return tr("unknownTime");
@@ -29,7 +32,9 @@ window.OpenKiriWorkflow = (() => {
     const currency = data.quote?.currency || price.currency || chart.currency || v.currency || "";
     $("priceMeta").textContent = `${price.time_basis === "bar_start" ? tr("chart") : price.source || tr("unavailable")} ${currency} · ${localTime(price.as_of)}`;
     $("priceMeta").title = tr("delayed");
-    $("valuationMeta").textContent = v.status === "reported" ? `${v.source} · ${tr("reported")} · ${localTime(v.as_of)}` : tr("missingValuation");
+    const primaryField = v.fields?.market_cap || v.fields?.trailing_pe;
+    const available = ["reported", "derived"].includes(v.status);
+    $("valuationMeta").textContent = available ? `${primaryField?.source || v.source} · ${tr(primaryField?.estimated ? "estimated" : "reported")} · ${localTime(primaryField ? primaryField.as_of : v.as_of)}` : tr("missingValuation");
     $("valuationMeta").title = `${tr("retrieved")}: ${localTime(v.fetched_at)}. ${tr("valuationRule")}`;
     $("analysisScope").textContent = tr(data.analysis_scope === "technical_news_events" ? "full" : "technical");
     $("predictionBadge").title = $("analysisScope").textContent;
@@ -43,6 +48,14 @@ window.OpenKiriWorkflow = (() => {
       section.append(heading);
       [meta.source || tr("unavailable"), `${tr("sourceTime")}: ${localTime(meta.as_of)}`, `${tr("retrieved")}: ${localTime(meta.fetched_at)}`, tr(name === "valuation" ? "valuationRule" : "delayed")].forEach((text) => {
         const row = document.createElement("span"); row.textContent = text; section.append(row);
+      });
+      if (name === "valuation") Object.entries(v.fields || {}).forEach(([key, field]) => {
+        const rows = [`${key === "market_cap" ? tr("cap") : "P/E"}: ${field.source} · ${tr(field.estimated ? "estimated" : "reported")}`,
+          `${tr("sourceTime")}: ${localTime(field.as_of)}`, `${tr("retrieved")}: ${localTime(field.fetched_at)}`];
+        if (field.shares_as_of) rows.push(`${tr("sharesSnapshot")}: ${localTime(field.shares_as_of)}`);
+        if (field.eps_ttm != null) rows.push(`${tr("epsPeriod")}: ${localTime(field.as_of)} · EPS ${field.eps_ttm}`);
+        if (field.price_as_of) rows.push(`${tr("priceInput")}: ${localTime(field.price_as_of)}`);
+        rows.forEach((text) => { const row = document.createElement("span"); row.textContent = text; section.append(row); });
       });
       mount.append(section);
     });

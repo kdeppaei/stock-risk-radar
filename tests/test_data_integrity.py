@@ -82,7 +82,7 @@ class PipelineTests(unittest.TestCase):
         self.assertIsNone(quote["volume_ratio"])
 
     def test_valuation_outage_does_not_use_universe_estimate(self):
-        with patch.object(live, "fetch_yahoo_quote_snapshot", return_value={}), patch.object(live.base, "yahoo_quote_summary", return_value={}) as fetch:
+        with patch.object(live, "public_valuation", return_value={"symbol": "MU", "status": "unavailable", "market_cap": None}) as fetch, patch.object(live, "fetch_yahoo_quote_snapshot", return_value={}), patch.object(live.base, "yahoo_quote_summary", side_effect=AssertionError("unexpected auth request")):
             value = live.verified_stock_valuation({"symbol": "MU", "market_cap_usd": 170000000000}, 100)
             live.verified_valuation("MU")
         self.assertIsNone(value["market_cap"])

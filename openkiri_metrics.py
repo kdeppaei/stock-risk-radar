@@ -19,7 +19,15 @@ def provider_group(url: str) -> str:
             return "Yahoo fundamentals/auth"
         if "finance/quote" in path:
             return "Yahoo quote"
+        if "fundamentals-timeseries" in path:
+            return "Yahoo financial statements"
         return "Yahoo other"
+    if host == "openapi.twse.com.tw":
+        return "TWSE official"
+    if host == "www.tpex.org.tw":
+        return "TPEx official"
+    if host == "api.nasdaq.com":
+        return "Nasdaq valuation"
     if host in {"www.google.com", "google.com"}:
         return "Google Finance"
     if host == "news.google.com":

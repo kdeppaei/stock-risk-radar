@@ -29,6 +29,10 @@ def http_ttl(url: Any, params: Any) -> int:
     text = str(url).lower()
     frozen = dict(freeze_params(params))
     interval = str(frozen.get("interval", "")).strip("'\"").lower()
+    if "openapi.twse.com.tw/" in text or "tpex.org.tw/openapi/" in text or "fundamentals-timeseries/" in text:
+        return 21600
+    if "api.nasdaq.com/api/quote/" in text:
+        return 900
     if "query1.finance.yahoo.com/v8/finance/chart" in text:
         if interval in {"1m", "5m"}:
             return 75

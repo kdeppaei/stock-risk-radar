@@ -15,8 +15,9 @@ from fastapi.responses import HTMLResponse
 
 import app as base
 from openkiri_cache_policy import analyze_ttl, cache_prune, freeze_params, history_ttl, http_ttl
-from openkiri_data import empty_valuation, finite, iso_time, provenance, valuation_from_snapshot, valuation_from_summary
+from openkiri_data import empty_valuation, finite, iso_time, provenance, valuation_from_snapshot
 from openkiri_metrics import METRICS, MetricsMiddleware, provider_group
+from openkiri_valuation import public_valuation
 
 app = base.app
 app.add_middleware(GZipMiddleware, minimum_size=512, compresslevel=6)
@@ -204,7 +205,7 @@ def version() -> dict[str, Any]:
         "ok": True,
         "app": "OpenKiri",
         "entry": "openkiri_live",
-        "commit_marker": "data-observability-presets-20261011.1",
+        "commit_marker": "public-valuation-sources-20261011.2",
         "fast_intraday": True,
         "render_service": "stock-risk-radar",
     }
@@ -574,11 +575,9 @@ def verified_valuation(symbol: str) -> dict[str, Any]:
             METRICS.record("Cache valuation", hit=True)
             return dict(cached[1])
         METRICS.record("Cache valuation", hit=False)
-        quote = fetch_yahoo_quote_snapshot(normalized)
-        payload = valuation_from_snapshot(normalized, quote)
+        payload = public_valuation(normalized)
         if payload["status"] == "unavailable":
-            summary = base.yahoo_quote_summary(normalized, "price,summaryDetail,defaultKeyStatistics")
-            payload = valuation_from_summary(normalized, summary, time.time())
+            payload = valuation_from_snapshot(normalized, fetch_yahoo_quote_snapshot(normalized))
         payload["fetched_at"] = payload.get("fetched_at") or iso_time(time.time())
         VALUATION_CACHE[normalized] = (time.time(), payload)
         cache_prune(VALUATION_CACHE, 256)

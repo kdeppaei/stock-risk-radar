@@ -981,7 +981,7 @@
   <button id="chatFab" class="chat-fab" type="button" aria-label="Open chat" hidden>Chat</button>
 
   <script src="/static/openkiri-ui.js?v=20261010.2"></script>
-  <script src="/static/openkiri-workflow.js?v=20261011.1"></script>
+  <script src="/static/openkiri-workflow.js?v=20261011.2"></script>
   <script>
     const $ = (id) => document.getElementById(id);
     const canvas = $("chart");
@@ -4187,7 +4187,7 @@
       const v = row?.valuation || {};
       const cap = v.market_cap;
       if (!cap) return "-";
-      const fallback = v.fallback ? ` ${t("valuationFallback")}` : "";
+      const fallback = v.fields?.market_cap?.estimated || v.fallback ? ` ${t("valuationFallback")}` : "";
       const pct = v.change_basis === "reported_cap_observations" ? v.market_cap_change_pct : null;
       const move = pct == null ? "" : ` ${arrow(pct)} ${signed(pct, "%")}`;
       return `${compactMoney(cap, v.currency || "USD")}${move}${fallback}`;
@@ -4197,7 +4197,7 @@
       const trailing = row?.trailing_pe ?? v.trailing_pe;
       const forward = row?.forward_pe ?? v.forward_pe;
       const parts = [];
-      if (trailing != null) parts.push(`PE ${fmt(trailing)}`);
+      if (trailing != null) parts.push(`PE ${fmt(trailing)}${v.fields?.trailing_pe?.estimated ? ` ${t("valuationFallback")}` : ""}`);
       if (forward != null) parts.push(`Fwd ${fmt(forward)}`);
       return parts.join(" · ") || t("peUnavailable");
     }

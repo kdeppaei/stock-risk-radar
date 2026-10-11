@@ -63,6 +63,14 @@ async function pageFor(width = 1440, locale = "zh-tw") {
       const symbol = url.searchParams.get("symbol");
       if (symbol === "SLOWVAL") await pause(700);
       data = { ok: true, symbol, valuation: { symbol, market_cap: symbol === "NOVAL" ? null : symbol === "MU" ? 999000000 : 31000000000000, currency: symbol.endsWith(".TW") ? "TWD" : "USD", trailing_pe: 24, status: symbol === "NOVAL" ? "unavailable" : "reported", source: "Yahoo quote", as_of: null, fetched_at: "2026-03-05T14:35:00Z", market_cap_change_pct: 88 } };
+      if (symbol === "ESTIMATE") Object.assign(data.valuation, { status: "derived", source: "TWSE", fallback: true, fields: {
+        market_cap: { source: "TWSE + Yahoo chart", estimated: true, as_of: "2026-03-05T05:30:00Z", shares_as_of: "2026-03-01T00:00:00Z" },
+        trailing_pe: { source: "TWSE", estimated: false, as_of: "2026-03-05T00:00:00Z" }
+      } });
+      if (symbol === "MIXED") Object.assign(data.valuation, { status: "derived", source: "Nasdaq", fields: {
+        market_cap: { source: "Nasdaq", estimated: false, as_of: null },
+        trailing_pe: { source: "Yahoo fundamentals-timeseries + Yahoo chart", estimated: true, eps_ttm: 4, as_of: "2026-02-28T00:00:00Z", price_as_of: "2026-03-05T14:30:00Z" }
+      } });
     } else if (url.pathname === "/api/diagnostics") data = { ok: true, since: "2026-03-05T00:00:00Z", rows: [{ name: "API /api/analyze", requests: 4, cache_hit_pct: 50, avg_ms: 20, p95_ms: 30, sent_bytes: 4096, received_bytes: 0, errors: 0 }] };
     else if (url.pathname === "/api/market-context") data = { usd_twd: {}, macro: { label: "neutral" } };
     else if (url.pathname.startsWith("/api/quote/")) data = { ok: true, symbol: url.pathname.split("/").at(-1), price: 100, change_pct: 1, source: "fixture" };
@@ -146,6 +154,24 @@ test("valuation provenance and opt-in diagnostics stay separate from chart data"
   await page.waitForFunction(() => document.getElementById("valuationMeta").textContent === "無可核實估值");
   assert.equal(await page.locator("#valuationMain").innerText(), "-");
   assert.match(await page.locator("#priceMeta").innerText(), /USD/);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test("reported and estimated valuation fields have independent labels and dates", async () => {
+  const { page, errors } = await pageFor(320);
+  await page.locator("#symbol").fill("ESTIMATE"); await page.locator("#runBtn").click();
+  await page.waitForFunction(() => document.getElementById("valuationMeta").textContent.includes("計算估值"));
+  assert.match(await page.locator("#valuationMain").innerText(), /估算/);
+  assert.doesNotMatch(await page.locator("#valuationSub").innerText(), /估算/);
+  assert.match(await page.locator("#dataProvenance").textContent(), /已發行股數快照/);
+  await page.locator("#symbol").fill("MIXED"); await page.locator("#runBtn").click();
+  await page.waitForFunction(() => document.getElementById("valuationMeta").textContent.includes("Nasdaq"));
+  assert.doesNotMatch(await page.locator("#valuationMain").innerText(), /估算/);
+  assert.match(await page.locator("#valuationSub").innerText(), /估算/);
+  assert.match(await page.locator("#valuationMeta").innerText(), /來源報告值.*未提供資料時點/);
+  assert.match(await page.locator("#dataProvenance").textContent(), /近四季 EPS 截止日.*EPS 4/);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
   await page.close();

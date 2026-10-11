@@ -1,6 +1,6 @@
 # OpenKiri
 
-OpenKiri is a FastAPI stock-risk dashboard for Taiwan and US stocks. It groups tickers by trend-continuation setups, shows technical risk, and displays floating market-cap and P/E valuation when Yahoo data is available.
+OpenKiri is a FastAPI stock-risk dashboard for Taiwan and US stocks. It groups tickers by trend-continuation setups, shows technical risk, and displays sourced market-cap and P/E data with reported/estimated labels.
 
 Public website:
 
@@ -20,7 +20,7 @@ _The deployed dashboard combines a ticker workflow, technical-risk summary, valu
 - Yahoo chart data with MA5, MA20, MA60, RSI, MACD, ATR, volume ratio, and 20-day return.
 - Setup filters for golden-cross continuation, golden-cross watch, death-cross continuation, death-cross watch, bullish/bearish MA continuation, volume breakout, MA20 pullback hold, oversold rebound, overheat risk, and mixed consolidation.
 - Screener grouping by market, industry, setup type, signal score, low P/E, market cap, risk, change, price, or volume.
-- Market cap, trailing P/E, and forward P/E from identity-checked Yahoo quote/quoteSummary fields, with explicit provenance and unavailable states. Static estimates no longer populate valuation cards.
+- Valuation uses TWSE/TPEx daily data, Nasdaq reported US market cap, and dated Yahoo TTM EPS. Listed Taiwan cap and calculated US P/E are explicitly estimated; each field retains its own source/date. Unsupported or missing values, including forward P/E, remain unavailable. Static estimates never populate valuation cards.
 - Separate source timestamps and retrieval timestamps for prices, chart bars, and valuation. Technical analysis loads first; slower valuation loads independently and news/event analysis is optional.
 - Local intraday/swing presets save date range, bar interval, chart layers, market selection, and expanded analysis sections.
 - Opt-in traffic diagnostics expose provider/API latency, byte counts, errors, and cache hit rates. See [data and telemetry policy](docs/data-and-telemetry.md).

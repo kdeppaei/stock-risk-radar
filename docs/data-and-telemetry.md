@@ -10,7 +10,16 @@ Valuation source fields do not necessarily supply a separate publication timesta
 
 ## Valuation
 
-Reported market cap requires verified symbol and currency. Missing cap/P/E remains unavailable, without a built-in estimate or a fixed FX conversion. Negative or nonfinite ratios are not presented as a valid positive P/E. Cross-market screener ordering converts verified TWD market cap using cached Yahoo TWD/USD chart data and retains `fx_as_of`; absent values sort last. The built-in universe still selects candidate pools and contributes to pre-existing model scores; it is not a current valuation source.
+Reported market cap requires verified symbol and currency. Missing cap/P/E remains unavailable, without a built-in static estimate or a fixed FX conversion. Negative or nonfinite ratios are not presented as a valid positive P/E. Cross-market screener ordering converts sourced TWD market cap using cached Yahoo TWD/USD chart data and retains `fx_as_of`; absent values sort last. The built-in universe still selects candidate pools and contributes to pre-existing model scores; it is not a current valuation source.
+
+The deferred valuation endpoint uses these public inputs before the legacy Yahoo quote fallback:
+
+- Taiwan: [TWSE OpenAPI](https://openapi.twse.com.tw/) `t187ap03_L` / `BWIBBU_ALL`, and [TPEx OpenAPI](https://www.tpex.org.tw/openapi/) `tpex_daily_market_value` / `tpex_mainboard_peratio_analysis`. P/E is the exchange's daily reported value. Listed market cap is an **estimate**, current available Yahoo chart price multiplied by the profile's issued common shares, not paid-in capital divided by an assumed par value. Profile snapshot date and price observation time are retained separately. TPEx market cap is the dated official closing value in millions, converted to TWD and checked against the same row's issued shares times closing price. TDR shares are not used for estimates; ETFs lacking company profiles remain unavailable.
+- US: [Nasdaq US-stock summary](https://www.nasdaq.com/market-activity/stocks/mu) supplies reported USD market cap for the exact ticker. Its separate valuation publication time is unknown and remains null. The public website endpoint has no guaranteed service level.
+- US P/E: Yahoo's public `fundamentals-timeseries` `trailingDilutedEPS` provides a dated TTM EPS input. P/E is an **estimate**, price divided by that EPS, only when both currencies are USD and the EPS period does not follow the price observation. ADR/depositary names are excluded because underlying-share EPS can differ from depositary-unit EPS. This calculation is not a forward P/E or a promise to match Google's vendor methodology.
+- Each available field carries its own `fields` provenance, estimate flag, and date. Latest zero/negative EPS leaves P/E unavailable rather than selecting an older profitable period. Price/official daily ratios older than 14 days, share snapshots older than 30 days, and TTM EPS older than 400 days are rejected. These are maximum age guards, not guarantees that a provider has published all newer filings.
+
+Three public reads run concurrently, each with bounded connect/read timeouts. Authenticated Yahoo crumb/summary requests no longer run in the interactive valuation path. A missing upstream leaves the value unavailable rather than blocking the chart. Quotes and historical analysis do not trigger this extra fundamental download for every stock refresh.
 
 Market cap changes are no longer copied from stock-price percentage changes, and previous market cap is not reverse-engineered from those percentages. A cap movement arrow requires actual comparable market-cap observations; this version therefore leaves it unavailable. Market-cap movement does not establish money flow.
 
@@ -20,7 +29,7 @@ Google Finance remains an external comparison link. Automatic page scraping is r
 
 Default analysis fetches chart data and runs the technical model. Valuation is fetched separately, so it does not block the chart. Users can request news/event analysis using `context=true`. Price refresh and chart data keep separate provenance; quote refresh does not rewrite historical bars.
 
-Public provider GETs are coalesced using bounded locks. Successful reads use the existing TTL policy; selected failure responses are cached for at most 60 seconds. Fundamentals are cached for 15 minutes per resolved symbol, including unavailable results. Presets and diagnostics add no recurring polling. Existing data-saver cadence remains in place.
+Public provider GETs are coalesced using bounded locks. Successful reads use the TTL policy; selected failure responses are cached for at most 60 seconds. Official Taiwan bulk datasets and Yahoo EPS inputs are cached for six hours, shared across users; Nasdaq summaries and completed valuations are cached for 15 minutes per resolved symbol, including unavailable results. UI valuations cache for five minutes. Presets and diagnostics add no recurring polling. Existing data-saver cadence remains in place.
 
 ## Diagnostics
 
