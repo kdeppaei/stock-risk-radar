@@ -206,7 +206,7 @@ def version() -> dict[str, Any]:
         "ok": True,
         "app": "OpenKiri",
         "entry": "openkiri_live",
-        "commit_marker": "intraday-eligibility-20261011.5",
+        "commit_marker": "intraday-polling-20261011.6",
         "fast_intraday": True,
         "render_service": "stock-risk-radar",
     }
@@ -398,10 +398,22 @@ def movers_payload(rows: list[dict], selected: set[str], limit: int, mode: str,
                        and row["side"] == side], key=lambda row: row["model_score"],
                       reverse=side == "long")[:limit]
 
+    sessions = {}
+    for market in selected:
+        market_rows = [row for row in classified if row.get("market") == market]
+        states = {row["data_status"]["market"]["state"] for row in market_rows}
+        sessions[market] = {
+            "state": next(iter(states)) if len(states) == 1 else "unknown",
+            "checked_at": iso_time(now), "scanned": len(market_rows),
+            "valid_until": min((row["data_status"]["market"]["valid_until"] for row in market_rows), default=None),
+            "counts": {bucket: sum(row["data_status"]["eligibility"] == bucket for row in market_rows)
+                       for bucket in counts},
+        }
+
     return {
         "ok": True, "mode": mode, "updated_at": updated_at, "checked_at": iso_time(now),
         "markets": sorted(selected), "scanned": len(rows), "counts": counts,
-        "excluded_reasons": excluded_reasons,
+        "excluded_reasons": excluded_reasons, "market_sessions": sessions,
         "gainers": sorted(classified, key=lambda row: row["change_pct"], reverse=True)[:limit],
         "losers": sorted(classified, key=lambda row: row["change_pct"])[:limit],
         "long_candidates": candidates("active", "long"),

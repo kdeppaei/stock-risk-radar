@@ -68,6 +68,8 @@ class IntradayMoversTests(unittest.TestCase):
         self.assertEqual({r["symbol"] for r in result["reference_long"]}, {"LAST", "DAILY"})
         self.assertEqual(result["counts"]["excluded"], 1)
         self.assertEqual(result["reference_long"][0]["as_of"], iso_time(close - 300))
+        self.assertEqual(result["market_sessions"]["TW"]["state"], "closed")
+        self.assertEqual(result["market_sessions"]["TW"]["scanned"], 3)
 
     def test_very_old_closed_data_stays_excluded(self):
         now = epoch("2026-10-18T14:00:00+08:00")
@@ -140,6 +142,30 @@ class IntradayMoversTests(unittest.TestCase):
             result = live.base.mover_quote(item, "live")
         self.assertEqual(fetch.call_count, 2)
         self.assertEqual(result["provenance"]["interval"], "1d")
+
+    def test_empty_or_conflicting_market_summary_is_unconfirmed(self):
+        result = self.pack([row(), row("UNKNOWN", sessions={})])
+        self.assertEqual(result["market_sessions"]["TW"]["state"], "unknown")
+        empty = self.pack([])["market_sessions"]["TW"]
+        self.assertEqual(empty["state"], "unknown")
+        self.assertIsNone(empty["valid_until"])
+
+    def test_market_summary_does_not_depend_on_model_threshold(self):
+        close = epoch("2026-10-08T13:30:00+08:00")
+        result = self.pack([row(score=0, as_of=close - 300)], close + 1)
+        self.assertEqual(result["reference_long"], [])
+        self.assertEqual(result["market_sessions"]["TW"]["state"], "closed")
+        self.assertEqual(result["market_sessions"]["TW"]["counts"]["reference"], 1)
+
+    def test_mixed_markets_keep_separate_session_summaries(self):
+        now = epoch("2026-10-09T10:00:00-04:00")
+        tw = row(as_of=epoch("2026-10-09T13:25:00+08:00"), **session("2026-10-09"))
+        us = row("MU", as_of=now - 60, **session("2026-10-09", "America/New_York"))
+        us["market"] = "US"
+        result = live.movers_payload([tw, us], {"TW", "US"}, 6, "live", iso_time(now), now)
+        self.assertEqual(result["market_sessions"]["TW"]["state"], "closed")
+        self.assertEqual(result["market_sessions"]["US"]["state"], "regular")
+        self.assertEqual(result["market_sessions"]["US"]["counts"]["active"], 1)
 
 
 if __name__ == "__main__":

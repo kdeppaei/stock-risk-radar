@@ -148,18 +148,236 @@ test("responsive workspace, keyboard chart, and on-demand panels", async () => {
   }
 });
 
-function moverFixture(market = "TW") {
-  const now = Date.now();
+function moverFixture(market = "TW", now = Date.now()) {
   const stamp = new Date(now - 60000).toISOString();
   const valid = new Date(now + 120000).toISOString();
-  const long = { symbol: market === "TW" ? "2330.TW" : "MU", name: "Synthetic company with a longer name", pattern: "breakout", price: 100, change_pct: 2, model_score: 16, source: "1d/5m", interval: "5m", as_of: stamp,
+  const long = { market, symbol: market === "TW" ? "2330.TW" : "MU", name: "Synthetic company with a longer name", pattern: "breakout", price: 100, change_pct: 2, model_score: 16, source: "1d/5m", interval: "5m", as_of: stamp,
     data_status: { eligibility: "active", valid_until: valid, market: { state: "regular" }, price: { state: "recent_observation", as_of: stamp, stale_after_seconds: 900 } } };
   const reference = structuredClone(long);
-  Object.assign(reference, { symbol: "LAST.TW", interval: "1d", source: "5d/1d", as_of: "2026-10-08T01:00:00Z" });
+  Object.assign(reference, { symbol: market === "TW" ? "LAST.TW" : "LAST", interval: "1d", source: "5d/1d", as_of: "2026-10-08T01:00:00Z" });
   Object.assign(reference.data_status, { eligibility: "reference", market: { state: "closed" } });
   Object.assign(reference.data_status.price, { state: "last_session", as_of: reference.as_of });
-  return { ok: true, mode: "live", markets: [market], scanned: 7, updated_at: new Date(now).toISOString(), counts: { active: 1, reference: 1, excluded: 5 }, gainers: [{ symbol: "UNSAFE" }], losers: [], long_candidates: [long], short_candidates: [], reference_long: [reference], reference_short: [] };
+  const counts = { active: 1, reference: 1, excluded: 5 };
+  return { ok: true, mode: "live", markets: [market], scanned: 7, updated_at: new Date(now).toISOString(), counts,
+    market_sessions: { [market]: { state: "regular", checked_at: new Date(now).toISOString(), valid_until: valid, scanned: 7, counts } },
+    gainers: [{ symbol: "UNSAFE" }], losers: [], long_candidates: [long], short_candidates: [], reference_long: [reference], reference_short: [] };
 }
+
+function pollingFixture(markets, states, now) {
+  const parts = markets.map((market) => {
+    const data = moverFixture(market, now);
+    const state = states[market] || "unknown";
+    if (state !== "regular") data.long_candidates = [];
+    if (state !== "closed") data.reference_long = [];
+    data.counts = { active: data.long_candidates.length, reference: data.reference_long.length,
+      excluded: 7 - data.long_candidates.length - data.reference_long.length };
+    Object.assign(data.market_sessions[market], { state, counts: data.counts, valid_until: new Date(now + 300000).toISOString() });
+    data.reference_long.forEach((row) => row.data_status.valid_until = new Date(now + 300000).toISOString());
+    return data;
+  });
+  const data = { ok: true, mode: "live", markets, scanned: parts.length * 7, updated_at: new Date(now).toISOString(),
+    market_sessions: Object.assign({}, ...parts.map((part) => part.market_sessions)), counts: { active: 0, reference: 0, excluded: 0 } };
+  for (const key of Object.keys(data.counts)) data.counts[key] = parts.reduce((sum, part) => sum + part.counts[key], 0);
+  for (const key of ["long_candidates", "short_candidates", "reference_long", "reference_short"]) data[key] = parts.flatMap((part) => part[key]);
+  return data;
+}
+
+async function pollingPage(locale = "zh-tw", saver = true) {
+  const result = await pageFor(390, locale);
+  const { page } = result;
+  await page.addInitScript((value) => localStorage.setItem("srr.dataSaver", value), saver ? "1" : "0");
+  await page.clock.install({ time: new Date() });
+  await page.reload();
+  await page.waitForFunction(() => document.getElementById("price").textContent === "100");
+  const calls = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (/^\/api\/(movers|quote\/|daytrade\/|tw\/market-pulse)/.test(url.pathname)) {
+      calls.push({ path: url.pathname, markets: url.searchParams.get("markets"),
+        symbol: request.method() === "POST" ? request.postDataJSON()?.symbol : url.pathname.split("/").at(-1) });
+    }
+  });
+  return { ...result, calls };
+}
+
+async function settleDaytrade(page) {
+  await page.waitForFunction(() => daytradeRequests.size === 0 && !document.getElementById("dtModelMeta").textContent.includes("..."));
+}
+
+async function setPageHidden(page, hidden) {
+  await page.evaluate((value) => {
+    Object.defineProperty(document, "hidden", { configurable: true, value });
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: value ? "hidden" : "visible" });
+    document.dispatchEvent(new Event("visibilitychange"));
+  }, hidden);
+}
+
+test("closed markets stay request-free after facts expire, then manual refresh resumes", async () => {
+  const { page, errors, calls } = await pollingPage("en");
+  let state = "closed";
+  await page.route("**/api/movers?**", async (route) => {
+    const now = await page.evaluate(() => Date.now());
+    await route.fulfill({ json: pollingFixture(["TW"], { TW: state }, now) });
+  });
+  await page.locator('[data-workspace-tab="daytrade"]').click();
+  await settleDaytrade(page);
+  assert.equal(await page.locator("#dtModelCadence").getAttribute("data-state"), "closed");
+  assert.match(await page.locator("#dtModelCadence").innerText(), /Paused: closed session/);
+  assert.match(await page.locator("#dtModelCadence").getAttribute("title"), /TW.*Last session check/);
+  for (const [locale, label] of [["zh-tw", "休市暫停"], ["zh-cn", "休市暂停"], ["en", "Paused: closed session"]]) {
+    await page.locator(".language-menu summary").click();
+    await page.locator(`[data-lang="${locale}"]`).click();
+    assert.equal(await page.locator("#dtModelCadence").innerText(), label, "translation preserves paused status");
+  }
+  const before = calls.length;
+  await page.clock.runFor(360000);
+  assert.equal(calls.length, before, "all T+0 requests remain stopped after evidence expires");
+  assert.match(await page.locator("#dtModelCadence").innerText(), /needs confirmation/);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  state = "regular";
+  await page.locator("#dtRefreshBtn").click();
+  await settleDaytrade(page);
+  assert.equal(await page.locator("#dtModelCadence").getAttribute("data-state"), "running");
+  const probes = calls.filter((call) => call.path === "/api/movers").length;
+  await page.clock.runFor(121000);
+  await settleDaytrade(page);
+  assert.equal(calls.filter((call) => call.path === "/api/movers").length, probes + 1);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test("hidden and inactive workspaces abort batches, stay quiet, and probe once on return", async () => {
+  const { page, errors, calls } = await pollingPage("zh-tw", false);
+  let release;
+  let holdQuotes = false;
+  const held = new Promise((resolve) => { release = resolve; });
+  await page.route("**/api/quote/**", async (route) => {
+    if (holdQuotes) await held;
+    await route.fulfill({ json: { ok: true, symbol: new URL(route.request().url()).pathname.split("/").at(-1), price: 100, change_pct: 1 } });
+  });
+  await page.route("**/api/movers?**", async (route) => {
+    const now = await page.evaluate(() => Date.now());
+    await route.fulfill({ json: pollingFixture(["TW"], { TW: "regular" }, now) });
+  });
+  await page.locator('[data-workspace-tab="daytrade"]').click();
+  await settleDaytrade(page);
+  holdQuotes = true;
+  await page.locator("#dtRefreshBtn").click();
+  await page.waitForFunction(() => daytradeRequests.has("quotes"));
+  await setPageHidden(page, true);
+  assert.equal(await page.evaluate(() => daytradeRequests.size), 0);
+  const hiddenCalls = calls.length;
+  release();
+  await pause(100);
+  await page.clock.runFor(60000);
+  assert.equal(calls.length, hiddenCalls, "no detail requests follow aborted quotes and no hidden polling");
+  holdQuotes = false;
+  const probes = calls.filter((call) => call.path === "/api/movers").length;
+  await setPageHidden(page, false);
+  await settleDaytrade(page);
+  assert.equal(calls.filter((call) => call.path === "/api/movers").length, probes + 1);
+  await page.locator('[data-workspace-tab="overview"]').click();
+  const inactiveCalls = calls.length;
+  await page.clock.runFor(60000);
+  assert.equal(calls.length, inactiveCalls, "overview has no T+0 polling");
+  await page.locator('[data-workspace-tab="daytrade"]').click();
+  await settleDaytrade(page);
+  assert.equal(calls.filter((call) => call.path === "/api/movers").length, probes + 2);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test("mixed-market polling skips closed markets and preserves their original reference times", async () => {
+  const { page, errors, calls } = await pollingPage();
+  await page.evaluate(() => { daytradeSymbols = ["2330.TW", "MU"]; daytradeMarketMode = "US,TW"; });
+  await page.route("**/api/movers?**", async (route) => {
+    const markets = new URL(route.request().url()).searchParams.get("markets").split(",");
+    const now = await page.evaluate(() => Date.now());
+    await route.fulfill({ json: pollingFixture(markets, { TW: "closed", US: "regular" }, now) });
+  });
+  await page.locator('[data-workspace-tab="daytrade"]').click();
+  await settleDaytrade(page);
+  await page.locator("#dtModelReference > summary").click();
+  const sourceTime = await page.locator("#dtReferenceBoard .model-time").innerText();
+  const twQuote = await page.locator('tr[data-quote-symbol="2330.TW"]').innerText();
+  assert.match(await page.locator("#dtModelCadence").innerText(), /TW.*休市暫停/);
+  const before = calls.length;
+  await page.clock.runFor(121000);
+  await settleDaytrade(page);
+  assert.deepEqual(calls.slice(before).filter((call) => call.path === "/api/movers").map((call) => call.markets), ["US"]);
+  assert.deepEqual(calls.slice(before).filter((call) => call.path.startsWith("/api/quote/")).map((call) => call.symbol), ["MU"]);
+  assert.equal(await page.locator("#dtReferenceBoard .model-time").innerText(), sourceTime);
+  assert.equal(await page.locator('tr[data-quote-symbol="2330.TW"]').innerText(), twQuote);
+  assert.equal(await page.locator('#dtModelBoard [data-model-symbol="MU"]').count(), 1);
+  assert.doesNotMatch(await page.locator("#dtModelBoard").innerText(), /2330/);
+  await page.locator(".language-menu summary").click();
+  await page.locator('[data-lang="en"]').click();
+  assert.match(await page.locator("#dtModelCadence").innerText(), /TW.*Paused: closed session/);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test("slow automatic scans coalesce and empty unknown markets are not mistaken for closed", async () => {
+  const { page, errors, calls } = await pollingPage("zh-tw", false);
+  let release;
+  let hold = true;
+  const held = new Promise((resolve) => { release = resolve; });
+  await page.route("**/api/movers?**", async (route) => {
+    if (hold) await held;
+    const now = await page.evaluate(() => Date.now());
+    await route.fulfill({ json: pollingFixture(["TW"], { TW: "unknown" }, now) });
+  });
+  await page.locator('[data-workspace-tab="daytrade"]').click();
+  await page.waitForFunction(() => daytradeRequests.has("model"));
+  await page.clock.runFor(16000);
+  assert.equal(calls.filter((call) => call.path === "/api/movers").length, 1, "pending scan is not restarted at 8s or 16s");
+  release(); hold = false;
+  await settleDaytrade(page);
+  assert.equal(await page.locator("#dtModelCadence").getAttribute("data-state"), "running");
+  assert.equal(await page.locator("#dtModelBoard .model-mover").count(), 0);
+  await page.clock.runFor(8000);
+  await settleDaytrade(page);
+  assert.equal(calls.filter((call) => call.path === "/api/movers").length, 2);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test("a newly closed session prevents late quotes and detail responses from starting more work", async () => {
+  const { page, errors, calls } = await pollingPage("zh-tw", false);
+  let state = "regular", hold = false, release;
+  const held = new Promise((resolve) => { release = resolve; });
+  await page.route("**/api/movers?**", async (route) => {
+    const now = await page.evaluate(() => Date.now());
+    await route.fulfill({ json: pollingFixture(["TW"], { TW: state }, now) });
+  });
+  await page.route("**/api/quote/**", async (route) => {
+    if (hold) await held;
+    await route.fulfill({ json: { ok: true, symbol: new URL(route.request().url()).pathname.split("/").at(-1), price: 100 } });
+  });
+  await page.route("**/api/daytrade/analyze", async (route) => {
+    if (!hold) return route.fulfill({ json: { ok: false } });
+    await held;
+    await route.fulfill({ json: { ok: true, latest: { price: 999 } } });
+  });
+  await page.locator('[data-workspace-tab="daytrade"]').click();
+  await settleDaytrade(page);
+  hold = true;
+  await page.clock.runFor(8000);
+  await page.waitForFunction(() => daytradeRequests.has("quotes"));
+  await page.evaluate(() => { analyzeDaytradeSymbol("2330.TW", true); });
+  await page.waitForFunction(() => daytradeRequests.has("analysis"));
+  state = "closed";
+  await page.clock.runFor(8000);
+  await page.waitForFunction(() => document.getElementById("dtModelCadence").dataset.state === "closed");
+  const closedCalls = calls.length;
+  release();
+  await settleDaytrade(page);
+  assert.equal(calls.length, closedCalls, "late responses start neither more details nor a cost calculation");
+  assert.notEqual(await page.locator("#dtBuyPrice").inputValue(), "999");
+  assert.deepEqual(errors, []);
+  await page.close();
+});
 
 test("intraday candidates and closed references stay distinct, accessible, and responsive", async () => {
   for (const [width, locale] of [[320, "zh-tw"], [390, "en"], [768, "zh-cn"], [843, "zh-tw"], [1440, "zh-tw"]]) {

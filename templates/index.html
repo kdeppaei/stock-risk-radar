@@ -991,8 +991,8 @@
   </aside>
   <button id="chatFab" class="chat-fab" type="button" aria-label="Open chat" hidden>Chat</button>
 
-  <script src="/static/openkiri-ui.js?v=20261010.2"></script>
-  <script src="/static/openkiri-workflow.js?v=20261011.4"></script>
+  <script src="/static/openkiri-ui.js?v=20261011.6"></script>
+  <script src="/static/openkiri-workflow.js?v=20261011.6"></script>
   <script>
     const $ = (id) => document.getElementById(id);
     const canvas = $("chart");
@@ -1016,8 +1016,9 @@
     let screenerData = null;
     let moversData = null;
     let daytradeModelData = null;
-    let daytradeModelController = null;
-    let daytradeModelSequence = 0;
+    const daytradeRequests = new Map();
+    const daytradeMarketSnapshots = new Map();
+    const daytradePausedMarkets = new Set();
     let alertData = null;
     let eventAlertsData = null;
     let serenityData = null;
@@ -1276,21 +1277,21 @@
       dtMarketCap: "市值", dtModelTitle: "T+0 模型多空分類", dtLong: "偏做多", dtShort: "偏做空", dtScanned: "掃描", alertTitle: "當日重大訊號", noAlerts: "目前沒有重大交叉訊號"
     });
     Object.assign(recoCopy["zh-tw"], {
-      dtActiveLong: "盤中偏多", dtActiveShort: "盤中偏空", dtReference: "休市參考（非盤中訊號）", dtActive: "盤中候選", dtReferenceCount: "休市參考", dtExcluded: "排除", dtScanTime: "掃描完成", dtNoCandidate: "目前無合格候選", dtModelUnverified: "未驗證逐筆即時；延遲、日線備援與未確認時段不列入盤中候選。", dtModelExpired: "部分資料或時段已過期，待刷新確認。", dtModelFailed: "分類載入失敗，請刷新。", dtBarTime: "K 線起始", dtFallback: "日線備援"
+      dtActiveLong: "盤中偏多", dtActiveShort: "盤中偏空", dtReference: "休市參考（非盤中訊號）", dtActive: "盤中候選", dtReferenceCount: "休市參考", dtExcluded: "排除", dtScanTime: "掃描完成", dtNoCandidate: "目前無合格候選", dtModelUnverified: "未驗證逐筆即時；延遲、日線備援與未確認時段不列入盤中候選。", dtModelExpired: "部分資料或時段已過期，待刷新確認。", dtModelFailed: "分類載入失敗，請刷新。", dtBarTime: "K 線起始", dtFallback: "日線備援", dtPollingPaused: "已暫停", dtPollingClosed: "休市暫停", dtPollingRecheck: "暫停・待確認", dtPollingChecked: "上次時段確認"
     });
     Object.assign(recoCopy["zh-cn"], {
       daytradeTitle: "T+0 台美日内战情室", quoteBoardTitle: "台美日内报价榜 Quote Board", marketSwitch: "市场", marketBoth: "台美", marketTWOnly: "台股", marketUSOnly: "美股",
       dtMarketCap: "市值", dtModelTitle: "T+0 模型多空分类", dtLong: "偏做多", dtShort: "偏做空", dtScanned: "扫描", alertTitle: "当日重大信号", noAlerts: "目前没有重大交叉信号"
     });
     Object.assign(recoCopy["zh-cn"], {
-      dtActiveLong: "盘中偏多", dtActiveShort: "盘中偏空", dtReference: "休市参考（非盘中信号）", dtActive: "盘中候选", dtReferenceCount: "休市参考", dtExcluded: "排除", dtScanTime: "扫描完成", dtNoCandidate: "目前无合格候选", dtModelUnverified: "未验证逐笔实时；延迟、日线备用与未确认时段不列入盘中候选。", dtModelExpired: "部分数据或时段已过期，待刷新确认。", dtModelFailed: "分类加载失败，请刷新。", dtBarTime: "K 线起始", dtFallback: "日线备用"
+      dtActiveLong: "盘中偏多", dtActiveShort: "盘中偏空", dtReference: "休市参考（非盘中信号）", dtActive: "盘中候选", dtReferenceCount: "休市参考", dtExcluded: "排除", dtScanTime: "扫描完成", dtNoCandidate: "目前无合格候选", dtModelUnverified: "未验证逐笔实时；延迟、日线备用与未确认时段不列入盘中候选。", dtModelExpired: "部分数据或时段已过期，待刷新确认。", dtModelFailed: "分类加载失败，请刷新。", dtBarTime: "K 线起始", dtFallback: "日线备用", dtPollingPaused: "已暂停", dtPollingClosed: "休市暂停", dtPollingRecheck: "暂停・待确认", dtPollingChecked: "上次时段确认"
     });
     Object.assign(recoCopy.en, {
       daytradeTitle: "T+0 TW/US Intraday Desk", quoteBoardTitle: "TW/US Quote Board", marketSwitch: "Market", marketBoth: "TW + US", marketTWOnly: "Taiwan", marketUSOnly: "US",
       dtMarketCap: "Mkt cap", dtModelTitle: "T+0 long/short model", dtLong: "Long bias", dtShort: "Short bias", dtScanned: "Scanned", alertTitle: "Major signals", noAlerts: "No major cross signal right now"
     });
     Object.assign(recoCopy.en, {
-      dtActiveLong: "Intraday long bias", dtActiveShort: "Intraday short bias", dtReference: "Closed-session reference (not an intraday signal)", dtActive: "Intraday candidates", dtReferenceCount: "Closed-session references", dtExcluded: "Excluded", dtScanTime: "Scan completed", dtNoCandidate: "No eligible candidates", dtModelUnverified: "Not verified tick-by-tick. Delayed data, daily fallbacks and unconfirmed sessions are excluded from intraday candidates.", dtModelExpired: "Some observations or sessions expired; refresh to confirm.", dtModelFailed: "Classification failed; refresh to retry.", dtBarTime: "Bar start", dtFallback: "Daily fallback"
+      dtActiveLong: "Intraday long bias", dtActiveShort: "Intraday short bias", dtReference: "Closed-session reference (not an intraday signal)", dtActive: "Intraday candidates", dtReferenceCount: "Closed-session references", dtExcluded: "Excluded", dtScanTime: "Scan completed", dtNoCandidate: "No eligible candidates", dtModelUnverified: "Not verified tick-by-tick. Delayed data, daily fallbacks and unconfirmed sessions are excluded from intraday candidates.", dtModelExpired: "Some observations or sessions expired; refresh to confirm.", dtModelFailed: "Classification failed; refresh to retry.", dtBarTime: "Bar start", dtFallback: "Daily fallback", dtPollingPaused: "Paused", dtPollingClosed: "Paused: closed session", dtPollingRecheck: "Paused: needs confirmation", dtPollingChecked: "Last session check"
     });
 
     Object.assign(recoCopy["zh-tw"], {
@@ -1775,7 +1776,7 @@
     $("pfUseWatchBtn").addEventListener("click", () => applyWatchToPortfolio());
     $("pfRisk").addEventListener("input", updatePortfolioRiskLabel);
     $("dtRefreshBtn").addEventListener("click", () => refreshDaytradeDesk(true));
-    $("dtMarketMode").addEventListener("change", () => { daytradeMarketMode = $("dtMarketMode").value; localStorage.setItem("okiri.daytradeMarket", daytradeMarketMode); refreshDaytradeDesk(true); if ($("alertDrawer")?.classList.contains("open")) loadAlerts(); });
+    $("dtMarketMode").addEventListener("change", () => { pauseDaytradeRequests(); daytradeMarketMode = $("dtMarketMode").value; localStorage.setItem("okiri.daytradeMarket", daytradeMarketMode); refreshDaytradeDesk(true); if ($("alertDrawer")?.classList.contains("open")) loadAlerts(); });
     $("dtCostBtn").addEventListener("click", () => calculateDaytradeCost());
     $("dtUseLatestBtn").addEventListener("click", () => useLatestForDaytradeCost());
     $("dtAddCurrentBtn").addEventListener("click", () => addDaytradeSymbol(lastData?.symbol || $("symbol").value.trim()));
@@ -3218,7 +3219,91 @@
       return selectedDaytradeMarkets().has(symbolMarket(symbol));
     }
 
+    function daytradeForeground() {
+      return !document.hidden && isWorkspaceTabActive("daytrade");
+    }
+
+    function daytradeRefreshMarkets(automatic = false) {
+      return [...selectedDaytradeMarkets()].filter((market) => !automatic || !daytradePausedMarkets.has(market)).sort();
+    }
+
+    function beginDaytradeRequest(kind, automatic = false, scope = "") {
+      if (!daytradeForeground()) return null;
+      const previous = daytradeRequests.get(kind);
+      if (automatic && previous) return null;
+      if (previous) { clearTimeout(previous.timer); previous.controller.abort(); }
+      const ticket = { controller: new AbortController(), markets: daytradeMarketMode, automatic, scope };
+      ticket.timer = setTimeout(() => ticket.controller.abort(), 20000);
+      daytradeRequests.set(kind, ticket);
+      return ticket;
+    }
+
+    function currentDaytradeRequest(kind, ticket) {
+      return daytradeForeground() && daytradeRequests.get(kind) === ticket && ticket.markets === daytradeMarketMode &&
+        (!ticket.automatic || !ticket.scope || !daytradePausedMarkets.has(symbolMarket(ticket.scope)));
+    }
+
+    function finishDaytradeRequest(kind, ticket) {
+      clearTimeout(ticket.timer);
+      if (daytradeRequests.get(kind) === ticket) daytradeRequests.delete(kind);
+    }
+
+    function pauseDaytradeRequests() {
+      clearInterval(daytradeQuoteTimer);
+      clearInterval(daytradeAnalyzeTimer);
+      daytradeQuoteTimer = daytradeAnalyzeTimer = null;
+      daytradeRequests.forEach((ticket) => { clearTimeout(ticket.timer); ticket.controller.abort(); });
+      daytradeRequests.clear();
+      renderDaytradePollingState();
+    }
+
+    function renderDaytradePollingState() {
+      const badge = $("dtModelCadence");
+      if (!badge) return;
+      const selected = [...selectedDaytradeMarkets()];
+      const paused = selected.filter((market) => daytradePausedMarkets.has(market));
+      const expired = paused.some((market) => !(Date.parse(daytradeMarketSnapshots.get(market)?.market_sessions?.[market]?.valid_until) > Date.now()));
+      badge.dataset.state = !daytradeForeground() ? "inactive" : paused.length === selected.length ? "closed" : "running";
+      const pauseLabel = rt(expired ? "dtPollingRecheck" : "dtPollingClosed");
+      badge.textContent = badge.dataset.state === "inactive" ? rt("dtPollingPaused") :
+        badge.dataset.state === "closed" ? pauseLabel : `${dataSaver ? "120s" : "8s"}${paused.length ? ` · ${paused.join("/")} ${pauseLabel}` : ""}`;
+      badge.title = paused.map((market) => `${market} · ${rt("dtPollingChecked")} ${new Date(daytradeMarketSnapshots.get(market)?.market_sessions?.[market]?.checked_at).toLocaleString()}`).join(" · ");
+    }
+
+    function storeDaytradeModelSnapshot(data) {
+      const before = daytradeRefreshMarkets(true).join(",");
+      for (const market of data.markets) {
+        const session = data.market_sessions?.[market];
+        if (session?.state === "closed" && Date.parse(session.valid_until) > Date.now()) daytradePausedMarkets.add(market);
+        else daytradePausedMarkets.delete(market);
+        const snapshot = { ...data, markets: [market], scanned: session?.scanned ?? data.scanned,
+          counts: session?.counts || data.counts, market_sessions: { [market]: session } };
+        for (const key of ["long_candidates", "short_candidates", "reference_long", "reference_short"]) {
+          snapshot[key] = (data[key] || []).filter((row) => (row.market || symbolMarket(row.symbol)) === market);
+        }
+        daytradeMarketSnapshots.set(market, snapshot);
+      }
+      const snapshots = [...selectedDaytradeMarkets()].map((market) => daytradeMarketSnapshots.get(market)).filter(Boolean);
+      daytradeModelData = { ok: true, markets: [...selectedDaytradeMarkets()], updated_at: data.updated_at,
+        scanned: snapshots.reduce((sum, snapshot) => sum + (snapshot.scanned || 0), 0),
+        counts: { excluded: snapshots.reduce((sum, snapshot) => sum + (snapshot.counts?.excluded || 0), 0) } };
+      for (const key of ["long_candidates", "short_candidates", "reference_long", "reference_short"]) daytradeModelData[key] = snapshots.flatMap((snapshot) => snapshot[key]);
+      if (before !== daytradeRefreshMarkets(true).join(",")) scheduleDaytradeTimers();
+      renderDaytradePollingState();
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) pauseDaytradeRequests();
+      else if (isWorkspaceTabActive("daytrade")) refreshDaytradeDesk(false);
+    });
+    window.addEventListener("okiri:workspace", (event) => {
+      if (event.detail.name !== "daytrade") pauseDaytradeRequests();
+      else if (loadedWorkspaceTabs.has("daytrade")) refreshDaytradeDesk(false);
+    });
+
     async function refreshDaytradeDesk(force = false) {
+      if (!daytradeForeground()) return;
+      if (!force && daytradeRequests.get("model")?.markets === daytradeMarketMode) return;
       if ($("dtMarketMode")) $("dtMarketMode").value = daytradeMarketMode;
       if (force || !$("dtPulseBody").dataset.loaded) loadDaytradePulse();
       refreshDaytradeQuotes();
@@ -3231,31 +3316,37 @@
     function scheduleDaytradeTimers() {
       clearInterval(daytradeQuoteTimer);
       clearInterval(daytradeAnalyzeTimer);
-      daytradeQuoteTimer = setInterval(() => {
-        if (isWorkspaceTabActive("daytrade")) {
-          refreshDaytradeQuotes();
-          loadDaytradeModelBoard();
-        }
+      daytradeQuoteTimer = daytradeAnalyzeTimer = null;
+      renderDaytradePollingState();
+      if (!daytradeForeground() || !daytradeRefreshMarkets(true).length) return;
+      daytradeQuoteTimer = setInterval(async () => {
+        if (!daytradeForeground()) return;
+        const refreshed = await loadDaytradeModelBoard(true);
+        if (refreshed && daytradeForeground()) refreshDaytradeQuotes(true);
       }, dataSaver ? 120000 : 8000);
       daytradeAnalyzeTimer = setInterval(() => {
-        if (isWorkspaceTabActive("daytrade")) analyzeDaytradeSymbol(lastData?.symbol || $("symbol").value.trim() || "2330");
+        if (daytradeForeground()) analyzeDaytradeSymbol(lastData?.symbol || $("symbol").value.trim() || "2330", true);
       }, dataSaver ? 180000 : 30000);
     }
 
     async function loadDaytradePulse() {
+      const ticket = beginDaytradeRequest("pulse");
+      if (!ticket) return;
       $("dtPulseMeta").textContent = rt("loading") + "...";
       try {
-        const res = await fetch("/api/tw/market-pulse");
+        const res = await fetch("/api/tw/market-pulse", { signal: ticket.controller.signal });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.detail || "market pulse failed");
+        if (!currentDaytradeRequest("pulse", ticket)) return;
         $("dtPulseBody").dataset.loaded = "1";
         $("dtPulseMeta").textContent = `${rt("updated")} ${new Date(data.updated_at || Date.now()).toLocaleTimeString()}`;
         $("dtDataWarning").textContent = data.data_warning || rt("daytradeDisclaimer");
         $("dtPulseBody").innerHTML = (data.rows || []).map((row) => daytradePulseRow(row)).join("");
       } catch (error) {
+        if (!currentDaytradeRequest("pulse", ticket)) return;
         $("dtPulseMeta").textContent = error.message;
         $("dtPulseBody").innerHTML = `<tr><td colspan="6"><span class="desk-chip warn">資料可能延遲 / 目前使用 fallback</span></td></tr>`;
-      }
+      } finally { finishDaytradeRequest("pulse", ticket); }
     }
 
     function daytradePulseRow(row) {
@@ -3271,57 +3362,78 @@
       </tr>`;
     }
 
-    async function refreshDaytradeQuotes() {
-      const symbols = [...new Set([...daytradeSymbols, ...watch])].filter(marketFilterSymbol).slice(0, dataSaver ? 8 : 32);
+    async function refreshDaytradeQuotes(automatic = false) {
+      if (!daytradeForeground()) return;
+      const markets = new Set(daytradeRefreshMarkets(automatic));
+      const symbols = [...new Set([...daytradeSymbols, ...watch])].filter((symbol) => markets.has(symbolMarket(symbol))).slice(0, dataSaver ? 8 : 32);
       if (!symbols.length) {
-        $("dtQuoteBody").innerHTML = `<tr><td colspan="8">${rt("noData")}</td></tr>`;
+        if (!automatic) $("dtQuoteBody").innerHTML = `<tr><td colspan="8">${rt("noData")}</td></tr>`;
         return;
       }
-      $("dtQuoteBody").innerHTML = $("dtQuoteBody").innerHTML || `<tr><td colspan="8">${rt("loading")}...</td></tr>`;
-      const rows = await Promise.all(symbols.map(async (symbol) => {
-        try {
-          const quoteRes = await fetch(`/api/quote/${encodeURIComponent(symbol)}`);
-          const quote = await quoteRes.json();
-          if (!quoteRes.ok || !quote.ok) throw new Error(quote.detail || "quote failed");
-          if (dataSaver) return { quote, detail: null };
-          const analyzeRes = await fetch("/api/daytrade/analyze", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ symbol: quote.symbol, buy_price: Number($("dtBuyPrice").value || quote.price), sell_price: quote.price, shares: Number($("dtShares").value || 1000) })
-          });
-          const detail = await analyzeRes.json();
-          return { quote, detail: detail.ok ? detail : null };
-        } catch {
-          return { quote: { symbol, price: null, change_pct: null, change: null, volume_ratio: null }, detail: null, failed: true };
+      const ticket = beginDaytradeRequest("quotes", automatic);
+      if (!ticket) return;
+      try {
+        $("dtQuoteBody").innerHTML = $("dtQuoteBody").innerHTML || `<tr><td colspan="8">${rt("loading")}...</td></tr>`;
+        const rows = await Promise.all(symbols.map(async (symbol) => {
+          try {
+            const quoteRes = await fetch(`/api/quote/${encodeURIComponent(symbol)}`, { signal: ticket.controller.signal });
+            const quote = await quoteRes.json();
+            if (!quoteRes.ok || !quote.ok) throw new Error(quote.detail || "quote failed");
+            if (dataSaver || ticket.controller.signal.aborted || !currentDaytradeRequest("quotes", ticket) ||
+                (automatic && daytradePausedMarkets.has(symbolMarket(symbol)))) return { quote, detail: null };
+            const analyzeRes = await fetch("/api/daytrade/analyze", {
+              method: "POST",
+              signal: ticket.controller.signal,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ symbol: quote.symbol, buy_price: Number($("dtBuyPrice").value || quote.price), sell_price: quote.price, shares: Number($("dtShares").value || 1000) })
+            });
+            const detail = await analyzeRes.json();
+            return { quote, detail: detail.ok ? detail : null };
+          } catch {
+            return { quote: { symbol, price: null, change_pct: null, change: null, volume_ratio: null }, detail: null, failed: true };
+          }
+        }));
+        if (currentDaytradeRequest("quotes", ticket)) {
+          const fetched = new Set(symbols.map(canonicalSymbol));
+          if (!automatic) $("dtQuoteBody").replaceChildren();
+          else $("dtQuoteBody").querySelectorAll("tr[data-quote-symbol]").forEach((tr) => { if (fetched.has(canonicalSymbol(tr.dataset.quoteSymbol))) tr.remove(); });
+          $("dtQuoteBody").insertAdjacentHTML("beforeend", rows.map((row) => daytradeQuoteRow(row.quote, row.detail, row.failed)).join(""));
         }
-      }));
-      $("dtQuoteBody").innerHTML = rows.map((row) => daytradeQuoteRow(row.quote, row.detail, row.failed)).join("");
+      } finally { finishDaytradeRequest("quotes", ticket); }
     }
 
-    async function loadDaytradeModelBoard() {
-      if (!$("dtModelBoard")) return;
-      const sequence = ++daytradeModelSequence;
-      daytradeModelController?.abort();
-      const controller = new AbortController();
-      daytradeModelController = controller;
-      const timer = setTimeout(() => controller.abort(), 20000);
-      daytradeModelData = null;
-      $("dtModelBoard").replaceChildren();
-      $("dtModelReference").hidden = true;
-      $("dtModelNotice").hidden = true;
-      $("dtModelMeta").textContent = rt("loading") + "...";
-      const markets = daytradeMarketMode || "TW";
+    async function loadDaytradeModelBoard(automatic = false) {
+      if (!$("dtModelBoard") || !daytradeForeground()) return false;
+      const markets = daytradeRefreshMarkets(automatic).join(",");
+      if (!markets) return false;
+      const ticket = beginDaytradeRequest("model", automatic);
+      if (!ticket) return false;
+      if (!automatic) {
+        daytradeModelData = null;
+        $("dtModelBoard").replaceChildren();
+        $("dtModelReference").hidden = true;
+        $("dtModelNotice").hidden = true;
+        $("dtModelMeta").textContent = rt("loading") + "...";
+      }
       try {
-        const res = await fetch(`/api/movers?markets=${encodeURIComponent(markets)}&limit=6&mode=live`, { signal: controller.signal });
+        const res = await fetch(`/api/movers?markets=${encodeURIComponent(markets)}&limit=6&mode=live`, { signal: ticket.controller.signal });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.detail || "model failed");
-        if (sequence !== daytradeModelSequence || markets !== daytradeMarketMode) return;
+        if (!currentDaytradeRequest("model", ticket)) return false;
         if ((data.markets || []).slice().sort().join(",") !== markets.split(",").sort().join(",")) throw new Error("Market mismatch");
-        daytradeModelData = data;
-        renderDaytradeModelBoard(data);
+        storeDaytradeModelSnapshot(data);
+        renderDaytradeModelBoard(daytradeModelData);
+        return true;
       } catch {
-        if (sequence === daytradeModelSequence) $("dtModelMeta").textContent = rt("dtModelFailed");
-      } finally { clearTimeout(timer); }
+        if (currentDaytradeRequest("model", ticket)) {
+          daytradeModelData = null;
+          $("dtModelBoard").replaceChildren();
+          $("dtModelReference").hidden = true;
+          $("dtModelNotice").hidden = true;
+          $("dtModelMeta").textContent = rt("dtModelFailed");
+        }
+        return false;
+      } finally { finishDaytradeRequest("model", ticket); }
     }
 
     function renderDaytradeModelBoard(data) {
@@ -3379,7 +3491,7 @@
       const prev = daytradeLastPrices[symbol];
       const flash = prev && quote.price && quote.price !== prev ? (quote.price > prev ? "flash-up" : "flash-down") : "";
       if (quote.price) daytradeLastPrices[symbol] = quote.price;
-      return `<tr class="${flash}" onclick="selectDaytradeSymbol('${escapeHtml(symbol)}', ${Number(quote.price || 0)})">
+      return `<tr class="${flash}" data-quote-symbol="${escapeHtml(symbol)}" onclick="selectDaytradeSymbol('${escapeHtml(symbol)}', ${Number(quote.price || 0)})">
         <td><strong>${escapeHtml(symbol)}</strong><small class="muted">${failed ? "fallback unavailable" : escapeHtml(quote.source || "")}</small><small class="muted">${escapeHtml(quote.as_of ? new Date(quote.as_of).toLocaleString() : "-")}</small></td>
         <td>${quote.price == null ? "-" : fmt(quote.price)}</td>
         <td>${quoteMarketCapText(quote)}</td>
@@ -3478,22 +3590,27 @@
       }
     }
 
-    async function analyzeDaytradeSymbol(symbol) {
+    async function analyzeDaytradeSymbol(symbol, automatic = false) {
       const normalized = normalizeTwSymbolInput(symbol || "2330");
+      if (!daytradeRefreshMarkets(automatic).includes(symbolMarket(normalized))) return;
+      const ticket = beginDaytradeRequest("analysis", automatic, normalized);
+      if (!ticket) return;
       $("dtCostSymbol").value = normalized;
       try {
         const payload = { ...daytradeCostPayload(), symbol: normalized };
-        const res = await fetch("/api/daytrade/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const res = await fetch("/api/daytrade/analyze", { method: "POST", signal: ticket.controller.signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.detail || "daytrade analyze failed");
+        if (!currentDaytradeRequest("analysis", ticket)) return;
         daytradeAnalyzeData = data;
         if (data.latest?.price) {
           setDaytradeLatestPrices(normalized, data.latest.price, false);
         }
         renderDaytradeAnalyze(data);
       } catch (error) {
+        if (!currentDaytradeRequest("analysis", ticket)) return;
         $("dtPlaybook").textContent = `資料可能延遲 / 目前使用 fallback：${error.message}`;
-      }
+      } finally { finishDaytradeRequest("analysis", ticket); }
     }
 
     function renderDaytradeAnalyze(data) {

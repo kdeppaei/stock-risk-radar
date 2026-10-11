@@ -216,6 +216,7 @@ window.OpenKiriWorkflow = (() => {
       if (document.hidden) return;
       if (lastData) renderFreshness(lastData);
       if (daytradeModelData && isWorkspaceTabActive("daytrade")) renderDaytradeModelBoard(daytradeModelData);
+      renderDaytradePollingState();
     }, 30000);
   }
   return { boot, translate, renderProvenance, loadValuation, cancelValuation, biasLabel, requestLabel: () => tr("pageRetrieved") };
