@@ -162,7 +162,7 @@ function moverFixture(market = "TW") {
 }
 
 test("intraday candidates and closed references stay distinct, accessible, and responsive", async () => {
-  for (const [width, locale] of [[320, "zh-tw"], [390, "en"], [768, "zh-cn"], [1440, "zh-tw"]]) {
+  for (const [width, locale] of [[320, "zh-tw"], [390, "en"], [768, "zh-cn"], [843, "zh-tw"], [1440, "zh-tw"]]) {
     const { page, errors, requests } = await pageFor(width, locale);
     await page.route("**/api/movers?**", (route) => {
       requests.push("/api/movers");
@@ -191,6 +191,7 @@ test("intraday candidates and closed references stay distinct, accessible, and r
     assert.match(await page.locator("#dtModelBoard .model-time").innerText(), /5m/);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `model overflow at ${width}/${locale}`);
     assert.equal(await page.locator(".model-mover").evaluateAll((buttons) => buttons.some((button) => button.scrollWidth > button.clientWidth)), false, `row overflow at ${width}/${locale}`);
+    assert.ok(await page.locator("#dtModelBoard .model-time").evaluate((el) => el.clientWidth) >= 240, `timestamp width at ${width}/${locale}`);
     if (process.env.UI_SCREENSHOTS) {
       fs.mkdirSync(process.env.UI_SCREENSHOTS, { recursive: true });
       await page.screenshot({ path: path.join(process.env.UI_SCREENSHOTS, `intraday-${width}-${locale}.png`), fullPage: true });

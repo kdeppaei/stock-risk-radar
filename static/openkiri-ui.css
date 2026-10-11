@@ -182,13 +182,14 @@ canvas#chart { display: block; width: 100%; height: 410px; border: 0; border-rad
 .desk-callout { color: var(--amber); }
 #dtModelCadence { color: var(--muted); border-color: var(--line); background: var(--panel); }
 #dtModelReference { margin-top: 16px; }
+#dtModelBoard, #dtReferenceBoard { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
 #dtModelBoard .mover-column, #dtReferenceBoard .mover-column { border: 0; padding: 0; background: none; }
 #dtModelBoard h2, #dtReferenceBoard h2 { font-size: 14px; }
 .model-mover { width: 100%; height: auto; min-height: 64px; text-align: left; white-space: normal; font-size: 13px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; }
 .model-mover > div { min-width: 0; }
-.model-mover > div:last-child { text-align: right; }
+.model-mover > div:nth-child(2) { text-align: right; }
 .model-mover small { display: block; overflow-wrap: anywhere; font-size: 11px; line-height: 1.5; font-weight: 400; }
-.model-mover .model-time { margin-top: 4px; }
+.model-mover .model-time { grid-column: 1 / -1; }
 .serenity-hero, .serenity-score { background: var(--panel); border-color: var(--line); }
 .serenity-hero { border: 0; padding: 0 0 16px; }
 .serenity-avatar { display: none; }

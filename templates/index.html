@@ -446,7 +446,7 @@
       .news-panel { max-height: min(520px, calc(100vh - 120px)); }
     }
   </style>
-  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261011.4" />
+  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261011.5" />
 </head>
 <body>
   <a class="skip-link" href="#form" data-ui="skip">跳至股票查詢</a>
@@ -3363,8 +3363,9 @@
           const cls = symbolMarket(row.symbol) === "TW" ? twColorClass(row.change_pct) : Number(row.change_pct || 0) >= 0 ? "up" : "down";
           const sourceTime = new Date(row.as_of).toLocaleString(lang === "en" ? "en-US" : "zh-TW", { timeZoneName: "short" });
           return `<button type="button" class="mover-item model-mover" data-model-symbol="${escapeHtml(row.symbol)}" onclick="analyze(this.dataset.modelSymbol)">
-            <div><strong>${escapeHtml(row.symbol)}</strong><small class="muted">${escapeHtml(row.name || "")} · ${escapeHtml(row.pattern || "pulse")}</small><small class="muted model-time">${rt("dtBarTime")} ${escapeHtml(sourceTime)} · Yahoo ${escapeHtml(row.source || "")} ${row.interval === "1d" ? escapeHtml(rt("dtFallback")) : ""}</small></div>
+            <div><strong>${escapeHtml(row.symbol)}</strong><small class="muted">${escapeHtml(row.name || "")} · ${escapeHtml(row.pattern || "pulse")}</small></div>
             <div class="${cls}"><strong>${arrow(row.change_pct)} ${signed(row.change_pct, "%")}</strong><small>${fmt(row.price)} · score ${escapeHtml(row.model_score ?? "-")}</small></div>
+            <small class="muted model-time">${rt("dtBarTime")} ${escapeHtml(sourceTime)} · Yahoo ${escapeHtml(row.source || "")} ${row.interval === "1d" ? escapeHtml(rt("dtFallback")) : ""}</small>
           </button>`;
         }).join("") || `<div class="muted">${rt("dtNoCandidate")}</div>`}</div>
       </div>`;
