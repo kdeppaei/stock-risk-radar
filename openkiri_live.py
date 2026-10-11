@@ -206,7 +206,7 @@ def version() -> dict[str, Any]:
         "ok": True,
         "app": "OpenKiri",
         "entry": "openkiri_live",
-        "commit_marker": "intraday-details-20261012.1",
+        "commit_marker": "intraday-details-20261012.2",
         "fast_intraday": True,
         "render_service": "stock-risk-radar",
     }

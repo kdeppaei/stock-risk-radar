@@ -49,6 +49,8 @@ T+0 automatic requests stop outside its workspace and in hidden browser tabs. Co
 
 `/api/daytrade/analyze` is now called only by selecting a quote-board ticker or explicitly refreshing that stock's model. It is never called by entering T+0, quote/model-board refreshes, chart rendering, language changes, returning from the background, or expanding the details disclosure, regardless of data-saver mode. Repeated selection of an already loaded snapshot reuses it; repeated selection during its pending request is coalesced. Chart navigation is a separate command, so selecting details does not also download a historical chart or valuation.
 
+Stock details occupy the full workspace width directly below the quote board. Desktop metrics use three columns, with two columns on smaller screens; the selection scroll target leaves room for the sticky navigation.
+
 The selected symbol is verified against both the model response and its quote. Switching symbols clears previous results before loading; changing markets, failure, cancellation and cost-input changes cannot leave another stock's visible model. A snapshot's client load time is separate from its supplied quote observation time, which is not asserted to be the model bar's timestamp. Missing source times remain unavailable. Detail metrics (volume ratio, intraday position, suitability) no longer require calculating every quote-board stock; they live in the selected snapshot instead. Model-provided costs are rendered without a redundant cost API call. Existing model scoring, market benchmarks and fee assumptions are unchanged and require their own review.
 
 ## Request Cost

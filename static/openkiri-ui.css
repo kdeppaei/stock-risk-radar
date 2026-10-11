@@ -155,14 +155,14 @@ canvas#chart { display: block; width: 100%; height: 410px; border: 0; border-rad
 .chart-signal-main p, .chart-signal-main strong, .bias-panel small { color: var(--muted); }
 .legend-item, .legend-grid { background: none; color: var(--muted); }
 .daytrade-desk { padding: 0; border: 0; border-radius: 0; background: none; }
-.daytrade-desk { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.daytrade-desk { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; overflow-anchor: none; }
 .daytrade-desk > .desk-head { grid-column: 1 / -1; }
 .daytrade-desk > .desk-grid { display: contents; }
 .desk-panel:has(#dtQuoteBody) { grid-column: 1 / -1; order: 1; }
 .desk-panel:has(#dtModelBoard) { order: 2; }
 .desk-panel:has(#dtPulseBody) { order: 3; }
 .desk-panel:has(#dtCostResult) { order: 4; }
-.desk-panel:has(#dtScoreBox) { order: 5; }
+.desk-panel:has(#dtScoreBox) { grid-column: 1 / -1; order: 1; scroll-margin-top: 92px; }
 .dt-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .dt-detail-head > strong { min-width: 0; overflow-wrap: anywhere; font-size: 16px; }
 .dt-symbol-button { display: block; width: auto; min-width: 90px; padding: 0; border: 0; background: transparent; color: var(--blue); text-align: left; font-size: 14px; }
@@ -170,6 +170,7 @@ canvas#chart { display: block; width: 100%; height: 410px; border: 0; border-rad
 .tool-details { border-top: 1px solid var(--line); }
 .tool-details > summary { min-height: 44px; padding: 14px 0; font-weight: 600; }
 .desk-result-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.desk-panel:has(#dtScoreBox) .desk-result-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .desk-head { padding: 0 0 18px; border-bottom: 1px solid var(--line); }
 .desk-grid { gap: 24px; }
 .desk-panel { background: none; border: 0; border-radius: 0; padding: 0; margin: 20px 0 0; }
@@ -242,6 +243,8 @@ canvas#chart { display: block; width: 100%; height: 410px; border: 0; border-rad
   .alert-drawer { position: fixed; right: 16px; top: 68px; width: min(420px, calc(100vw - 32px)); }
   .workspace-head, .section-head, .desk-head { flex-wrap: wrap; }
   .daytrade-desk { grid-template-columns: minmax(0, 1fr); }
+  .desk-panel:has(#dtScoreBox) { scroll-margin-top: 144px; }
+  .desk-panel:has(#dtScoreBox) .desk-result-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 560px) {
   .wrap { width: calc(100% - 24px); }

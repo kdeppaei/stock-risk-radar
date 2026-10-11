@@ -286,6 +286,16 @@ test("selected details reuse snapshots, stay in T+0, and refresh only on request
     assert.equal(requests.filter((p) => p === "/api/analyze").length, beforeAnalysis);
     assert.equal(calls.filter((call) => call.path === "/api/daytrade/cost").length, beforeCost, "model already supplies the cost result");
     assert.equal(await page.locator("#dtDetailResult").isVisible(), true);
+    const layout = await page.evaluate(() => {
+      const panel = document.getElementById("dtDetailPanel").getBoundingClientRect();
+      const quotes = document.getElementById("dtQuoteBody").closest(".desk-panel").getBoundingClientRect();
+      const board = document.getElementById("dtModelBoard").closest(".desk-panel").getBoundingClientRect();
+      const header = document.querySelector(".app-header").getBoundingClientRect();
+      return { panelWidth: panel.width, quoteWidth: quotes.width, panelTop: panel.top, panelBottom: panel.bottom, quoteBottom: quotes.bottom, boardTop: board.top, headerBottom: header.bottom };
+    });
+    assert.ok(Math.abs(layout.panelWidth - layout.quoteWidth) < 2, "detail occupies the whole quote-board width");
+    assert.ok(layout.panelTop >= layout.quoteBottom && layout.panelBottom <= layout.boardTop, "detail follows quotes, before scanning panels");
+    assert.ok(layout.panelTop >= layout.headerBottom, `detail header clear of sticky navigation at ${width}/${locale}: ${JSON.stringify(layout)}`);
     assert.equal(await ticker.getAttribute("aria-current"), "true");
     assert.equal(await page.locator("#dtDetailPanel > summary").evaluate((el) => el === document.activeElement), true);
     const sourceTime = await page.evaluate(() => new Date("2026-10-08T05:30:00Z").toLocaleString());
