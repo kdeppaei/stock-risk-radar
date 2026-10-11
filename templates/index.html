@@ -446,7 +446,7 @@
       .news-panel { max-height: min(520px, calc(100vh - 120px)); }
     }
   </style>
-  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261010" />
+  <link rel="stylesheet" href="/static/openkiri-ui.css?v=20261010.2" />
 </head>
 <body>
   <a class="skip-link" href="#form" data-ui="skip">跳至股票查詢</a>
@@ -494,6 +494,13 @@
         </div>
     </header>
     <section class="querybar overview-only" aria-label="股票查詢">
+        <div class="presetbar">
+          <label for="workspacePreset" data-workflow="preset">操作預設</label>
+          <select id="workspacePreset"><option value="custom" data-workflow="custom">自訂</option><option value="daytrade" data-workflow="daytrade">當沖</option><option value="swing" data-workflow="swing">波段</option></select>
+          <button id="savePreset" class="secondary" type="button" data-workflow="savePreset">儲存預設</button>
+          <button id="resetPreset" class="secondary" type="button" data-workflow="resetPreset">還原預設</button>
+          <span id="presetStatus" class="muted" role="status"></span>
+        </div>
         <form id="form" class="search">
           <label class="symbol-field"><span data-ui="stock">股票代號</span><input id="symbol" value="2330" placeholder="2330 / AAPL / MU" autocomplete="off" autocapitalize="characters" spellcheck="false" required maxlength="24" /></label>
           <label><span data-ui="period">時間範圍</span>
@@ -524,11 +531,11 @@
 
     <section class="cards overview-only" aria-label="股票概覽">
       <article class="card"><span data-i18n="symbol">股票代號</span><strong id="ticker">-</strong></article>
-      <article class="card" id="priceCard"><span data-i18n="close">收盤/最新</span><strong id="price">-</strong></article>
+      <article class="card" id="priceCard"><span data-i18n="close">收盤/最新</span><strong id="price">-</strong><small id="priceMeta">-</small></article>
       <article class="card" id="changeCard"><span data-i18n="change">漲跌</span><strong id="change">-</strong></article>
       <article class="card"><span data-i18n="risk">風險</span><strong id="risk">-</strong></article>
       <article class="card"><span data-i18n="trend">趨勢</span><strong id="trend">-</strong></article>
-      <article class="card" id="valuationCard"><span data-i18n="valuation">市值 / P/E</span><strong id="valuationMain">-</strong><small id="valuationSub">-</small></article>
+      <article class="card" id="valuationCard"><span data-i18n="valuation">市值 / P/E</span><strong id="valuationMain">-</strong><small id="valuationSub">-</small><small id="valuationMeta">-</small></article>
     </section>
 
     <section class="panel watch-strip overview-only" id="watchPanel">
@@ -876,7 +883,7 @@
           <div id="chartCrosshair" class="chart-crosshair" hidden></div>
           <div id="chartTooltip" class="chart-tooltip" hidden></div>
         </div>
-        <div class="quote-row"><div class="muted" id="liveMeta">-</div><span class="tag" id="predictionBadge">-</span></div>
+        <div class="quote-row"><div class="muted" id="liveMeta">-</div><span class="tag" id="predictionBadge">-</span><span id="analysisScope" class="muted"></span></div>
         <div id="bias25Panel" class="bias-panel"></div>
         <details class="analysis-details">
           <summary data-ui="signalDetails">交叉訊號與模型判讀</summary>
@@ -927,7 +934,10 @@
       <article class="panel news-panel"><h2 data-i18n="news">利多 / 利空</h2><div id="newsBox" class="news-scroll"></div></article>
     </section></details>
 
-    <details class="overview-details overview-only"><summary data-ui="modelDetails">模型依據與資料說明</summary><section class="grid">
+    <details class="overview-details overview-only"><summary data-ui="modelDetails">模型依據與資料說明</summary>
+    <div class="data-provenance" id="dataProvenance"></div>
+    <div class="context-actions"><button id="enrichAnalysis" class="secondary" type="button" data-workflow="enrich">載入消息與事件分析</button></div>
+    <section class="grid">
       <article class="panel"><h2 data-i18n="macro">總經 / 量化模型</h2><div class="kvgrid" id="macroBox"></div></article>
       <article class="panel"><h2 data-i18n="modelWhy">模型依據</h2><div id="modelDrivers" class="plainbox"></div></article>
       <article class="panel"><h2 data-i18n="periodHelpTitle">Today / Day / Week 是什麼</h2><p class="summary" data-i18n="periodHelp"></p></article>
@@ -940,6 +950,12 @@
       <article class="panel"><h2 data-i18n="sourceMatrix">資料源矩陣</h2><div id="sourceMatrixBox" class="source-list"></div></article>
       <article class="panel"><h2 data-i18n="narrativeRisk">敘事/治理風險</h2><div id="narrativeRiskBox" class="plainbox"></div></article>
     </section></details>
+    <details class="overview-details overview-only" id="diagnosticsPanel"><summary data-workflow="diagnostics">流量與效能診斷</summary>
+      <div class="context-actions"><span class="muted" data-workflow="metricsNote">本程序啟動後統計，非 Render 帳單；重新部署會歸零。</span><button id="refreshDiagnostics" class="secondary" type="button" data-workflow="refreshMetrics">刷新統計</button></div>
+      <p class="muted" id="metricsStatus" role="status"></p>
+      <div class="metrics-scroll" tabindex="0" role="region" aria-label="API metrics"><table><thead><tr><th data-workflow="category">分類</th><th data-workflow="requests">請求</th><th data-workflow="cacheHits">快取命中</th><th data-workflow="latency">平均 / P95</th><th data-workflow="sent">送出</th><th data-workflow="received">接收</th><th data-workflow="errors">失敗</th></tr></thead><tbody id="metricsBody"></tbody></table></div>
+      <p class="muted" data-workflow="metricsUnits">送出：API 壓縮後本文／上游 HTTP 請求估計。接收：上游解壓後本文。P95：最近 128 次。未含 TLS 與平台流量。</p>
+    </details>
   </main>
 
   <div id="watchAlertStack" class="alert-stack" aria-live="polite" aria-atomic="false"></div>
@@ -964,7 +980,8 @@
   </aside>
   <button id="chatFab" class="chat-fab" type="button" aria-label="Open chat" hidden>Chat</button>
 
-  <script src="/static/openkiri-ui.js?v=20261010.1"></script>
+  <script src="/static/openkiri-ui.js?v=20261010.2"></script>
+  <script src="/static/openkiri-workflow.js?v=20261010.2"></script>
   <script>
     const $ = (id) => document.getElementById(id);
     const canvas = $("chart");
@@ -1072,7 +1089,7 @@
         sortQuality: "品質分數", sortCap: "市值", sortPE: "本益比低到高", sortSignal: "訊號強度", sortVolume: "成交量", sortChange: "漲跌幅",
         run: "篩選股票", loading: "篩選中", ready: "已載入候選池", empty: "沒有符合條件的股票，請放寬價格或產業。",
         scanned: "已掃描", matched: "符合", quality: "品質", price: "股價", risk: "風險", volume: "成交量",
-        cap: "市值", pe: "P/E", valuation: "估值", setupSignal: "型態", allSetups: "全部型態", add: "關注", reasons: "依據", note: "市值優先使用 Yahoo 估值資料，抓不到時使用內建美元估算；P/E 抓得到才顯示。"
+        cap: "市值", pe: "P/E", valuation: "估值", setupSignal: "型態", allSetups: "全部型態", add: "關注", reasons: "依據", note: "市值與 P/E 使用可核實的來源資料；缺值不以內建估算補上，市值變動不等於資金流。"
       },
       "zh-cn": {
         title: "股票筛选器", hint: "选市场、行业与股价范围，系统会按质量分数、市值或成交量列出候选股。",
@@ -1080,7 +1097,7 @@
         sortQuality: "质量分数", sortCap: "市值", sortPE: "本益比低到高", sortSignal: "信号强度", sortVolume: "成交量", sortChange: "涨跌幅",
         run: "筛选股票", loading: "筛选中", ready: "已载入候选池", empty: "没有符合条件的股票，请放宽价格或行业。",
         scanned: "已扫描", matched: "符合", quality: "质量", price: "股价", risk: "风险", volume: "成交量",
-        cap: "市值", pe: "P/E", valuation: "估值", setupSignal: "形态", allSetups: "全部形态", add: "关注", reasons: "依据", note: "市值优先使用 Yahoo 估值资料，抓不到时使用内建美元估算；P/E 抓得到才显示。"
+        cap: "市值", pe: "P/E", valuation: "估值", setupSignal: "形态", allSetups: "全部形态", add: "关注", reasons: "依据", note: "市值与 P/E 使用可核实的来源数据；缺值不以内建估算补上，市值变动不等于资金流。"
       },
       en: {
         title: "Stock Screener", hint: "Choose market, industry and price range. The system ranks candidates by quality, market cap or volume.",
@@ -1088,7 +1105,7 @@
         sortQuality: "Quality score", sortCap: "Market cap", sortPE: "Low P/E", sortSignal: "Signal strength", sortVolume: "Volume", sortChange: "Change %",
         run: "Screen stocks", loading: "Screening", ready: "Universe loaded", empty: "No stocks matched. Try a wider price or industry filter.",
         scanned: "Scanned", matched: "Matched", quality: "Quality", price: "Price", risk: "Risk", volume: "Volume",
-        cap: "Mkt cap", pe: "P/E", valuation: "Valuation", setupSignal: "Setup", allSetups: "All setups", add: "Watch", reasons: "Why", note: "Market cap uses Yahoo valuation data when available, then built-in USD estimates; P/E appears when Yahoo provides it."
+        cap: "Mkt cap", pe: "P/E", valuation: "Valuation", setupSignal: "Setup", allSetups: "All setups", add: "Watch", reasons: "Why", note: "Market cap and P/E use verified provider fields. Missing values stay unavailable; market cap changes are not money flow."
       }
     };
     const st = (key) => (screenerCopy[lang] && screenerCopy[lang][key]) || screenerCopy.en[key] || key;
@@ -1287,7 +1304,7 @@
       sortQuality: "品質分數", sortCap: "市值", sortPE: "本益比低到高", sortSignal: "訊號強度", sortVolume: "成交量", sortChange: "漲跌幅",
       run: "篩選股票", loading: "篩選中", ready: "檔符合", empty: "沒有符合條件的股票，請放寬價格或產業條件。",
       scanned: "已掃描", matched: "符合", quality: "品質", price: "股價", risk: "風險", volume: "成交量",
-      cap: "市值", pe: "P/E", valuation: "估值", setupSignal: "型態", allSetups: "全部型態", add: "關注", reasons: "依據", note: "市值優先使用 Yahoo 估值資料，抓不到時使用內建美元估算；P/E 抓得到才顯示。"
+      cap: "市值", pe: "P/E", valuation: "估值", setupSignal: "型態", allSetups: "全部型態", add: "關注", reasons: "依據", note: "市值與 P/E 使用可核實的來源資料；缺值不以內建估算補上，市值變動不等於資金流。"
     });
     Object.assign(screenerCopy["zh-cn"], {
       title: "股票筛选器", hint: "选市场、产业与股价范围，系统会按品质分数、市值或成交量列出候选股。",
@@ -1295,7 +1312,7 @@
       sortQuality: "品质分数", sortCap: "市值", sortPE: "本益比低到高", sortSignal: "信号强度", sortVolume: "成交量", sortChange: "涨跌幅",
       run: "筛选股票", loading: "筛选中", ready: "档符合", empty: "没有符合条件的股票，请放宽价格或产业条件。",
       scanned: "已扫描", matched: "符合", quality: "品质", price: "股价", risk: "风险", volume: "成交量",
-      cap: "市值", pe: "P/E", valuation: "估值", setupSignal: "形态", allSetups: "全部形态", add: "关注", reasons: "依据", note: "市值优先使用 Yahoo 估值资料，抓不到时使用内建美元估算；P/E 抓得到才显示。"
+      cap: "市值", pe: "P/E", valuation: "估值", setupSignal: "形态", allSetups: "全部形态", add: "关注", reasons: "依据", note: "市值与 P/E 使用可核实的来源数据；缺值不以内建估算补上，市值变动不等于资金流。"
     });
     Object.assign(screenerCopy["zh-tw"], {
       topicsTitle: "近期話題分類",
@@ -3297,7 +3314,7 @@
       const flash = prev && quote.price && quote.price !== prev ? (quote.price > prev ? "flash-up" : "flash-down") : "";
       if (quote.price) daytradeLastPrices[symbol] = quote.price;
       return `<tr class="${flash}" onclick="selectDaytradeSymbol('${escapeHtml(symbol)}', ${Number(quote.price || 0)})">
-        <td><strong>${escapeHtml(symbol)}</strong><small class="muted">${failed ? "fallback unavailable" : escapeHtml(quote.source || "")}</small></td>
+        <td><strong>${escapeHtml(symbol)}</strong><small class="muted">${failed ? "fallback unavailable" : escapeHtml(quote.source || "")}</small><small class="muted">${escapeHtml(quote.as_of ? new Date(quote.as_of).toLocaleString() : "-")}</small></td>
         <td>${quote.price == null ? "-" : fmt(quote.price)}</td>
         <td>${quoteMarketCapText(quote)}</td>
         <td class="${cls}">${quote.change == null ? "-" : signed(quote.change)}</td>
@@ -3310,9 +3327,7 @@
 
     function quoteMarketCapText(quote) {
       if (!quote?.market_cap) return "-";
-      const cls = Number(quote.market_cap_change_pct || quote.change_pct || 0) >= 0 ? "up" : "down";
-      const pct = quote.market_cap_change_pct == null ? quote.change_pct : quote.market_cap_change_pct;
-      return `<span>${compactMoney(quote.market_cap, quote.currency || "USD")}</span><small class="${cls}">${arrow(pct)} ${signed(pct, "%")}</small>`;
+      return `<span>${compactMoney(quote.market_cap, quote.currency || "USD")}</span><small class="muted">${escapeHtml(quote.valuation?.source || quote.source || "")}</small>`;
     }
 
     async function calculateDaytradeCost(renderErrors = true) {
@@ -3449,10 +3464,11 @@
       const a = canonicalSymbol(left);
       const b = canonicalSymbol(right);
       if (!a || !b) return false;
-      return a === b || (a.endsWith(".TW") && b === a.replace(".TW", "")) || (b.endsWith(".TW") && a === b.replace(".TW", ""));
+      const bareMatches = (raw, resolved) => /^\d{4}$/.test(String(raw).trim()) && [raw + ".TW", raw + ".TWO"].includes(resolved);
+      return a === b || bareMatches(String(left).trim(), b) || bareMatches(String(right).trim(), a);
     }
 
-    async function analyze(symbol, silent = false) {
+    async function analyze(symbol, silent = false, includeContext = false) {
       if (silent && manualAnalyzePending) return;
       const button = $("runBtn");
       const requestedSymbol = String(symbol || "").trim() || "2330";
@@ -3467,8 +3483,10 @@
         timeout = setTimeout(() => controller.abort(), 30000);
         // A new query must not show the previous ticker's price or derived metrics.
         quoteRequestSeq++;
+        OpenKiriWorkflow.cancelValuation();
         lastData = null;
-        ["price", "change", "risk", "trend", "valuationMain", "valuationSub", "liveMeta", "predictionBadge", "refreshMeta"].forEach((id) => { $(id).textContent = "-"; });
+        ["price", "change", "risk", "trend", "valuationMain", "valuationSub", "valuationMeta", "priceMeta", "analysisScope", "liveMeta", "predictionBadge", "refreshMeta"].forEach((id) => { $(id).textContent = "-"; });
+        $("dataProvenance").replaceChildren();
         ["relatedBox", "playbook", "chartSignalBox", "bias25Panel", "technical", "levels", "suitability", "newsBox", "macroBox", "modelDrivers", "designSignalsBox", "decisionChecklistBox", "sourceMatrixBox", "narrativeRiskBox"].forEach((id) => { $(id).replaceChildren(); });
         $("riskFill").style.width = "0%";
         $("ticker").textContent = canonicalSymbol(requestedSymbol);
@@ -3480,6 +3498,7 @@
       $("symbol").value = requestedSymbol;
       try {
         const qs = new URLSearchParams({ symbol: requestedSymbol, period: $("period").value, interval: $("interval").value });
+        if (includeContext) qs.set("context", "true");
         const fetchOptions = !silent && activeAnalyzeController ? { signal: activeAnalyzeController.signal } : {};
         const res = await fetch(`/api/analyze?${qs}`, fetchOptions);
         const data = await res.json();
@@ -3487,6 +3506,7 @@
         if (requestId !== analyzeRequestSeq) return;
         if (!sameSymbol(requestedSymbol, data.symbol)) throw new Error(`Symbol mismatch: requested ${requestedSymbol}, got ${data.symbol}`);
         render(data);
+        OpenKiriWorkflow.loadValuation(data.symbol);
         OpenKiriUI.queryState("ready", data.symbol, Boolean(data.chart?.length));
         if (isWorkspaceTabActive("news") && eventAlertsData?.symbol !== data.symbol) loadEventAlerts(data.symbol);
       } catch (error) {
@@ -3532,6 +3552,7 @@
       $("trend").textContent = label(data.risk.trend);
       $("valuationMain").textContent = valuationCapText(data);
       $("valuationSub").textContent = peText(data);
+      OpenKiriWorkflow.renderProvenance(data);
       $("market").textContent = isTW ? t("marketTW") : t("marketUS");
       $("summaryText").textContent = plainSummary(data);
       $("riskFill").style.width = `${data.risk.score}%`;
@@ -3592,26 +3613,21 @@
         const quote = await res.json();
         if (!res.ok || !quote.ok) return;
         if (requestId !== quoteRequestSeq || !lastData || !sameSymbol(targetSymbol, lastData.symbol) || !sameSymbol(targetSymbol, quote.symbol)) return;
+        const previousTime = Date.parse(lastData.quote?.as_of || lastData.provenance?.price?.as_of || "");
+        const quoteTime = Date.parse(quote.as_of || "");
+        if (!Number.isFinite(quoteTime) || (Number.isFinite(previousTime) && quoteTime < previousTime)) return;
         const previous = lastQuotePrice;
         lastQuotePrice = quote.price;
         $("price").textContent = fmt(quote.price);
-        $("change").textContent = `${arrow(quote.change_pct)} ${signed(quote.change_pct, "%")}`;
+        $("change").textContent = quote.change_pct == null ? "-" : `${arrow(quote.change_pct)} ${signed(quote.change_pct, "%")}`;
         $("change").className = quote.change_pct >= 0 ? (quote.market === "TW" ? "tw-up" : "up") : (quote.market === "TW" ? "tw-down" : "down");
-        $("liveMeta").textContent = `${quote.symbol} · ${quote.date} · ${fmt(quote.price)} · ${signed(quote.change_pct, "%")} · ${quote.source}`;
-        if (quote.market_cap) {
-          lastData.valuation = {
-            ...(lastData.valuation || {}),
-            market_cap: quote.market_cap,
-            currency: quote.currency,
-            market_cap_previous: quote.market_cap_previous,
-            market_cap_change_pct: quote.market_cap_change_pct,
-            trailing_pe: quote.trailing_pe ?? lastData.valuation?.trailing_pe,
-            forward_pe: quote.forward_pe ?? lastData.valuation?.forward_pe,
-            source: quote.source
-          };
+        lastData.quote = quote;
+        if (quote.valuation?.status === "reported") {
+          lastData.valuation = quote.valuation;
           $("valuationMain").textContent = valuationCapText(lastData);
           $("valuationSub").textContent = peText(lastData);
         }
+        OpenKiriWorkflow.renderProvenance(lastData);
         $("refreshMeta").textContent = `${t("updated")} ${new Date().toLocaleTimeString()}`;
         if (previous !== null && Math.abs(previous - quote.price) > 0.0001) flashQuote(quote.price >= previous ? "up" : "down");
       } catch {}
@@ -3994,7 +4010,7 @@
       panel.className = `bias-panel active ${tone}`;
       panel.innerHTML = `
         <div>
-          <strong>${escapeHtml(chartUi("biasTitle"))}</strong>
+          <strong>${escapeHtml(OpenKiriWorkflow.biasLabel(data.interval))}</strong>
           <small>${escapeHtml(note)} ${escapeHtml(chartUi("biasLine"))} MA25 ${ma25 ? fmt(ma25) : "-"}</small>
         </div>
         <div class="bias-value">${signed(bias, "%")}</div>`;
@@ -4169,10 +4185,10 @@
     }
     function valuationCapText(row) {
       const v = row?.valuation || {};
-      const cap = v.market_cap || row?.market_cap_usd || 0;
+      const cap = v.market_cap;
       if (!cap) return "-";
       const fallback = v.fallback ? ` ${t("valuationFallback")}` : "";
-      const pct = v.market_cap_change_pct;
+      const pct = v.change_basis === "reported_cap_observations" ? v.market_cap_change_pct : null;
       const move = pct == null ? "" : ` ${arrow(pct)} ${signed(pct, "%")}`;
       return `${compactMoney(cap, v.currency || "USD")}${move}${fallback}`;
     }
@@ -4187,7 +4203,7 @@
     }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m])); }
 
-    mountScreenerPanel(); applyLang(); OpenKiriUI.boot(); initProfile(); renderWatchlist(); tickClocks(); loadContext(); calculateDaytradeCost(false); analyze($("symbol").value);
+    mountScreenerPanel(); applyLang(); OpenKiriUI.boot(); OpenKiriWorkflow.boot(); initProfile(); renderWatchlist(); tickClocks(); loadContext(); calculateDaytradeCost(false); analyze($("symbol").value);
     setInterval(tickClocks, 1000);
     setInterval(loadContext, dataSaver ? 300000 : 60000);
     setInterval(refreshQuote, dataSaver ? 60000 : 10000);

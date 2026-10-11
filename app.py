@@ -751,7 +751,7 @@ def screener(
         "topics": sorted(selected_topics),
         "setup": selected_setup,
         "rows": rows[:limit],
-        "note": "Market cap uses Yahoo quoteSummary when available and built-in USD estimates as fallback; PE is displayed when Yahoo valuation data is available. Topic filters are cross-industry chains.",
+        "note": "Valuation is shown only when provider identity and currency can be verified. Unavailable values are not replaced by built-in estimates. USD sorting uses Yahoo FX when required; unavailable values sort last.",
     }
 
 
@@ -1227,8 +1227,11 @@ def fetch_price_history(symbol: str, period: str, interval: str) -> list[dict[st
         )
         resp.raise_for_status()
         result = (resp.json().get("chart", {}).get("result") or [None])[0]
-        if not result:
+        if not result or str((result.get("meta") or {}).get("symbol", "")).upper() != symbol.upper():
             return []
+        meta = result.get("meta") or {}
+        meta = {key: meta.get(key) for key in ("symbol", "currency", "regularMarketPrice", "regularMarketTime", "chartPreviousClose", "exchangeTimezoneName", "marketState")}
+        meta["fetched_at"] = getattr(resp, "openkiri_fetched_at", time.time())
         timestamps = result.get("timestamp") or []
         quote = (result.get("indicators", {}).get("quote") or [{}])[0]
         rows = []
@@ -1240,10 +1243,13 @@ def fetch_price_history(symbol: str, period: str, interval: str) -> list[dict[st
                 low = quote.get("low", [])[i]
                 if close is None or open_ is None or high is None or low is None:
                     continue
+                if not all(math.isfinite(float(value)) and float(value) > 0 for value in (close, open_, high, low)):
+                    continue
                 dt = datetime.fromtimestamp(ts, timezone.utc)
                 rows.append(
                     {
                         "date": dt,
+                        "_meta": meta,
                         "date_label": dt.strftime("%Y-%m-%d %H:%M") if interval in {"1m", "5m", "15m", "1h"} else dt.strftime("%Y-%m-%d"),
                         "open": float(open_),
                         "high": float(high),
@@ -2850,12 +2856,14 @@ def yahoo_quote_summary(symbol: str, modules: str) -> dict[str, Any]:
     session = requests.Session()
     session.headers.update({"User-Agent": "Mozilla/5.0 StockRiskRadar/4.5"})
     try:
-        session.get("https://fc.yahoo.com", timeout=8)
-        crumb = session.get("https://query1.finance.yahoo.com/v1/test/getcrumb", timeout=8).text.strip()
+        session.get("https://fc.yahoo.com", timeout=3)
+        crumb_response = session.get("https://query1.finance.yahoo.com/v1/test/getcrumb", timeout=3)
+        crumb_response.raise_for_status()
+        crumb = crumb_response.text.strip()
         resp = session.get(
             f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}",
             params={"modules": modules, "crumb": crumb},
-            timeout=10,
+            timeout=4,
         )
         resp.raise_for_status()
         return ((resp.json().get("quoteSummary") or {}).get("result") or [{}])[0] or {}

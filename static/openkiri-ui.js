@@ -25,6 +25,7 @@ window.OpenKiriUI = (() => {
     [...$("interval").options].forEach((o) => { o.textContent = t({ "5m": "fiveMinutes", "1d": "day", "1wk": "week" }[o.value]); });
     document.querySelectorAll("[data-lang]").forEach((el) => el.setAttribute("aria-pressed", String(el.dataset.lang === locale)));
     if ($("dtModelCadence")) $("dtModelCadence").textContent = dataSaver ? "120s" : "8s";
+    window.OpenKiriWorkflow?.translate();
   }
 
   function queryState(state, symbol, hasChart = true) {

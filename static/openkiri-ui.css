@@ -63,6 +63,19 @@ summary::marker { color: var(--muted); }
 .search input, .search select { width: 100%; font-size: 14px; }
 .search input { font-weight: 600; }
 .refreshbar { display: grid; grid-template-columns: auto; gap: 3px; justify-items: end; font-size: 11px; }
+.presetbar { flex-basis: 100%; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 12px; }
+.presetbar select { width: 110px; }
+.presetbar button { font-size: 12px; }
+.cards small { display: block; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; line-height: 1.6; margin-top: 4px; }
+.data-provenance { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 16px; padding: 8px 0 20px; }
+.data-provenance strong, .data-provenance span { display: block; }
+.data-provenance span { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.context-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 16px; }
+.metrics-scroll { overflow: auto; margin-bottom: 16px; }
+.metrics-scroll table { width: 100%; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 12px; border-collapse: collapse; }
+.metrics-scroll th, .metrics-scroll td { padding: 10px; border-bottom: 1px solid var(--line); text-align: right; }
+.metrics-scroll th:first-child, .metrics-scroll td:first-child { text-align: left; }
+#metricsStatus, #diagnosticsPanel > p { font-size: 12px; padding-bottom: 16px; }
 .auto-switch { font-size: 12px; min-height: 32px; height: 32px; border: 0 !important; padding: 0; }
 .refreshbar .auto-switch { width: auto; }
 .auto-switch::before { content: ""; width: 28px; height: 16px; border-radius: 10px; margin-right: 7px; background: radial-gradient(circle at 8px 8px, #cad2d1 5px, transparent 5.5px), #424c4e; }

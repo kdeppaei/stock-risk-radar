@@ -52,9 +52,19 @@ async function pageFor(width = 1440, locale = "zh-tw") {
       if (symbol === "SLOW") await pause(800);
       if (symbol === "FAIL") return route.fulfill({ status: 503, json: { ok: false, detail: "Test provider outage" } });
       data = analysis(/^\d+$/.test(symbol) ? `${symbol}.TW` : symbol);
+      data.interval = url.searchParams.get("interval");
+      data.period = url.searchParams.get("period");
+      data.analysis_scope = url.searchParams.get("context") === "true" ? "technical_news_events" : "technical_only";
+      const meta = { source: "Yahoo chart", as_of: "2026-03-05T14:30:00+00:00", fetched_at: "2026-03-05T14:35:00+00:00" };
+      data.provenance = { chart: meta, price: meta };
       if (symbol === "EMPTY") data.chart = [];
       if (symbol === "WRONG") data.symbol = "2330.TW";
-    } else if (url.pathname === "/api/market-context") data = { usd_twd: {}, macro: { label: "neutral" } };
+    } else if (url.pathname === "/api/valuation") {
+      const symbol = url.searchParams.get("symbol");
+      if (symbol === "SLOWVAL") await pause(700);
+      data = { ok: true, symbol, valuation: { symbol, market_cap: symbol === "NOVAL" ? null : symbol === "MU" ? 999000000 : 31000000000000, currency: symbol.endsWith(".TW") ? "TWD" : "USD", trailing_pe: 24, status: symbol === "NOVAL" ? "unavailable" : "reported", source: "Yahoo quote", as_of: null, fetched_at: "2026-03-05T14:35:00Z", market_cap_change_pct: 88 } };
+    } else if (url.pathname === "/api/diagnostics") data = { ok: true, since: "2026-03-05T00:00:00Z", rows: [{ name: "API /api/analyze", requests: 4, cache_hit_pct: 50, avg_ms: 20, p95_ms: 30, sent_bytes: 4096, received_bytes: 0, errors: 0 }] };
+    else if (url.pathname === "/api/market-context") data = { usd_twd: {}, macro: { label: "neutral" } };
     else if (url.pathname.startsWith("/api/quote/")) data = { ok: true, symbol: url.pathname.split("/").at(-1), price: 100, change_pct: 1, source: "fixture" };
     else if (url.pathname.startsWith("/api/daytrade/")) data = { ok: false, detail: "Fixture: unavailable" };
     await route.fulfill({ json: data });
@@ -109,6 +119,68 @@ test("responsive workspace, keyboard chart, and on-demand panels", async () => {
     assert.deepEqual(errors, []);
     await page.close();
   }
+});
+
+test("valuation provenance and opt-in diagnostics stay separate from chart data", async () => {
+  const { page, errors, requests } = await pageFor(390);
+  await page.waitForFunction(() => document.getElementById("valuationMeta").textContent.includes("來源報告值"));
+  assert.match(await page.locator("#priceMeta").innerText(), /Yahoo chart/);
+  assert.match(await page.locator("#valuationMeta").innerText(), /未提供資料時點/);
+  assert.doesNotMatch(await page.locator("#valuationMain").innerText(), /88%/);
+  assert.equal(requests.includes("/api/diagnostics"), false);
+  await page.locator("#diagnosticsPanel > summary").click();
+  await page.locator("#metricsBody tr").waitFor();
+  assert.equal(requests.filter((p) => p === "/api/diagnostics").length, 1);
+  assert.match(await page.locator("#metricsBody").innerText(), /4.0 KB/);
+  await page.locator("#refreshDiagnostics").click();
+  await page.waitForFunction(() => !document.getElementById("refreshDiagnostics").disabled);
+  assert.equal(requests.filter((p) => p === "/api/diagnostics").length, 2);
+  await page.locator("#symbol").fill("SLOWVAL"); await page.locator("#runBtn").click();
+  await page.waitForFunction(() => document.getElementById("ticker").textContent === "SLOWVAL" && document.getElementById("queryStatus").hidden);
+  await page.locator("#symbol").fill("MU"); await page.locator("#runBtn").click();
+  await page.waitForFunction(() => lastData?.symbol === "MU" && lastData?.valuation?.market_cap === 999000000);
+  const cap = await page.locator("#valuationMain").innerText();
+  await pause(800);
+  assert.equal(await page.locator("#valuationMain").innerText(), cap);
+  await page.locator("#symbol").fill("NOVAL"); await page.locator("#runBtn").click();
+  await page.waitForFunction(() => document.getElementById("valuationMeta").textContent === "無可核實估值");
+  assert.equal(await page.locator("#valuationMain").innerText(), "-");
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test("intraday and swing presets persist layers, intervals, and expanded sections", async () => {
+  const { page, errors } = await pageFor(390);
+  await page.locator("#workspacePreset").selectOption("daytrade");
+  await page.waitForFunction(() => document.getElementById("queryStatus").hidden);
+  assert.equal(await page.locator("#period").inputValue(), "1d");
+  assert.equal(await page.locator("#interval").inputValue(), "5m");
+  await page.locator(".indicator-menu summary").click();
+  await page.locator('.chart-switch:has([data-chart-layer="bias25"])').click();
+  await page.locator(".indicator-menu summary").click();
+  assert.match(await page.locator("#bias25Panel strong").innerText(), /25 根.*5m/);
+  await page.locator('[data-ui="modelDetails"]').click();
+  await page.locator("#savePreset").click();
+  await page.locator("#workspacePreset").selectOption("swing");
+  await page.waitForFunction(() => document.getElementById("queryStatus").hidden);
+  assert.equal(await page.locator("#interval").inputValue(), "1d");
+  assert.match(await page.locator("#bias25Panel strong").innerText(), /25 日/);
+  await page.locator("#workspacePreset").selectOption("daytrade");
+  await page.waitForFunction(() => document.getElementById("queryStatus").hidden);
+  assert.equal(await page.locator('[data-ui="modelDetails"]').evaluate((el) => el.parentElement.open), true);
+  await page.reload();
+  await page.waitForFunction(() => document.getElementById("queryStatus").hidden);
+  assert.equal(await page.locator("#workspacePreset").inputValue(), "daytrade");
+  assert.equal(await page.locator("#interval").inputValue(), "5m");
+  assert.match(await page.locator("#bias25Panel strong").innerText(), /25 根/);
+  await page.locator("#enrichAnalysis").click();
+  await page.waitForFunction(() => document.getElementById("analysisScope").textContent === "技術、消息與事件模型");
+  await page.locator("#resetPreset").click();
+  await page.waitForFunction(() => document.getElementById("queryStatus").hidden);
+  assert.equal(await page.locator("#bias25Panel strong").count(), 0);
+  assert.deepEqual(errors, []);
+  await page.close();
 });
 
 test("query replaces stale values, ignores old responses, and recovers from errors", async () => {

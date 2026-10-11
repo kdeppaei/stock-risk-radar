@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import math
-import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from html import unescape
 from pathlib import Path
-from threading import Lock
+from threading import Lock, RLock
 from typing import Any
 
 import requests
@@ -17,14 +15,15 @@ from fastapi.responses import HTMLResponse
 
 import app as base
 from openkiri_cache_policy import analyze_ttl, cache_prune, freeze_params, history_ttl, http_ttl
+from openkiri_data import empty_valuation, finite, iso_time, provenance, valuation_from_snapshot, valuation_from_summary
+from openkiri_metrics import METRICS, MetricsMiddleware, provider_group
 
 app = base.app
 app.add_middleware(GZipMiddleware, minimum_size=512, compresslevel=6)
+app.add_middleware(MetricsMiddleware)
 BASE_DIR = Path(__file__).resolve().parent
 ALERT_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
-USD_TWD_CACHE: tuple[float, float] | None = None
-ANALYZE_CACHE: dict[tuple[str, str, str], tuple[float, dict[str, Any]]] = {}
-GOOGLE_FINANCE_CACHE: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
+ANALYZE_CACHE: dict[tuple[str, str, str, bool], tuple[float, dict[str, Any]]] = {}
 HTTP_GET_CACHE: dict[tuple[str, tuple[tuple[str, str], ...]], tuple[float, int, bytes, dict[str, str], str, str | None]] = {}
 PRICE_HISTORY_CACHE: dict[tuple[str, str, str], tuple[float, list[dict[str, Any]]]] = {}
 NEWS_CACHE: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
@@ -32,7 +31,12 @@ MACRO_CACHE: tuple[float, dict[str, Any]] | None = None
 MARKET_PULSE_SAVER_CACHE: tuple[float, dict[str, Any]] | None = None
 RECOMMENDATIONS_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 _CACHE_LOCK = Lock()
+_HTTP_LOCKS = [RLock() for _ in range(32)]
+_QUOTE_LOCKS = [RLock() for _ in range(32)]
+_VALUATION_LOCKS = [RLock() for _ in range(32)]
+VALUATION_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _ORIGINAL_REQUESTS_GET = requests.get
+_ORIGINAL_SESSION_SEND = requests.Session.send
 _ORIGINAL_FETCH_PRICE_HISTORY = base.fetch_price_history
 _ORIGINAL_FETCH_NEWS = base.fetch_news
 _ORIGINAL_FETCH_MACRO_SNAPSHOT = base.fetch_macro_snapshot
@@ -47,6 +51,7 @@ def cached_response(record: tuple[float, int, bytes, dict[str, str], str, str | 
     response.headers.update(headers)
     response.url = url
     response.encoding = encoding
+    response.openkiri_fetched_at = record[0]
     return response
 
 
@@ -56,19 +61,45 @@ def bandwidth_cached_get(url: Any, *args: Any, **kwargs: Any) -> requests.Respon
     params = kwargs.get("params")
     ttl = http_ttl(url, params)
     key = (str(url), freeze_params(params))
-    now = time.time()
-    if ttl:
-        with _CACHE_LOCK:
-            cached = HTTP_GET_CACHE.get(key)
-            if cached and now - cached[0] < ttl:
-                return cached_response(cached)
-    response = _ORIGINAL_REQUESTS_GET(url, *args, **kwargs)
-    if ttl and response.status_code == 200 and len(response.content) <= 2_000_000:
-        record = (now, response.status_code, response.content, dict(response.headers), response.url, response.encoding)
-        with _CACHE_LOCK:
-            HTTP_GET_CACHE[key] = record
-            cache_prune(HTTP_GET_CACHE, 256)
-    return response
+    # Coalesce simultaneous identical public reads, including bounded negative caching.
+    with _HTTP_LOCKS[hash(key) % len(_HTTP_LOCKS)]:
+        now = time.time()
+        if ttl:
+            with _CACHE_LOCK:
+                cached = HTTP_GET_CACHE.get(key)
+                lifetime = min(ttl, 60) if cached and cached[1] != 200 else ttl
+                if cached and now - cached[0] < lifetime:
+                    METRICS.record("Cache " + provider_group(str(url)), hit=True)
+                    return cached_response(cached)
+        METRICS.record("Cache " + provider_group(str(url)), hit=False)
+        response = _ORIGINAL_REQUESTS_GET(url, *args, **kwargs)
+        response.openkiri_fetched_at = time.time()
+        if ttl and response.status_code in {200, 401, 403, 404, 429, 502, 503} and len(response.content) <= 2_000_000:
+            record = (response.openkiri_fetched_at, response.status_code, response.content, dict(response.headers), response.url, response.encoding)
+            with _CACHE_LOCK:
+                HTTP_GET_CACHE[key] = record
+                cache_prune(HTTP_GET_CACHE, 256)
+        return response
+
+
+def measured_session_send(session, request, **kwargs):
+    started = time.monotonic()
+    # Only aggregate sizes; prepared URLs, cookies and credentials are never retained.
+    body = request.body
+    sent = len(str(request.method)) + len(str(request.path_url).encode()) + 16
+    sent += sum(len(str(k).encode()) + len(str(v).encode()) + 4 for k, v in request.headers.items())
+    if isinstance(body, (bytes, str)):
+        sent += len(body.encode() if isinstance(body, str) else body)
+    status, received = 599, 0
+    try:
+        response = _ORIGINAL_SESSION_SEND(session, request, **kwargs)
+        status = response.status_code
+        if not kwargs.get("stream"):
+            received = len(response.content)
+        return response
+    finally:
+        METRICS.record("Upstream " + provider_group(request.url), elapsed=time.monotonic() - started,
+                       status=status, sent=sent, received=received)
 
 
 def copy_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -82,7 +113,9 @@ def cached_price_history(symbol: str, period: str, interval: str) -> list[dict[s
     with _CACHE_LOCK:
         cached = PRICE_HISTORY_CACHE.get(key)
         if cached and now - cached[0] < ttl:
+            METRICS.record("Cache price history", hit=True)
             return copy_rows(cached[1])
+    METRICS.record("Cache price history", hit=False)
     rows = _ORIGINAL_FETCH_PRICE_HISTORY(symbol, period, interval)
     with _CACHE_LOCK:
         PRICE_HISTORY_CACHE[key] = (now, copy_rows(rows))
@@ -115,13 +148,14 @@ def cached_macro_snapshot() -> dict[str, Any]:
 
 
 requests.get = bandwidth_cached_get
+requests.Session.send = measured_session_send
 base.requests.get = bandwidth_cached_get
 base.fetch_price_history = cached_price_history
 base.fetch_news = cached_fetch_news
 base.fetch_macro_snapshot = cached_macro_snapshot
 
 NEUTRAL_NEWS: dict[str, Any] = {
-    "query": "intraday-fast-mode",
+    "query": "technical-only",
     "label": "neutral",
     "score": 0,
     "positive": 0,
@@ -133,7 +167,7 @@ NEUTRAL_EVENT_CONTEXT: dict[str, Any] = {
     "risk_points": 0,
     "confidence_penalty": 0,
     "direction_edge": 0,
-    "summary": "Intraday fast mode skips slow earnings and macro lookups.",
+    "summary": "News, earnings and macro lookups are not loaded in technical-only analysis.",
     "flags": [],
     "earnings": [],
     "macro": [],
@@ -170,10 +204,15 @@ def version() -> dict[str, Any]:
         "ok": True,
         "app": "OpenKiri",
         "entry": "openkiri_live",
-        "commit_marker": "human-centered-workspace-20261010.1",
+        "commit_marker": "data-observability-presets-20261011",
         "fast_intraday": True,
         "render_service": "stock-risk-radar",
     }
+
+
+@app.get("/api/diagnostics")
+def diagnostics() -> dict[str, Any]:
+    return METRICS.snapshot()
 
 
 @app.get("/api/tw/market-pulse")
@@ -210,17 +249,21 @@ def analyze(
     symbol: str = Query(..., min_length=1, max_length=32),
     period: str = Query("1y", pattern="^(1d|5d|1mo|6mo|1y|2y|5y)$"),
     interval: str = Query("1d", pattern="^(5m|15m|1h|1d|1wk)$"),
+    context: bool = Query(False),
 ) -> dict[str, Any]:
     period, interval = base.normalize_period_interval(period, interval)
     raw = symbol.strip().upper()
     normalized, market = base.normalize_symbol(raw)
     requested_period, requested_interval = period, interval
     fast_intraday = period in {"1d", "5d"} and interval in {"5m", "15m", "1h"}
-    cache_key = (normalized, period, interval)
+    include_context = context is True
+    cache_key = (normalized, period, interval, include_context)
     now = time.time()
     cached = ANALYZE_CACHE.get(cache_key)
     if cached and now - cached[0] < analyze_ttl(period, interval):
+        METRICS.record("Cache analysis", hit=True)
         return cached[1]
+    METRICS.record("Cache analysis", hit=False)
 
     rows: list[dict[str, Any]] = []
     resolved = normalized
@@ -239,7 +282,7 @@ def analyze(
     rows = base.calculate_indicators(rows)
     latest, previous = rows[-1], rows[-2]
     levels = base.support_resistance(rows)
-    if fast_intraday:
+    if not include_context:
         news = dict(NEUTRAL_NEWS)
         event_context = dict(NEUTRAL_EVENT_CONTEXT)
         macro = dict(NEUTRAL_MACRO)
@@ -253,12 +296,10 @@ def analyze(
     visible_rows = rows[-180:]
     chart_math = base.build_chart_math(visible_rows, latest, risk, prediction)
     design_signals = base.build_design_signals(resolved, market, rows, latest, levels, risk, prediction, news, macro)
-    universe_item = base.find_universe_item(resolved) or {"symbol": resolved, "name": resolved, "market": market, "industry": "Unknown", "market_cap_usd": 0}
-    if fast_intraday:
-        valuation = fast_valuation_placeholder(universe_item, market)
-    else:
-        valuation = base.stock_valuation_payload(universe_item, latest["close"])
-        valuation = improve_valuation_with_quote(resolved, market, valuation)
+    # Fundamentals load separately so an unavailable provider cannot block the chart.
+    valuation = empty_valuation(resolved, latest.get("_meta", {}).get("currency"))
+    chart_meta = provenance("Yahoo chart", latest.get("date"), latest.get("_meta", {}).get("fetched_at"),
+                            symbol=resolved, interval=interval, time_basis="bar_start", status="delayed_or_historical")
 
     response = {
         "ok": True,
@@ -271,6 +312,8 @@ def analyze(
         "requested_interval": requested_interval,
         "data_fallback": period != requested_period or interval != requested_interval,
         "fast_intraday": fast_intraday,
+        "analysis_scope": "technical_news_events" if include_context else "technical_only",
+        "provenance": {"chart": chart_meta, "price": chart_meta},
         "latest": {
             "date": latest["date_label"],
             "open": base.number(latest["open"]),
@@ -426,173 +469,10 @@ def history_variants(period: str, interval: str) -> list[tuple[str, str]]:
     return out
 
 
-def usd_twd_rate() -> float:
-    global USD_TWD_CACHE
-    now = time.time()
-    if USD_TWD_CACHE and now - USD_TWD_CACHE[0] < 1800:
-        return USD_TWD_CACHE[1]
-    rate = 31.8
-    try:
-        rate = float(base.quote_last("TWD=X").get("price") or rate)
-    except Exception:
-        pass
-    USD_TWD_CACHE = (now, rate)
-    return rate
-
-
-def fast_valuation_placeholder(item: dict[str, Any], market: str) -> dict[str, Any]:
-    cap_usd = base.optional_number((item or {}).get("market_cap_usd"), 0)
-    if not cap_usd:
-        return {"market_cap": None, "currency": "TWD" if market == "TW" else "USD", "fallback": True, "source": "fast placeholder"}
-    if market == "TW":
-        return {
-            "market_cap": int(cap_usd * 31.8),
-            "currency": "TWD",
-            "market_cap_usd": int(cap_usd),
-            "fallback": True,
-            "source": "fast built-in estimate; Google Finance quote refresh follows",
-        }
-    return {
-        "market_cap": int(cap_usd),
-        "currency": "USD",
-        "market_cap_usd": int(cap_usd),
-        "fallback": True,
-        "source": "fast built-in estimate; Google Finance quote refresh follows",
-    }
-
-
-def market_cap_fallback(symbol: str, market: str, live_price: float | None, currency: str | None) -> tuple[int | None, str | None, float | None, str | None, dict[str, Any]]:
-    valuation: dict[str, Any] = {}
-    try:
-        valuation = base.fetch_yahoo_valuation(symbol)
-    except Exception:
-        valuation = {}
-
-    resolved_currency = str(valuation.get("currency") or currency or ("TWD" if market == "TW" else "USD")).upper()
-    cap = base.optional_number(valuation.get("market_cap"), 0)
-    shares = base.optional_number(valuation.get("shares_outstanding"), 0)
-    if not cap and shares and live_price:
-        cap = shares * live_price
-    if cap:
-        return int(cap), resolved_currency, shares, valuation.get("source") or "Yahoo valuation fallback", valuation
-
-    item = base.find_universe_item(symbol)
-    cap_usd = base.optional_number((item or {}).get("market_cap_usd"), 0)
-    if cap_usd:
-        if market == "TW" or resolved_currency == "TWD":
-            return int(cap_usd * usd_twd_rate()), "TWD", shares, "built-in USD estimate converted to TWD", valuation
-        return int(cap_usd), "USD", shares, "built-in USD estimate", valuation
-
-    return None, resolved_currency, shares, valuation.get("source"), valuation
-
-
-def compact_amount(value: str | None) -> float | None:
-    if not value:
-        return None
-    text = value.strip().upper().replace(",", "")
-    multiplier = 1
-    if text[-1:] in {"K", "M", "B", "T"}:
-        multiplier = {"K": 1_000, "M": 1_000_000, "B": 1_000_000_000, "T": 1_000_000_000_000}[text[-1]]
-        text = text[:-1]
-    text = re.sub(r"[^0-9.\-]", "", text)
-    if not text:
-        return None
-    try:
-        return float(text) * multiplier
-    except ValueError:
-        return None
-
-
-def google_finance_codes(symbol: str, market: str) -> list[tuple[str, str]]:
-    plain = symbol.upper().replace(".TW", "").replace(".TWO", "")
-    if market == "TW" or symbol.upper().endswith((".TW", ".TWO")) or plain.isdigit():
-        if symbol.upper().endswith(".TWO"):
-            return [(f"{plain}:TWO", "TWO")]
-        if symbol.upper().endswith(".TW"):
-            return [(f"{plain}:TPE", "TPE")]
-        return [(f"{plain}:TPE", "TPE"), (f"{plain}:TWO", "TWO")]
-    return [(f"{plain}:NASDAQ", "NASDAQ"), (f"{plain}:NYSE", "NYSE"), (f"{plain}:NYSEARCA", "NYSEARCA")]
-
-
-def clean_google_text(html: str) -> str:
-    text = re.sub(r"<script\b[^>]*>.*?</script>", " ", html, flags=re.I | re.S)
-    text = re.sub(r"<style\b[^>]*>.*?</style>", " ", text, flags=re.I | re.S)
-    text = re.sub(r"<[^>]+>", " ", text)
-    return re.sub(r"\s+", " ", unescape(text))
-
-
-def google_money(pattern: str, text: str) -> float | None:
-    match = re.search(pattern, text)
-    if not match:
-        return None
-    return compact_amount("".join(group or "" for group in match.groups()))
-
-
-def fetch_google_finance_snapshot(symbol: str, market: str) -> dict[str, Any]:
-    cache_key = (symbol.upper(), market)
-    now = time.time()
-    cached = GOOGLE_FINANCE_CACHE.get(cache_key)
-    if cached and now - cached[0] < 300:
-        return cached[1]
-
-    for code, exchange in google_finance_codes(symbol, market):
-        try:
-            url = f"https://www.google.com/finance/quote/{code}"
-            resp = requests.get(
-                url,
-                headers={"User-Agent": "Mozilla/5.0 OpenKiri/4.9"},
-                timeout=4,
-            )
-            resp.raise_for_status()
-            text = clean_google_text(resp.text)
-            pos = text.find(code)
-            if pos < 0:
-                continue
-            snippet = text[pos : pos + 2400]
-            if "arrow_" not in snippet or "Mkt. cap" not in snippet:
-                continue
-
-            price_match = re.search(r"((?:NT\$|\$)[0-9][0-9,.]*)\s+arrow_(upward|downward)", snippet)
-            price = compact_amount(price_match.group(1)) if price_match else None
-            direction = price_match.group(2) if price_match else ""
-            pct_match = re.search(r"arrow_(?:upward|downward)\s+([+\-]?[0-9,.]+)%", snippet)
-            change_pct = compact_amount(pct_match.group(1)) if pct_match else None
-            if change_pct is not None and direction == "downward" and change_pct > 0:
-                change_pct *= -1
-
-            payload = {
-                "symbol": symbol.upper(),
-                "google_code": code,
-                "currency": "TWD" if " TWD " in snippet or code.endswith(":TPE") or code.endswith(":TWO") else "USD",
-                "price": price,
-                "open": google_money(r"Open\s+((?:NT\$|\$)[0-9][0-9,.]*)", snippet),
-                "high": google_money(r"High\s+((?:NT\$|\$)[0-9][0-9,.]*)", snippet),
-                "low": google_money(r"Low\s+((?:NT\$|\$)[0-9][0-9,.]*)", snippet),
-                "change_pct": change_pct,
-                "market_cap": compact_amount((re.search(r"Mkt\. cap\s+([0-9][0-9,.]*[KMBT]?)", snippet) or [None, None])[1]),
-                "volume": compact_amount((re.search(r"Volume\s+([0-9][0-9,.]*[KMBT]?)", snippet) or [None, None])[1]),
-                "shares_outstanding": compact_amount((re.search(r"Shares outstanding\s+([0-9][0-9,.]*[KMBT]?)", snippet) or [None, None])[1]),
-                "trailing_pe": compact_amount((re.search(r"P/E ratio\s+([0-9][0-9,.]*)", snippet) or [None, None])[1]),
-                "source": "Google Finance",
-                "source_url": url,
-            }
-            GOOGLE_FINANCE_CACHE[cache_key] = (now, payload)
-            cache_prune(GOOGLE_FINANCE_CACHE, 256)
-            return payload
-        except Exception:
-            continue
-
-    GOOGLE_FINANCE_CACHE[cache_key] = (now, {})
-    cache_prune(GOOGLE_FINANCE_CACHE, 256)
-    return {}
-
-
 def same_resolved_symbol(left: str | None, right: str | None) -> bool:
     if not left or not right:
         return False
-    left_norm, _ = base.normalize_symbol(str(left))
-    right_norm, _ = base.normalize_symbol(str(right))
-    return left_norm == right_norm
+    return base.normalize_symbol(str(left))[0] == base.normalize_symbol(str(right))[0]
 
 
 def fetch_yahoo_quote_snapshot(symbol: str) -> dict[str, Any]:
@@ -600,191 +480,84 @@ def fetch_yahoo_quote_snapshot(symbol: str) -> dict[str, Any]:
         resp = requests.get(
             "https://query1.finance.yahoo.com/v7/finance/quote",
             params={"symbols": symbol, "formatted": "false"},
-            headers={"User-Agent": "Mozilla/5.0 OpenKiri/4.8"},
-            timeout=8,
+            headers={"User-Agent": "Mozilla/5.0 OpenKiri/5.0"}, timeout=4,
         )
         resp.raise_for_status()
-        row = ((resp.json().get("quoteResponse") or {}).get("result") or [None])[0] or {}
+        rows = (resp.json().get("quoteResponse") or {}).get("result") or []
+        row = next((row for row in rows if same_resolved_symbol(row.get("symbol"), symbol)), None)
         if not row:
             return {}
-        returned_symbol = row.get("symbol") or symbol
-        if not same_resolved_symbol(returned_symbol, symbol):
-            return {}
-        ts = row.get("regularMarketTime")
-        date_text = ""
-        if ts:
-            try:
-                date_text = datetime.fromtimestamp(int(ts), timezone.utc).strftime("%Y-%m-%d %H:%M")
-            except Exception:
-                date_text = ""
-        return {
-            "symbol": row.get("symbol") or symbol,
-            "currency": row.get("currency"),
-            "price": base.optional_number(row.get("regularMarketPrice")),
-            "open": base.optional_number(row.get("regularMarketOpen")),
-            "high": base.optional_number(row.get("regularMarketDayHigh")),
-            "low": base.optional_number(row.get("regularMarketDayLow")),
-            "change": base.optional_number(row.get("regularMarketChange")),
-            "change_pct": base.optional_number(row.get("regularMarketChangePercent")),
-            "volume": base.optional_number(row.get("regularMarketVolume")),
-            "market_cap": base.optional_number(row.get("marketCap"), 0),
-            "shares_outstanding": base.optional_number(row.get("sharesOutstanding")) or base.optional_number(row.get("impliedSharesOutstanding")),
-            "trailing_pe": base.optional_number(row.get("trailingPE")),
-            "forward_pe": base.optional_number(row.get("forwardPE")),
-            "date": date_text,
-            "market_state": row.get("marketState"),
-            "source": "Yahoo quote",
-        }
-    except Exception:
+        snapshot = {key: finite(row.get(field)) for key, field in {
+            "price": "regularMarketPrice", "open": "regularMarketOpen",
+            "high": "regularMarketDayHigh", "low": "regularMarketDayLow",
+            "change": "regularMarketChange", "change_pct": "regularMarketChangePercent",
+            "volume": "regularMarketVolume", "market_cap": "marketCap",
+            "shares_outstanding": "sharesOutstanding", "trailing_pe": "trailingPE", "forward_pe": "forwardPE",
+        }.items()}
+        snapshot.update(provenance("Yahoo quote", row.get("regularMarketTime"),
+                                   getattr(resp, "openkiri_fetched_at", None)))
+        snapshot.update({"symbol": row["symbol"], "currency": row.get("currency"),
+                         "market_state": row.get("marketState"), "date": snapshot["as_of"]})
+        return snapshot
+    except (requests.RequestException, ValueError, TypeError, KeyError):
         return {}
 
 
 def latest_quote_payload(symbol: str) -> dict[str, Any]:
     raw = symbol.strip().upper()
     normalized, market = base.normalize_symbol(raw)
-    cache_key = (normalized,)
-    now = time.time()
-    cached = base.QUOTE_CACHE.get(cache_key)
-    if cached and now - cached[0] < 30:
-        return cached[1]
-
-    tried: list[str] = []
-    for candidate in base.candidate_symbols(normalized, raw):
-        tried.append(candidate)
-        snapshot = fetch_yahoo_quote_snapshot(candidate)
-        google_snapshot = fetch_google_finance_snapshot(candidate, market)
-        fast_price = base.optional_number((snapshot or {}).get("price"))
-        fast_source = "Yahoo quote"
-        if fast_price is None:
-            fast_price = base.optional_number(google_snapshot.get("price"))
-            fast_source = "Google Finance"
-        if fast_price is not None and google_snapshot.get("market_cap"):
-            fast_change_pct = base.optional_number((snapshot or {}).get("change_pct"))
-            if fast_change_pct is None:
-                fast_change_pct = base.optional_number(google_snapshot.get("change_pct")) or 0
-            previous_price = fast_price / (1 + fast_change_pct / 100) if fast_change_pct > -99 else fast_price
-            fast_change = (base.optional_number((snapshot or {}).get("change")) if snapshot else None)
-            if fast_change is None:
-                fast_change = fast_price - previous_price
-            live_market_cap = base.optional_number((snapshot or {}).get("market_cap"), 0) or base.optional_number(google_snapshot.get("market_cap"), 0)
-            cap_previous = int(live_market_cap / (1 + fast_change_pct / 100)) if live_market_cap and fast_change_pct > -99 else None
+    key = (normalized,)
+    with _QUOTE_LOCKS[hash(key) % len(_QUOTE_LOCKS)]:
+        cached = base.QUOTE_CACHE.get(key)
+        if cached and time.time() - cached[0] < 45:
+            METRICS.record("Cache quote payload", hit=True)
+            return cached[1]
+        METRICS.record("Cache quote payload", hit=False)
+        for candidate in base.candidate_symbols(normalized, raw):
+            snapshot = fetch_yahoo_quote_snapshot(candidate)
+            fallback = False
+            if not finite(snapshot.get("price"), positive=True):
+                rows = base.fetch_price_history(candidate, "1d", "1m")
+                interval = "1m"
+                if not rows:
+                    rows = base.fetch_price_history(candidate, "5d", "1d")
+                    interval, fallback = "1d", True
+                if not rows:
+                    continue
+                latest = rows[-1]
+                meta = latest.get("_meta", {})
+                price, timestamp = latest["close"], latest["date"]
+                meta_price = finite(meta.get("regularMarketPrice"), positive=True)
+                meta_time = finite(meta.get("regularMarketTime"))
+                if meta_price and meta_time and meta_time >= latest["date"].timestamp():
+                    price, timestamp = meta_price, meta_time
+                previous = finite(meta.get("chartPreviousClose"), positive=True) if interval == "1m" else (
+                    rows[-2]["close"] if len(rows) > 1 else None)
+                snapshot = provenance("Yahoo chart", timestamp, meta.get("fetched_at"),
+                                      status="delayed_or_historical", interval=interval)
+                snapshot.update({"symbol": candidate, "price": price, "currency": meta.get("currency"),
+                                 "open": rows[0]["open"] if interval == "1m" else latest["open"],
+                                 "high": max(r["high"] for r in rows) if interval == "1m" else latest["high"],
+                                 "low": min(r["low"] for r in rows) if interval == "1m" else latest["low"],
+                                 "volume": sum(r["volume"] for r in rows) if interval == "1m" else latest["volume"],
+                                 "change": price - previous if previous else None,
+                                 "change_pct": (price / previous - 1) * 100 if previous else None})
+            valuation = valuation_from_snapshot(candidate, snapshot)
             payload = {
-                "ok": True,
-                "symbol": candidate,
-                "input_symbol": raw,
-                "market": market,
-                "date": datetime.now(timezone.utc).isoformat(timespec="minutes"),
-                "price": base.number(fast_price),
-                "open": base.number(google_snapshot.get("open") or (snapshot or {}).get("open") or fast_price),
-                "high": base.number(google_snapshot.get("high") or (snapshot or {}).get("high") or fast_price),
-                "low": base.number(google_snapshot.get("low") or (snapshot or {}).get("low") or fast_price),
-                "change": base.number(fast_change),
-                "change_pct": base.number(fast_change_pct),
-                "volume": int(google_snapshot.get("volume") or (snapshot or {}).get("volume") or 0),
-                "volume_ratio": 1,
-                "currency": (snapshot or {}).get("currency") or google_snapshot.get("currency") or ("TWD" if market == "TW" else "USD"),
-                "market_cap": int(live_market_cap) if live_market_cap else None,
-                "market_cap_previous": cap_previous,
-                "market_cap_change_pct": base.number(fast_change_pct),
-                "shares_outstanding": (snapshot or {}).get("shares_outstanding") or google_snapshot.get("shares_outstanding"),
-                "trailing_pe": (snapshot or {}).get("trailing_pe") or google_snapshot.get("trailing_pe"),
-                "forward_pe": (snapshot or {}).get("forward_pe"),
-                "source": fast_source if fast_source == "Google Finance" else "Yahoo quote + Google Finance",
-                "fallback": False,
-                "data_warning": "Quote is optimized for low latency; chart bars are loaded by /api/analyze.",
+                "ok": True, "symbol": candidate, "input_symbol": raw, "market": market,
+                **{key: snapshot.get(key) for key in ("price", "open", "high", "low", "change", "change_pct", "volume", "currency", "market_state")},
+                "date": snapshot.get("as_of"), "source": snapshot.get("source"),
+                "as_of": snapshot.get("as_of"), "fetched_at": snapshot.get("fetched_at"),
+                "provenance": {"price": provenance(snapshot.get("source"), snapshot.get("as_of"), snapshot.get("fetched_at"),
+                                                   status="delayed_or_historical")},
+                "valuation": valuation, "volume_ratio": None, "fallback": fallback,
+                "data_warning": "Provider data may be delayed; fetched_at is not the trade time.",
+                **{key: valuation.get(key) for key in ("market_cap", "market_cap_previous", "market_cap_change_pct", "trailing_pe", "forward_pe")},
             }
-            base.QUOTE_CACHE[cache_key] = (now, payload)
+            base.QUOTE_CACHE[key] = (time.time(), payload)
             cache_prune(base.QUOTE_CACHE, 256)
             return payload
-        intraday_rows = base.fetch_price_history(candidate, "1d", "1m")
-        source = "1d/1m"
-        if not intraday_rows:
-            intraday_rows = base.fetch_price_history(candidate, "1d", "5m")
-            source = "1d/5m fallback"
-        daily_rows = base.fetch_price_history(candidate, "5d", "1d")
-        rows = intraday_rows or daily_rows
-        if not rows:
-            if not snapshot:
-                continue
-            rows = [{
-                "date": datetime.now(timezone.utc),
-                "date_label": snapshot.get("date") or datetime.now(timezone.utc).isoformat(timespec="minutes"),
-                "open": snapshot.get("open") or snapshot.get("price") or 0,
-                "high": snapshot.get("high") or snapshot.get("price") or 0,
-                "low": snapshot.get("low") or snapshot.get("price") or 0,
-                "close": snapshot.get("price") or 0,
-                "volume": snapshot.get("volume") or 0,
-            }]
-        latest = rows[-1]
-        previous_close = daily_rows[-2]["close"] if len(daily_rows) >= 2 else rows[-2]["close"] if len(rows) >= 2 else rows[0]["open"]
-        live_price = base.optional_number(snapshot.get("price")) if snapshot else None
-        if live_price is None:
-            live_price = base.optional_number(google_snapshot.get("price")) if google_snapshot else None
-        live_change = base.optional_number(snapshot.get("change")) if snapshot else None
-        live_change_pct = base.optional_number(snapshot.get("change_pct")) if snapshot else None
-        if live_change_pct is None:
-            live_change_pct = base.optional_number(google_snapshot.get("change_pct")) if google_snapshot else None
-        live_market_cap = base.optional_number(snapshot.get("market_cap"), 0) if snapshot else None
-        if not live_market_cap:
-            live_market_cap = base.optional_number(google_snapshot.get("market_cap"), 0) if google_snapshot else None
-        shares = base.optional_number(snapshot.get("shares_outstanding"), 0) if snapshot else None
-        shares = shares or (base.optional_number(google_snapshot.get("shares_outstanding"), 0) if google_snapshot else None)
-        if not live_market_cap and shares and live_price:
-            live_market_cap = shares * live_price
-        currency = (snapshot.get("currency") if snapshot else None) or google_snapshot.get("currency") or ("TWD" if market == "TW" else "USD")
-        cap_source = "Google Finance" if google_snapshot.get("market_cap") else None
-        valuation_fallback: dict[str, Any] = {}
-        if not live_market_cap:
-            cap, cap_currency, fallback_shares, cap_source, valuation_fallback = market_cap_fallback(candidate, market, live_price, currency)
-            live_market_cap = cap
-            currency = cap_currency or currency
-            shares = shares or fallback_shares
-        if live_price:
-            latest["close"] = live_price
-        if google_snapshot:
-            latest["open"] = google_snapshot.get("open") or latest["open"]
-            latest["high"] = google_snapshot.get("high") or latest["high"]
-            latest["low"] = google_snapshot.get("low") or latest["low"]
-            latest["volume"] = google_snapshot.get("volume") or latest["volume"]
-        change = live_change if live_change is not None else latest["close"] - previous_close if previous_close else 0
-        change_pct = live_change_pct if live_change_pct is not None else (latest["close"] / previous_close - 1) * 100 if previous_close else 0
-        avg_volume = base.mean([row["volume"] for row in rows[-20:-1] if row.get("volume") is not None]) if len(rows) >= 2 else 0
-        volume_ratio = latest["volume"] / avg_volume if avg_volume else 1
-        cap_previous = int(live_market_cap / (1 + change_pct / 100)) if live_market_cap and change_pct > -99 else None
-        source_label = "Yahoo quote live + " + (source if intraday_rows else "5d/1d fallback") if snapshot else source if intraday_rows else "5d/1d fallback"
-        if google_snapshot and "Google Finance" not in source_label:
-            source_label += " + Google Finance"
-        if cap_source and cap_source not in source_label:
-            source_label += f" + {cap_source}"
-        payload = {
-            "ok": True,
-            "symbol": candidate,
-            "input_symbol": raw,
-            "market": market,
-            "date": latest["date_label"],
-            "price": base.number(latest["close"]),
-            "open": base.number(latest["open"]),
-            "high": base.number(latest["high"]),
-            "low": base.number(latest["low"]),
-            "change": base.number(change),
-            "change_pct": base.number(change_pct),
-            "volume": int(latest["volume"] or 0),
-            "volume_ratio": base.number(volume_ratio),
-            "currency": currency,
-            "market_cap": int(live_market_cap) if live_market_cap else None,
-            "market_cap_previous": cap_previous,
-            "market_cap_change_pct": base.number(change_pct),
-            "shares_outstanding": shares,
-            "trailing_pe": (snapshot or {}).get("trailing_pe") or google_snapshot.get("trailing_pe") or valuation_fallback.get("trailing_pe"),
-            "forward_pe": (snapshot or {}).get("forward_pe") or valuation_fallback.get("forward_pe"),
-            "source": source_label,
-            "fallback": (not intraday_rows) or "fallback" in source,
-            "data_warning": "Yahoo quote/chart data can be delayed; live 5m falls back to 5d/1d when intraday bars are unavailable.",
-        }
-        base.QUOTE_CACHE[cache_key] = (now, payload)
-        cache_prune(base.QUOTE_CACHE, 256)
-        return payload
-    raise HTTPException(status_code=404, detail=f"No quote data found for {', '.join(tried) or raw}.")
+    raise HTTPException(status_code=404, detail=f"No verified quote data for {raw}.")
 
 
 @app.get("/api/quote")
@@ -792,41 +565,49 @@ def quote_query(symbol: str = Query(..., min_length=1, max_length=32)) -> dict[s
     return latest_quote_payload(symbol)
 
 
-def improve_valuation_with_quote(symbol: str, market: str, valuation: dict[str, Any], allow_google: bool = True) -> dict[str, Any]:
-    quote = fetch_yahoo_quote_snapshot(symbol)
-    google_quote = fetch_google_finance_snapshot(symbol, market) if allow_google else {}
-    live_price = quote.get("price") or google_quote.get("price") or valuation.get("price")
-    currency = quote.get("currency") or google_quote.get("currency") or valuation.get("currency") or ("TWD" if market == "TW" else "USD")
-    cap = base.optional_number(quote.get("market_cap"), 0)
-    cap_source = "Yahoo quote live" if cap else None
-    if not cap:
-        cap = base.optional_number(google_quote.get("market_cap"), 0)
-        cap_source = "Google Finance" if cap else None
-    shares = base.optional_number(quote.get("shares_outstanding"), 0)
-    shares = shares or base.optional_number(google_quote.get("shares_outstanding"), 0)
-    fallback: dict[str, Any] = {}
-    if not cap:
-        cap, fallback_currency, fallback_shares, cap_source, fallback = market_cap_fallback(symbol, market, live_price, currency)
-        currency = fallback_currency or currency
-        shares = shares or fallback_shares
-    if not cap:
-        return valuation
-    pct = quote.get("change_pct")
-    if pct is None:
-        pct = google_quote.get("change_pct")
-    cap = int(cap)
-    valuation = dict(valuation)
-    valuation.update({
-        "market_cap": cap,
-        "currency": currency,
-        "market_cap_previous": int(cap / (1 + pct / 100)) if pct is not None and pct > -99 else None,
-        "market_cap_change_pct": base.number(pct) if pct is not None else None,
-        "shares_outstanding": shares,
-        "trailing_pe": quote.get("trailing_pe") or google_quote.get("trailing_pe") or fallback.get("trailing_pe") or valuation.get("trailing_pe"),
-        "forward_pe": quote.get("forward_pe") or fallback.get("forward_pe") or valuation.get("forward_pe"),
-        "source": cap_source or valuation.get("source"),
-    })
-    return valuation
+def verified_valuation(symbol: str) -> dict[str, Any]:
+    normalized, market = base.normalize_symbol(symbol)
+    with _VALUATION_LOCKS[hash(normalized) % len(_VALUATION_LOCKS)]:
+        cached = VALUATION_CACHE.get(normalized)
+        if cached and time.time() - cached[0] < 900:
+            METRICS.record("Cache valuation", hit=True)
+            return dict(cached[1])
+        METRICS.record("Cache valuation", hit=False)
+        quote = fetch_yahoo_quote_snapshot(normalized)
+        payload = valuation_from_snapshot(normalized, quote)
+        if payload["status"] == "unavailable":
+            summary = base.yahoo_quote_summary(normalized, "price,summaryDetail,defaultKeyStatistics")
+            payload = valuation_from_summary(normalized, summary, time.time())
+        payload["fetched_at"] = payload.get("fetched_at") or iso_time(time.time())
+        VALUATION_CACHE[normalized] = (time.time(), payload)
+        cache_prune(VALUATION_CACHE, 256)
+        return dict(payload)
+
+
+@app.get("/api/valuation")
+def valuation_query(symbol: str = Query(..., min_length=1, max_length=32)) -> dict[str, Any]:
+    payload = verified_valuation(symbol)
+    return {"ok": True, "symbol": payload["symbol"], "valuation": payload}
+
+
+def verified_stock_valuation(item: dict[str, Any], latest_price: float) -> dict[str, Any]:
+    payload = verified_valuation(item["symbol"])
+    cap = payload.get("market_cap")
+    payload["market_cap_usd"] = int(cap) if cap and payload.get("currency") == "USD" else 0
+    if cap and payload.get("currency") == "TWD":
+        fx = base.fetch_price_history("TWD=X", "5d", "1d")
+        rate = finite(fx[-1]["close"], positive=True) if fx else None
+        if rate:
+            payload["market_cap_usd"] = int(cap / rate)
+            payload["fx_as_of"] = iso_time(fx[-1]["date"])
+    return payload
+
+
+# Legacy screeners and T+0 routes share the same identity/provenance contract.
+base.latest_quote_payload = latest_quote_payload
+base.fetch_yahoo_quote_snapshot = fetch_yahoo_quote_snapshot
+base.fetch_yahoo_valuation = verified_valuation
+base.stock_valuation_payload = verified_stock_valuation
 
 
 def daytrade_mover_score(row: dict[str, Any]) -> float:
